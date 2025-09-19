@@ -1,0 +1,38 @@
+<Project>
+  <PropertyGroup>
+    <FSharpShimsEnabled Condition="'$(FSharpShimsEnabled)'==''">true</FSharpShimsEnabled>
+    <FSharpShimsOutDir Condition="'$(FSharpShimsOutDir)'==''">$(MSBuildProjectDirectory)\Scripts\Generated</FSharpShimsOutDir>
+  </PropertyGroup>
+
+  <!-- Include shims at evaluation so they are compiled -->
+  <ItemGroup Condition="'$(FSharpShimsEnabled)'=='true'">
+    <Compile Include="$(FSharpShimsOutDir)\**\*.cs" />
+  </ItemGroup>
+
+  <Target Name="GenerateFSharpShims"
+          BeforeTargets="CoreCompile"
+          DependsOnTargets="ResolveReferences"
+          Condition="'$(FSharpShimsEnabled)'=='true'">
+
+    <ItemGroup>
+      <!-- Find referenced F# projects via OriginalItemSpec ending with .fsproj -->
+      <_FsProjRefs Include="@(ProjectReferenceWithTargetPath)"
+                   Condition="$([System.String]::Copy('%(ProjectReferenceWithTargetPath.OriginalItemSpec)').ToLowerInvariant().EndsWith('.fsproj'))" />
+    </ItemGroup>
+
+    <PropertyGroup>
+      <ShimOutDir>$(FSharpShimsOutDir)</ShimOutDir>
+      <!-- ShimGen is packaged under lib/{tfm}; keep tfm aligned with consumer project (Godot 4.5 uses net8.0) -->
+      <ShimGenDll>$(MSBuildThisFileDirectory)..\lib\$(TargetFramework)\ShimGen.dll</ShimGenDll>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(ShimOutDir)" />
+
+    <!-- Execute ShimGen once per referenced F# project -->
+    <Message Importance="Low" Text="ShimGen scanning @( _FsProjRefs->'%(OriginalItemSpec) | %(_FsProjRefs.TargetPath)', ', ')" />
+    <Exec Command="dotnet &quot;$(ShimGenDll)&quot; &quot;%(_FsProjRefs.TargetPath)&quot; &quot;$(ShimOutDir)&quot;"
+          StandardOutputImportance="Low"
+          StandardErrorImportance="High"
+          Condition=" '@(_FsProjRefs)' != '' " />
+  </Target>
+</Project>

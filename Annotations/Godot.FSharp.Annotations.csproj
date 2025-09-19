@@ -3,5 +3,18 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>Godot.FSharp.Annotations</PackageId>
+    <Title>Godot.FSharp.Annotations</Title>
+    <Description>Annotations for F# to drive Godot shim generation. Provides [GodotScript] attribute.</Description>
+    <Authors>YourName</Authors>
+    <RepositoryUrl>https://github.com/your-org/fsharp-with-shim</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
 </Project>
