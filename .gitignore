@@ -1,3 +1,66 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# ==============================
+# .NET / C# / F# common ignores
+# ==============================
+
+# Build results
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Rr]elease*/
+[Dd]ebug*/
+TestResults/
+
+# IDEs and tooling
+.vs/
+.vscode/
+.idea/
+.fleet/
+*.sln.iml
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.rsuser
+*.DotSettings.user
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+**/packages/*
+!**/packages/build/
+
+# Coverage / test artifacts
+*.coverage
+*.coveragexml
+coverage/
+
+# ReSharper / Rider
+_ReSharper*/
+
+# NCrunch
+_NCrunch_*/
+.*crunch*.local.xml
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+
+# Azure / Functions local settings (uncomment if used)
+# local.settings.json
+
+# F# specific (Ionide, FAKE, Paket)
+.ionide/
+.fake/
+.paket/
+paket-files/
+
+# Misc
+*.bak
+*.orig
+*.tmp

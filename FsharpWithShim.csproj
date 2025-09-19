@@ -2,25 +2,71 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
+    <!-- Avoid picking up C# files from nested projects like ShimGen/Annotations -->
+    <EnableDefaultItems>false</EnableDefaultItems>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="FSharp\MyGame.FSharp.fsproj" />
+    <!-- Keep paths EXACTLY as they are on disk -->
     <ProjectReference Include="Annotations\Godot.FSharp.Annotations.csproj" />
-    <ProjectReference Include="ShimGen\ShimGen.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="FSharp\FsharpWithShim.FSharp.fsproj" />
+    <ProjectReference Include="ShimGen\ShimGen.csproj" />
+  </ItemGroup>
+
+  <!-- Help IDE design-time resolve F# types (some C# tooling cannot follow F# ProjectReference). -->
+  <ItemGroup Condition="'$(DesignTimeBuild)' == 'true'">
+    <Reference Include="FsharpWithShim.FSharp" Condition="Exists('$(MSBuildProjectDirectory)\FSharp\bin\$(Configuration)\$(TargetFramework)\FsharpWithShim.FSharp.dll')">
+      <HintPath>$(MSBuildProjectDirectory)\FSharp\bin\$(Configuration)\$(TargetFramework)\FsharpWithShim.FSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Explicitly include only our gameplay source trees at evaluation time -->
+  <ItemGroup>
+    <Compile Include="Scenes\**\*.cs" />
+    <Compile Include="Scripts\**\*.cs" Exclude="Scripts\Generated\**\*.cs" />
+    <Compile Include="$(MSBuildProjectDirectory)\Scripts\Generated\**\*.cs" />
   </ItemGroup>
 
   <Target Name="GenerateFSharpShims"
-          BeforeTargets="CoreCompile"
-          DependsOnTargets="Build">
-    <PropertyGroup>
-      <FSharpDll>$(MSBuildProjectDirectory)\FSharp\bin\$(Configuration)\net8.0\MyGame.FSharp.dll</FSharpDll>
-      <ShimOutDir>$(MSBuildProjectDirectory)\Scripts\Generated</ShimOutDir>
-    </PropertyGroup>
-    <MakeDir Directories="$(ShimOutDir)" />
-    <Exec Command="&quot;$(MSBuildProjectDirectory)\ShimGen\bin\$(Configuration)\net8.0\ShimGen.exe&quot; &quot;$(FSharpDll)&quot; &quot;$(ShimOutDir)&quot;" />
-    <ItemGroup>
-      <Compile Include="$(ShimOutDir)\**\*.cs" />
-    </ItemGroup>
-  </Target>
+        BeforeTargets="CoreCompile"
+        DependsOnTargets="ResolveReferences">
+
+  <ItemGroup>
+    <_FSharpRef Include="@(ProjectReferenceWithTargetPath)"
+                Condition="$([System.String]::Copy('%(ProjectReferenceWithTargetPath.OriginalItemSpec)').ToLowerInvariant().EndsWith('fsharpwithshim.fsharp.fsproj'))" />
+    <_ShimGenRef Include="@(ProjectReferenceWithTargetPath)"
+                 Condition="$([System.String]::Copy('%(ProjectReferenceWithTargetPath.OriginalItemSpec)').ToLowerInvariant().EndsWith('shimgen.csproj'))" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <ShimOutDir>$(MSBuildProjectDirectory)\Scripts\Generated</ShimOutDir>
+    <FSharpDll>%(_FSharpRef.TargetPath)</FSharpDll>
+    <ShimGenDll>%(_ShimGenRef.TargetPath)</ShimGenDll>
+    <ShimGenExe>$([System.IO.Path]::ChangeExtension('$(ShimGenDll)', '.exe'))</ShimGenExe>
+    <!-- Fallbacks if metadata-based resolution fails -->
+    <FSharpDll Condition="'$(FSharpDll)'==''">$(MSBuildProjectDirectory)\FSharp\bin\$(Configuration)\$(TargetFramework)\FsharpWithShim.FSharp.dll</FSharpDll>
+    <ShimGenDll Condition="'$(ShimGenDll)'==''">$(MSBuildProjectDirectory)\ShimGen\bin\$(Configuration)\$(TargetFramework)\ShimGen.dll</ShimGenDll>
+    <ShimGenExe Condition="'$(ShimGenExe)'==''">$([System.IO.Path]::ChangeExtension('$(ShimGenDll)', '.exe'))</ShimGenExe>
+  </PropertyGroup>
+
+  <Message Importance="High" Text="Resolved FSharpDll=$(FSharpDll)" />
+  <Message Importance="High" Text="Resolved ShimGenDll=$(ShimGenDll)" />
+  <Message Importance="High" Text="Resolved ShimGenExe=$(ShimGenExe)" />
+  <Message Importance="High"  Text="Refs:
+@(ProjectReferenceWithTargetPath->'%(OriginalItemSpec) | %(TargetPath)', '
+')" />
+
+  <Error Condition="'$(FSharpDll)'==''" Text="Could not resolve F# TargetPath even after fallback. Check project paths or build order." />
+  <Error Condition="'$(ShimGenDll)'==''" Text="Could not resolve ShimGen TargetPath even after fallback. Check project paths or build order." />
+
+  <MakeDir Directories="$(ShimOutDir)" />
+
+  <!-- Prefer EXE if it exists; else run the DLL via dotnet -->
+  <Exec Condition="Exists('$(ShimGenExe)')"
+        Command="&quot;$(ShimGenExe)&quot; &quot;$(FSharpDll)&quot; &quot;$(ShimOutDir)&quot;" />
+  <Exec Condition="!Exists('$(ShimGenExe)')"
+        Command="dotnet &quot;$(ShimGenDll)&quot; &quot;$(FSharpDll)&quot; &quot;$(ShimOutDir)&quot;" />
+</Target>
+
 </Project>

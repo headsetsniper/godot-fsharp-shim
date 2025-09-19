@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Foo.fs" />
     <ProjectReference Include="..\Annotations\Godot.FSharp.Annotations.csproj" />
   </ItemGroup>
 </Project>
