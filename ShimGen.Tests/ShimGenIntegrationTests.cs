@@ -63,23 +63,49 @@ public class ShimGenIntegrationTests
     }
 
     [Test]
-    public void Generates_Foo_Shim_And_Compiles()
+    public void Emits_Class_And_BaseType()
     {
         // Arrange
-        var impl = BuildImplAssembly();
+        var impl = BuildImplAssembly(baseType: "Godot.Node2D");
         var outDir = RunShimGen(impl);
 
-        // Act: find Foo.cs
+        // Act
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(fooPath, Is.Not.Null, "Foo.cs not generated");
         var src = File.ReadAllText(fooPath!);
 
-        // Assert: basic content
-        StringAssert.Contains("public partial class Foo : Godot.Node2D", src);
+        // Assert
         StringAssert.Contains("[GlobalClass]", src);
+        StringAssert.Contains("public partial class Foo : Godot.Node2D", src);
+    }
+
+    [Test]
+    public void Forwards_Lifecycle_Ready_And_Process()
+    {
+        // Arrange
+        var impl = BuildImplAssembly();
+        var outDir = RunShimGen(impl);
+        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
+        var src = File.ReadAllText(fooPath);
+
+        // Assert forwarding methods exist
+        StringAssert.Contains("public override void _Ready() => _impl.Ready();", src);
+        StringAssert.Contains("public override void _Process(double delta) => _impl.Process(delta);", src);
+    }
+
+    [Test]
+    public void Exports_Primitive_Properties()
+    {
+        // Arrange
+        var impl = BuildImplAssembly();
+        var outDir = RunShimGen(impl);
+        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
+        var src = File.ReadAllText(fooPath);
+
+        // Assert primitive export exists
         StringAssert.Contains("[Export] public System.Int32 Speed", src);
 
-        // Compile the shim against stubs to ensure it’s valid C#
+        // And the shim compiles against stubs and the impl
         var stubsAsm = typeof(Godot.Node2D).Assembly;
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
         var shimDll = TestHelpers.CompileCSharp(src, new[] {
