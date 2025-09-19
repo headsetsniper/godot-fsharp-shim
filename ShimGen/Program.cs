@@ -1,5 +1,4 @@
 using System;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,9 +9,21 @@ using Godot.FSharp.Annotations;
 
 internal sealed class Program
 {
-    private static bool IsExportablePrimitive(Type t) =>
-        t == typeof(int) || t == typeof(float) || t == typeof(double) ||
-        t == typeof(bool) || t == typeof(string);
+    private static bool IsExportable(Type t)
+    {
+        if (t == typeof(int) || t == typeof(float) || t == typeof(double) ||
+            t == typeof(bool) || t == typeof(string))
+            return true;
+        if (t.FullName == "Godot.Vector2" || t.FullName == "Godot.Vector3" || t.FullName == "Godot.Color")
+            return true;
+        if (t.IsEnum) return true;
+        if (t.IsArray)
+        {
+            var et = t.GetElementType();
+            return et != null && IsExportable(et);
+        }
+        return false;
+    }
 
     public static int Main(string[] args)
     {
@@ -27,9 +38,9 @@ internal sealed class Program
 
         var mainAsmPath = Path.GetFullPath(asmPath);
         var resolver = new AssemblyDependencyResolver(mainAsmPath);
-        var loadContext = new IsolatedLoadContext(resolver);
+        var asmDir = Path.GetDirectoryName(mainAsmPath)!;
+        var loadContext = new IsolatedLoadContext(resolver, asmDir, AppContext.BaseDirectory, Directory.GetCurrentDirectory());
 
-        // Make sure these are resolvable in the isolated context
         TryEnsureDependency(loadContext, "FSharp.Core");
         TryEnsureDependency(loadContext, "Godot.FSharp.Annotations");
 
@@ -81,11 +92,21 @@ internal sealed class Program
 
             var exports = new List<PropertyInfo>();
             foreach (var p in t.GetProperties(BindingFlags.Instance | BindingFlags.Public))
-                if (p.CanRead && p.CanWrite && IsExportablePrimitive(p.PropertyType))
+                if (p.CanRead && p.CanWrite && IsExportable(p.PropertyType))
                     exports.Add(p);
 
-            var hasReady = t.GetMethod("Ready", BindingFlags.Instance | BindingFlags.Public, Array.Empty<Type>()) != null;
+            bool HasMethodNoArgs(string name) => t.GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                                                  .Any(m => m.Name == name && m.GetParameters().Length == 0);
+            bool HasMethodOneParam(string name, string paramFullName) => t.GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                                                  .Any(m => m.Name == name && m.GetParameters().Length == 1 &&
+                                                            m.GetParameters()[0].ParameterType.FullName == paramFullName);
+
+            var hasReady = HasMethodNoArgs("Ready");
             var hasProcess = t.GetMethod("Process", BindingFlags.Instance | BindingFlags.Public, new[] { typeof(double) }) != null;
+            var hasPhysicsProcess = t.GetMethod("PhysicsProcess", BindingFlags.Instance | BindingFlags.Public, new[] { typeof(double) }) != null;
+            var hasInput = HasMethodOneParam("Input", "Godot.InputEvent");
+            var hasUnhandledInput = HasMethodOneParam("UnhandledInput", "Godot.InputEvent");
+            var hasNotification = t.GetMethod("Notification", BindingFlags.Instance | BindingFlags.Public, new[] { typeof(long) }) != null;
 
             var ns = "Generated";
             var sb = new StringBuilder();
@@ -98,17 +119,30 @@ internal sealed class Program
             sb.AppendLine($"    private readonly {t.FullName} _impl = new {t.FullName}();");
 
             foreach (var p in exports)
-                sb.AppendLine($"    [Export] public {p.PropertyType.FullName} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                sb.AppendLine($"    [Export] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
 
             if (hasReady) sb.AppendLine("    public override void _Ready() => _impl.Ready();");
             if (hasProcess) sb.AppendLine("    public override void _Process(double delta) => _impl.Process(delta);");
+            if (hasPhysicsProcess) sb.AppendLine("    public override void _PhysicsProcess(double delta) => _impl.PhysicsProcess(delta);");
+            if (hasInput) sb.AppendLine("    public override void _Input(Godot.InputEvent @event) => _impl.Input(@event);");
+            if (hasUnhandledInput) sb.AppendLine("    public override void _UnhandledInput(Godot.InputEvent @event) => _impl.UnhandledInput(@event);");
+            if (hasNotification) sb.AppendLine("    public override void _Notification(long what) => _impl.Notification(what);");
+
+            // Signals by convention: public void Signal_<Name>()
+            var signalMethods = t.GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                                  .Where(m => m.Name.StartsWith("Signal_") && m.GetParameters().Length == 0 && m.ReturnType == typeof(void));
+            foreach (var sm in signalMethods)
+            {
+                var sigName = sm.Name.Substring("Signal_".Length);
+                sb.AppendLine($"    [Signal] public event System.Action {sigName};");
+                sb.AppendLine($"    public void Emit{sigName}() => {sigName}?.Invoke();");
+            }
 
             sb.AppendLine("}");
 
             var filePath = Path.Combine(outDir, $"{className}.cs");
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             var text = sb.ToString();
-
             if (!File.Exists(filePath) || File.ReadAllText(filePath) != text)
             {
                 File.WriteAllText(filePath, text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
@@ -120,12 +154,36 @@ internal sealed class Program
         return 0;
     }
 
+    private static string GetTypeDisplayName(Type t)
+    {
+        if (t.IsArray)
+        {
+            var elem = t.GetElementType()!;
+            return GetTypeDisplayName(elem) + "[]";
+        }
+        // Build fully-qualified name with dots for nested types
+        if (t.IsNested)
+        {
+            var parts = new System.Collections.Generic.List<string>();
+            var cur = t;
+            while (cur != null)
+            {
+                parts.Add(cur.Name);
+                cur = cur.DeclaringType;
+            }
+            parts.Reverse();
+            var ns = t.Namespace;
+            var prefix = string.IsNullOrEmpty(ns) ? string.Empty : ns + ".";
+            return prefix + string.Join(".", parts);
+        }
+        return t.FullName!;
+    }
+
     private static void TryEnsureDependency(AssemblyLoadContext alc, string name)
     {
         try
         {
             if (alc.Assemblies.Any(a => a.GetName().Name == name)) return;
-
             try { _ = alc.LoadFromAssemblyName(new AssemblyName(name)); return; } catch { }
 
             var nuget = Environment.GetEnvironmentVariable("NUGET_PACKAGES");
@@ -145,15 +203,24 @@ internal sealed class Program
 internal sealed class IsolatedLoadContext : AssemblyLoadContext
 {
     private readonly AssemblyDependencyResolver _resolver;
-    public IsolatedLoadContext(AssemblyDependencyResolver resolver) : base(isCollectible: true)
+    private readonly string[] _fallbackDirs;
+    public IsolatedLoadContext(AssemblyDependencyResolver resolver, params string[] fallbackDirs) : base(isCollectible: true)
     {
         _resolver = resolver;
+        _fallbackDirs = fallbackDirs ?? Array.Empty<string>();
     }
     protected override Assembly Load(AssemblyName assemblyName)
     {
         var path = _resolver.ResolveAssemblyToPath(assemblyName);
         if (path != null)
             return LoadFromAssemblyPath(path);
+        var fileName = assemblyName.Name + ".dll";
+        foreach (var dir in _fallbackDirs)
+        {
+            var candidate = Path.Combine(dir, fileName);
+            if (File.Exists(candidate))
+                return LoadFromAssemblyPath(candidate);
+        }
         return null!;
     }
     protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)

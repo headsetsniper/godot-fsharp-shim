@@ -32,6 +32,72 @@ public class ShimGenIntegrationTests
         return TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameImpl");
     }
 
+    [Test]
+    public void Exports_Godot_Struct_Types()
+    {
+        // Arrange: impl with Vector2, Vector3, Color
+        var code = string.Join("\n", new[]{
+            "using Godot; using Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Baz\", BaseTypeName=\"Godot.Node\")]",
+            "  public class BazImpl {",
+            "    public Vector2 V2 { get; set; }",
+            "    public Vector3 V3 { get; set; }",
+            "    public Color C { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "BazImpl");
+        var outDir = RunShimGen(impl);
+
+        // Act
+        var bazPath = Directory.EnumerateFiles(outDir, "Baz.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(bazPath, Is.Not.Null, "Baz.cs not generated");
+        var src = File.ReadAllText(bazPath!);
+
+        // Assert: export attributes for supported structs
+        StringAssert.Contains("[Export] public Godot.Vector2 V2", src);
+        StringAssert.Contains("[Export] public Godot.Vector3 V3", src);
+        StringAssert.Contains("[Export] public Godot.Color C", src);
+    }
+
+    public enum TestEnum { A = 0, B = 1 }
+
+    [Test]
+    public void Exports_Arrays_And_Enums()
+    {
+        // Arrange: arrays of primitives and enums
+        var code = string.Join("\n", new[]{
+            "using Godot; using Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Qux\", BaseTypeName=\"Godot.Node\")]",
+            "  public class QuxImpl {",
+            "    public int[] Numbers { get; set; }",
+            "    public string[] Names { get; set; }",
+            "    public ShimGen.Tests.ShimGenIntegrationTests.TestEnum Mode { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath), MetadataReference.CreateFromFile(typeof(ShimGenIntegrationTests).Assembly.Location) }, asmName: "QuxImpl");
+        var outDir = RunShimGen(impl);
+
+        // Act
+        var quxPath = Directory.EnumerateFiles(outDir, "Qux.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(quxPath, Is.Not.Null, "Qux.cs not generated");
+        var src = File.ReadAllText(quxPath!);
+
+        // Assert
+        StringAssert.Contains("[Export] public System.Int32[] Numbers", src);
+        StringAssert.Contains("[Export] public System.String[] Names", src);
+        StringAssert.Contains("[Export] public ShimGen.Tests.ShimGenIntegrationTests.TestEnum Mode", src);
+    }
+
     private static string RunShimGen(string implPath)
     {
         var outDir = TestHelpers.CreateTempDir();
@@ -152,5 +218,64 @@ public class ShimGenIntegrationTests
 
         // Assert: unchanged
         Assert.That(secondWrite, Is.EqualTo(firstWrite));
+    }
+
+    [Test]
+    public void Emits_Signal_Attributes_And_Invokers()
+    {
+        // Convention: a public void method starting with "Signal_" translates to [Signal] public event and an invoker method
+        var code = string.Join("\n", new[]{
+            "using Godot; using Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Sig\", BaseTypeName=\"Godot.Node\")]",
+            "  public class SigImpl {",
+            "    public void Signal_Fired() {}",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "SigImpl");
+        var outDir = RunShimGen(impl);
+
+        var sigPath = Directory.EnumerateFiles(outDir, "Sig.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(sigPath, Is.Not.Null, "Sig.cs not generated");
+        var src = File.ReadAllText(sigPath!);
+
+        StringAssert.Contains("[Signal]", src);
+        StringAssert.Contains("public event System.Action Fired;", src);
+        StringAssert.Contains("public void EmitFired()", src);
+    }
+
+    [Test]
+    public void Forwards_PhysicsProcess_Input_UnhandledInput_Notification()
+    {
+        var code = string.Join("\n", new[]{
+            "using Godot; using Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Callbacks\", BaseTypeName=\"Godot.Node\")]",
+            "  public class CallbacksImpl {",
+            "    public void PhysicsProcess(double delta){}",
+            "    public void Input(InputEvent e){}",
+            "    public void UnhandledInput(InputEvent e){}",
+            "    public void Notification(long what){}",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "CallbacksImpl");
+        var outDir = RunShimGen(impl);
+
+        var path = Directory.EnumerateFiles(outDir, "Callbacks.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null, "Callbacks.cs not generated");
+        var src = File.ReadAllText(path!);
+
+        StringAssert.Contains("public override void _PhysicsProcess(double delta) => _impl.PhysicsProcess(delta);", src);
+        StringAssert.Contains("public override void _Input(Godot.InputEvent @event) => _impl.Input(@event);", src);
+        StringAssert.Contains("public override void _UnhandledInput(Godot.InputEvent @event) => _impl.UnhandledInput(@event);", src);
+        StringAssert.Contains("public override void _Notification(long what) => _impl.Notification(what);", src);
     }
 }
