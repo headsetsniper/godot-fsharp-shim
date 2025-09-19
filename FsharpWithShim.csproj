@@ -1,0 +1,26 @@
+<Project Sdk="Godot.NET.Sdk/4.5.0">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="FSharp\MyGame.FSharp.fsproj" />
+    <ProjectReference Include="Annotations\Godot.FSharp.Annotations.csproj" />
+    <ProjectReference Include="ShimGen\ShimGen.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="GenerateFSharpShims"
+          BeforeTargets="CoreCompile"
+          DependsOnTargets="Build">
+    <PropertyGroup>
+      <FSharpDll>$(MSBuildProjectDirectory)\FSharp\bin\$(Configuration)\net8.0\MyGame.FSharp.dll</FSharpDll>
+      <ShimOutDir>$(MSBuildProjectDirectory)\Scripts\Generated</ShimOutDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(ShimOutDir)" />
+    <Exec Command="&quot;$(MSBuildProjectDirectory)\ShimGen\bin\$(Configuration)\net8.0\ShimGen.exe&quot; &quot;$(FSharpDll)&quot; &quot;$(ShimOutDir)&quot;" />
+    <ItemGroup>
+      <Compile Include="$(ShimOutDir)\**\*.cs" />
+    </ItemGroup>
+  </Target>
+</Project>
