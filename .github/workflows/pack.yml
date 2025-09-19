@@ -1,0 +1,105 @@
+name: pack-and-publish
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-test-pack:
+    name: Build, Test, Pack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.fsproj', 'global.json', 'NuGet.Config') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      # Phase 1: Create local feed by packing the dependency projects first
+      - name: Pack Annotations (bootstrap local feed)
+        run: dotnet pack Annotations/Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs
+
+      - name: Pack ShimGen (bootstrap local feed)
+        run: dotnet pack ShimGen/ShimGen.csproj -c Release -o ./.nupkgs
+
+      # Phase 2: Restore/build/test the rest using the local feed + nuget.org
+      - name: Restore main project
+        run: dotnet restore FsharpWithShim.csproj
+
+      - name: Build (Release)
+        run: dotnet build FsharpWithShim.csproj -c Release --no-restore
+
+      - name: Test (Release)
+        run: dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release --verbosity normal
+
+      - name: Upload .nupkgs
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkgs
+          path: .nupkgs/*.nupkg
+
+  publish-nuget:
+    name: Publish to NuGet.org
+    needs: build-test-pack
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nupkgs
+          path: ./.nupkgs
+
+      - name: Push to NuGet.org
+        run: dotnet nuget push ./.nupkgs/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+  # Optional: Publish to GitHub Packages (NuGet)
+  # Enable by setting `if: startsWith(github.ref, 'refs/tags/v')` and configuring permissions
+  publish-gpr:
+    name: Publish to GitHub Packages
+    needs: build-test-pack
+    if: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: nupkgs
+          path: ./.nupkgs
+
+      - name: Push to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER=${{ github.repository_owner }}
+          dotnet nuget push ./.nupkgs/*.nupkg \
+            --api-key "$GITHUB_TOKEN" \
+            --source "https://nuget.pkg.github.com/${OWNER}/index.json" \
+            --skip-duplicate

@@ -35,4 +35,24 @@
           StandardErrorImportance="High"
           Condition=" '@(_FsProjRefs)' != '' " />
   </Target>
+
+  <!-- IDE design-time helper: add a hint reference to F# outputs so C# tooling can resolve F# types in editors.
+       This runs only during design-time builds and never copies F# assemblies to the output. -->
+  <ItemGroup Condition="'$(DesignTimeBuild)'=='true' and '$(FSharpShimsEnabled)'=='true'">
+    <!-- Find referenced F# projects by extension -->
+    <_DesignFsProj Include="@(ProjectReference)"
+                   Condition="$([System.String]::Copy('%(ProjectReference.Identity)').ToLowerInvariant().EndsWith('.fsproj'))" />
+
+    <!-- Compute design-time hint path and assembly name from project filename -->
+    <_FsDesignRef Include="@(_DesignFsProj)">
+      <DesignHint>$([System.IO.Path]::Combine($([System.IO.Path]::GetDirectoryName('%(Identity)')),'bin','$(Configuration)','$(TargetFramework)',$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)')) + '.dll'))</DesignHint>
+      <DesignName>$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)'))</DesignName>
+    </_FsDesignRef>
+
+    <!-- Add one Reference per F# project when the DLL exists -->
+    <Reference Include="%(_FsDesignRef.DesignName)" Condition="Exists('%(_FsDesignRef.DesignHint)')">
+      <HintPath>%(_FsDesignRef.DesignHint)</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
 </Project>

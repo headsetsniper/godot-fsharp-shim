@@ -8,21 +8,22 @@
 
   <ItemGroup>
     <!-- Keep paths EXACTLY as they are on disk -->
-    <ProjectReference Include="FSharp\FsharpWithShim.FSharp.fsproj" />
+    <ProjectReference Include="FSharp\\FsharpWithShim.FSharp.fsproj">
+      <!-- Reference for compile so generated shims can see F# types, but do not copy to output. -->
+      <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+      <Private>false</Private>
+    </ProjectReference>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Godot.FSharp.Annotations" Version="1.0.0" />
-    <PackageReference Include="Godot.FSharp.ShimGen" Version="1.0.0" />
+    <PackageReference Include="Godot.FSharp.ShimGen" Version="1.0.0">
+      <!-- Prevent any assemblies/resources from flowing into compile/runtime/output -->
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>build;buildTransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
-  <!-- Help IDE design-time resolve F# types (some C# tooling cannot follow F# ProjectReference). -->
-  <ItemGroup Condition="'$(DesignTimeBuild)' == 'true'">
-    <Reference Include="FsharpWithShim.FSharp" Condition="Exists('$(MSBuildProjectDirectory)\FSharp\bin\$(Configuration)\$(TargetFramework)\FsharpWithShim.FSharp.dll')">
-      <HintPath>$(MSBuildProjectDirectory)\FSharp\bin\$(Configuration)\$(TargetFramework)\FsharpWithShim.FSharp.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-  </ItemGroup>
+  <!-- IDE design-time helper is provided by the Godot.FSharp.ShimGen package's buildTransitive target. -->
 
   <!-- Explicitly include only our gameplay source trees at evaluation time -->
   <ItemGroup>
