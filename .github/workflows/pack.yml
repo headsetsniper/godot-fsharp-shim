@@ -45,8 +45,26 @@ jobs:
         run: |
           v="${{ steps.gitversion.outputs.nuGetVersionV2 }}"
           if [ -z "$v" ] || [ "$v" = "undefined" ]; then
-            echo "GitVersion unavailable; using fallback version" >&2
-            v="0.0.0-local.${GITHUB_RUN_NUMBER:-0}"
+            # If this run is for a tag like refs/tags/v1.2.3, use that
+            if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
+              v="${GITHUB_REF#refs/tags/v}"
+              echo "Using version from tag ref: $v" >&2
+            else
+              # Try local git tags if available
+              if command -v git >/dev/null 2>&1 && git -C "$GITHUB_WORKSPACE" rev-parse --git-dir >/dev/null 2>&1; then
+                tag=$(git -C "$GITHUB_WORKSPACE" describe --tags --abbrev=0 2>/dev/null || true)
+                if [[ -n "$tag" ]]; then
+                  v="${tag#v}"
+                  echo "Using version from git tag: $v" >&2
+                fi
+              fi
+            fi
+
+            # Final fallback
+            if [ -z "$v" ]; then
+              echo "GitVersion unavailable; using fallback version" >&2
+              v="0.0.0-local.${GITHUB_RUN_NUMBER:-0}"
+            fi
           fi
           echo "value=$v" >> "$GITHUB_OUTPUT"
 
