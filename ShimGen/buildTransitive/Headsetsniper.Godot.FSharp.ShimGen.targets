@@ -49,8 +49,8 @@
       <DesignName>$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)'))</DesignName>
     </_FsDesignRef>
 
-    <!-- Add one Reference per F# project when the DLL exists -->
-    <Reference Include="%(_FsDesignRef.DesignName)" Condition="Exists('%(_FsDesignRef.DesignHint)')">
+    <!-- Add one Reference per F# project for design-time tooling -->
+    <Reference Include="%(_FsDesignRef.DesignName)">
       <HintPath>%(_FsDesignRef.DesignHint)</HintPath>
       <Private>false</Private>
     </Reference>

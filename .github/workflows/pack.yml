@@ -19,54 +19,55 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # required for GitVersion to see full history and tags
+          fetch-depth: 0 # required for versioning to see full history
+          fetch-tags: true
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v3
-        with:
-          versionSpec: '6.x'
-
-      - name: Determine Version
-        id: gitversion
-        uses: gittools/actions/gitversion/execute@v3
-        continue-on-error: true
-        with:
-          useConfigFile: true
-          configFilePath: GitVersion.yml
-
-      - name: Resolve Package Version (with fallback)
+      - name: Determine Package Version (GitVersion or fallbacks)
         id: resolve_version
         shell: bash
         run: |
-          v="${{ steps.gitversion.outputs.nuGetVersionV2 }}"
-          if [ -z "$v" ] || [ "$v" = "undefined" ]; then
-            # If this run is for a tag like refs/tags/v1.2.3, use that
+          set -euo pipefail
+          v=""
+          # Try GitVersion.Tool if available; install if missing
+          if ! command -v dotnet-gitversion >/dev/null 2>&1; then
+            dotnet tool install -g GitVersion.Tool >/dev/null 2>&1 || true
+            export PATH="$HOME/.dotnet/tools:$PATH"
+          fi
+          if command -v dotnet-gitversion >/dev/null 2>&1; then
+            # Prefer single-variable output to avoid JSON parsing
+            if dotnet-gitversion /showvariable NuGetVersionV2 >/dev/null 2>&1; then
+              v=$(dotnet-gitversion /showvariable NuGetVersionV2 || echo "")
+            fi
+          fi
+          # Fallback: tag ref like refs/tags/v1.2.3
+          if [[ -z "${v}" || "${v}" == "undefined" ]]; then
             if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
               v="${GITHUB_REF#refs/tags/v}"
               echo "Using version from tag ref: $v" >&2
-            else
-              # Try local git tags if available
-              if command -v git >/dev/null 2>&1 && git -C "$GITHUB_WORKSPACE" rev-parse --git-dir >/dev/null 2>&1; then
-                tag=$(git -C "$GITHUB_WORKSPACE" describe --tags --abbrev=0 2>/dev/null || true)
-                if [[ -n "$tag" ]]; then
-                  v="${tag#v}"
-                  echo "Using version from git tag: $v" >&2
-                fi
-              fi
-            fi
-
-            # Final fallback
-            if [ -z "$v" ]; then
-              echo "GitVersion unavailable; using fallback version" >&2
-              v="0.0.0-local.${GITHUB_RUN_NUMBER:-0}"
             fi
           fi
+          # Fallback: latest tag in repo
+          if [[ -z "${v}" || "${v}" == "undefined" ]]; then
+            if command -v git >/dev/null 2>&1 && git -C "$GITHUB_WORKSPACE" rev-parse --git-dir >/dev/null 2>&1; then
+              tag=$(git -C "$GITHUB_WORKSPACE" describe --tags --abbrev=0 2>/dev/null || true)
+              if [[ -n "$tag" ]]; then
+                v="${tag#v}"
+                echo "Using version from git tag: $v" >&2
+              fi
+            fi
+          fi
+          # Final fallback
+          if [[ -z "${v}" || "${v}" == "undefined" ]]; then
+            v="0.0.0-local.${GITHUB_RUN_NUMBER:-0}"
+            echo "Using fallback version: $v" >&2
+          fi
           echo "value=$v" >> "$GITHUB_OUTPUT"
+          echo "Resolved package version: $v"
 
       - name: Cache NuGet
         uses: actions/cache@v4
@@ -97,7 +98,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nupkgs
-          path: ${{ github.workspace }}/.nupkgs/*.nupkg
+          path: ./.nupkgs
 
   publish-nuget:
     name: Publish to NuGet.org

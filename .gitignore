@@ -64,3 +64,4 @@ paket-files/
 *.bak
 *.orig
 *.tmp
+.nuget
