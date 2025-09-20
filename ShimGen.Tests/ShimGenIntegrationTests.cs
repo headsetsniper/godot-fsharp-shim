@@ -98,9 +98,9 @@ public class ShimGenIntegrationTests
         StringAssert.Contains("[Export] public ShimGen.Tests.ShimGenIntegrationTests.TestEnum Mode", src);
     }
 
-    private static string RunShimGen(string implPath, string? fsSourceDir = null)
+    private static string RunShimGen(string implPath, string? fsSourceDir = null, string? outDirOverride = null)
     {
-        var outDir = TestHelpers.CreateTempDir();
+        var outDir = outDirOverride ?? TestHelpers.CreateTempDir();
         // Determine config/tfm from the test output path: …/ShimGen.Tests/bin/{Configuration}/{TFM}
         var testDir = TestContext.CurrentContext.TestDirectory;
         var tfm = Path.GetFileName(testDir);
@@ -277,7 +277,7 @@ public class ShimGenIntegrationTests
         Assert.That(editedWrite, Is.GreaterThanOrEqualTo(firstWrite));
 
         // Act: run ShimGen again with the same fs source dir (hash unchanged)
-        RunShimGen(impl, fsDir);
+        RunShimGen(impl, fsDir, outDir);
         var secondWrite = File.GetLastWriteTimeUtc(fooPath);
         // Assert: generator should skip rewrite because SourceHash is unchanged
         // Prefer content equality over timestamp to avoid filesystem tick edge cases
@@ -302,7 +302,7 @@ public class ShimGenIntegrationTests
         // Act: run again; hash differs so rewrite should occur
         // Short sleep may not guarantee timestamp differences on all filesystems; avoid relying solely on timestamps
         System.Threading.Thread.Sleep(10);
-        RunShimGen(impl, fsDir);
+        RunShimGen(impl, fsDir, outDir);
         var secondWrite = File.GetLastWriteTimeUtc(fooPath);
         var updated = File.ReadAllText(fooPath);
         // Assert: content changed (hash header or body) and SourceHash present
