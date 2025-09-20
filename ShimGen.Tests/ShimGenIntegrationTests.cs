@@ -98,7 +98,7 @@ public class ShimGenIntegrationTests
         StringAssert.Contains("[Export] public ShimGen.Tests.ShimGenIntegrationTests.TestEnum Mode", src);
     }
 
-    private static string RunShimGen(string implPath)
+    private static string RunShimGen(string implPath, string? fsSourceDir = null)
     {
         var outDir = TestHelpers.CreateTempDir();
         // Determine config/tfm from the test output path: …/ShimGen.Tests/bin/{Configuration}/{TFM}
@@ -125,7 +125,10 @@ public class ShimGenIntegrationTests
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
         var targetAnn = Path.Combine(implDir, Path.GetFileName(annPath));
         if (!File.Exists(targetAnn)) File.Copy(annPath, targetAnn, overwrite: true);
-        var psi = new System.Diagnostics.ProcessStartInfo("dotnet", $"\"{exe}\" \"{implPath}\" \"{outDir}\"")
+        var args = fsSourceDir == null
+            ? $"\"{exe}\" \"{implPath}\" \"{outDir}\""
+            : $"\"{exe}\" \"{implPath}\" \"{outDir}\" \"{fsSourceDir}\"";
+        var psi = new System.Diagnostics.ProcessStartInfo("dotnet", args)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -137,6 +140,24 @@ public class ShimGenIntegrationTests
         var stderr = p.StandardError.ReadToEnd();
         Assert.That(p.ExitCode, Is.EqualTo(0), $"ShimGen failed. Stdout:\n{stdout}\nStderr:\n{stderr}");
         return outDir;
+    }
+
+    private static (string dir, string file) CreateTempFsSource(string? content = null)
+    {
+        var dir = TestHelpers.CreateTempDir();
+        var file = Path.Combine(dir, "Game.fs");
+        // Ensure content matches the type 'Game.FooImpl' so ShimGen can locate it for hashing.
+        var fs = content ?? string.Join("\n", new[]{
+            "namespace Game",
+            "",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            "",
+            "[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")>]",
+            "type FooImpl() =",
+            "    do ()"
+        }) + "\n";
+        File.WriteAllText(file, fs);
+        return (dir, file);
     }
 
     [Test]
@@ -222,6 +243,7 @@ public class ShimGenIntegrationTests
         var outDir = RunShimGen(impl);
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
         var firstWrite = File.GetLastWriteTimeUtc(fooPath);
+        var initialContent = File.ReadAllText(fooPath);
 
         // Act: run shimgen again
         var _ = RunShimGen(impl);
@@ -229,6 +251,62 @@ public class ShimGenIntegrationTests
 
         // Assert: unchanged
         Assert.That(secondWrite, Is.EqualTo(firstWrite));
+    }
+
+    [Test]
+    public void HashHeader_Skips_Rewrite_When_Hash_Unchanged()
+    {
+        // Arrange: run once with a temp fs source dir to produce a header with SourceHash
+        var impl = BuildImplAssembly();
+        var (fsDir, fsFile) = CreateTempFsSource();
+        var outDir = RunShimGen(impl, fsDir);
+        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
+        var original = File.ReadAllText(fooPath);
+        StringAssert.Contains("// SourceHash:", original);
+        StringAssert.Contains("// SourceFile:", original);
+        var firstWrite = File.GetLastWriteTimeUtc(fooPath);
+
+        // Modify body (simulate manual edit) but keep the header & SourceHash intact
+        var lines = File.ReadAllLines(fooPath).ToList();
+        var idxEndHeader = lines.FindIndex(l => l.Contains("</auto-generated>"));
+        Assert.That(idxEndHeader, Is.GreaterThan(0));
+        lines.Add("// trailing comment that should not trigger rewrite when hash unchanged");
+        File.WriteAllText(fooPath, string.Join("\n", lines));
+        var editedWrite = File.GetLastWriteTimeUtc(fooPath);
+        Assert.That(editedWrite, Is.GreaterThanOrEqualTo(firstWrite));
+
+        // Act: run ShimGen again with the same fs source dir (hash unchanged)
+        RunShimGen(impl, fsDir);
+        var secondWrite = File.GetLastWriteTimeUtc(fooPath);
+
+        // Assert: generator should skip rewrite because SourceHash is unchanged
+        Assert.That(secondWrite, Is.EqualTo(editedWrite));
+    }
+
+    [Test]
+    public void HashHeader_Rewrites_When_Hash_Changes()
+    {
+        // Arrange: initial run
+        var impl = BuildImplAssembly();
+        var (fsDir, fsFile) = CreateTempFsSource();
+        var outDir = RunShimGen(impl, fsDir);
+        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
+        var originalSrc = File.ReadAllText(fooPath);
+        var firstWrite = File.GetLastWriteTimeUtc(fooPath);
+
+        // Change fs content to alter hash
+        File.WriteAllText(fsFile, ("namespace Game\n\nopen Headsetsniper.Godot.FSharp.Annotations\n\n[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")>]\ntype FooImpl() =\n    do ()\n// changed\n"));
+
+        // Act: run again; hash differs so rewrite should occur
+        System.Threading.Thread.Sleep(50); // ensure timestamp tick difference on fast file systems
+        RunShimGen(impl, fsDir);
+        var secondWrite = File.GetLastWriteTimeUtc(fooPath);
+
+        // Assert
+        Assert.That(secondWrite, Is.GreaterThan(firstWrite));
+        var updated = File.ReadAllText(fooPath);
+        StringAssert.Contains("// SourceHash:", updated);
+        Assert.That(updated, Is.Not.EqualTo(originalSrc));
     }
 
     [Test]

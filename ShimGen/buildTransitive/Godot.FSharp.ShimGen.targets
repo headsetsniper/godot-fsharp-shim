@@ -22,15 +22,15 @@
 
     <PropertyGroup>
       <ShimOutDir>$(FSharpShimsOutDir)</ShimOutDir>
-      <!-- ShimGen is packaged under lib/{tfm}; keep tfm aligned with consumer project (Godot 4.5 uses net8.0) -->
-      <ShimGenDll>$(MSBuildThisFileDirectory)..\lib\$(TargetFramework)\ShimGen.dll</ShimGenDll>
+  <!-- ShimGen is packaged under lib/{tfm}; keep tfm aligned with consumer project (Godot 4.5 uses net8.0) -->
+  <ShimGenDll>$(MSBuildThisFileDirectory)..\lib\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll</ShimGenDll>
     </PropertyGroup>
 
     <MakeDir Directories="$(ShimOutDir)" />
 
     <!-- Execute ShimGen once per referenced F# project -->
     <Message Importance="Low" Text="ShimGen scanning @( _FsProjRefs->'%(OriginalItemSpec) | %(_FsProjRefs.TargetPath)', ', ')" />
-    <Exec Command="dotnet &quot;$(ShimGenDll)&quot; &quot;%(_FsProjRefs.TargetPath)&quot; &quot;$(ShimOutDir)&quot;"
+  <Exec Command="dotnet &quot;$(ShimGenDll)&quot; &quot;%(_FsProjRefs.TargetPath)&quot; &quot;$(ShimOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FsProjRefs.OriginalItemSpec)'))&quot;"
           StandardOutputImportance="Low"
           StandardErrorImportance="High"
           Condition=" '@(_FsProjRefs)' != '' " />
