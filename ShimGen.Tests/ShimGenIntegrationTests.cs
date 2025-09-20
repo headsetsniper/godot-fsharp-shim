@@ -271,16 +271,18 @@ public class ShimGenIntegrationTests
         var idxEndHeader = lines.FindIndex(l => l.Contains("</auto-generated>"));
         Assert.That(idxEndHeader, Is.GreaterThan(0));
         lines.Add("// trailing comment that should not trigger rewrite when hash unchanged");
-        File.WriteAllText(fooPath, string.Join("\n", lines));
+        var editedContent = string.Join("\n", lines);
+        File.WriteAllText(fooPath, editedContent);
         var editedWrite = File.GetLastWriteTimeUtc(fooPath);
         Assert.That(editedWrite, Is.GreaterThanOrEqualTo(firstWrite));
 
         // Act: run ShimGen again with the same fs source dir (hash unchanged)
         RunShimGen(impl, fsDir);
         var secondWrite = File.GetLastWriteTimeUtc(fooPath);
-
         // Assert: generator should skip rewrite because SourceHash is unchanged
-        Assert.That(secondWrite, Is.EqualTo(editedWrite));
+        // Prefer content equality over timestamp to avoid filesystem tick edge cases
+        var after = File.ReadAllText(fooPath);
+        Assert.That(after, Is.EqualTo(editedContent));
     }
 
     [Test]
@@ -298,13 +300,12 @@ public class ShimGenIntegrationTests
         File.WriteAllText(fsFile, ("namespace Game\n\nopen Headsetsniper.Godot.FSharp.Annotations\n\n[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")>]\ntype FooImpl() =\n    do ()\n// changed\n"));
 
         // Act: run again; hash differs so rewrite should occur
-        System.Threading.Thread.Sleep(50); // ensure timestamp tick difference on fast file systems
+        // Short sleep may not guarantee timestamp differences on all filesystems; avoid relying solely on timestamps
+        System.Threading.Thread.Sleep(10);
         RunShimGen(impl, fsDir);
         var secondWrite = File.GetLastWriteTimeUtc(fooPath);
-
-        // Assert
-        Assert.That(secondWrite, Is.GreaterThan(firstWrite));
         var updated = File.ReadAllText(fooPath);
+        // Assert: content changed (hash header or body) and SourceHash present
         StringAssert.Contains("// SourceHash:", updated);
         Assert.That(updated, Is.Not.EqualTo(originalSrc));
     }
