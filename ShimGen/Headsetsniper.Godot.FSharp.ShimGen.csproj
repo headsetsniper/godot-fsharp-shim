@@ -4,8 +4,12 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <UseAppHost>true</UseAppHost>
+    <!-- Produce a cross-platform DLL for packaging -->
+    <UseAppHost>false</UseAppHost>
     <IsPackable>true</IsPackable>
+    <!-- Ensure the compiled DLL is included under lib/{tfm} in the NuGet package -->
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <BuildOutputTargetFolder>lib</BuildOutputTargetFolder>
     <PackageId>Headsetsniper.Godot.FSharp.ShimGen</PackageId>
     <Title>Headsetsniper.Godot.FSharp.ShimGen</Title>
     <Description>Generates C# shims for F# Godot scripts so Godot's C# tooling can consume them.</Description>
