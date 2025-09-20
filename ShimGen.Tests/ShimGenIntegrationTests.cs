@@ -106,8 +106,19 @@ public class ShimGenIntegrationTests
         var tfm = Path.GetFileName(testDir);
         var configuration = Path.GetFileName(Path.GetDirectoryName(testDir)!);
         var repoRoot = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", ".."));
-        var exe = Path.Combine(repoRoot, "ShimGen", "bin", configuration, tfm, "ShimGen.dll");
-        Assert.That(File.Exists(exe), $"ShimGen not built at {exe}");
+        var outDirShim = Path.Combine(repoRoot, "ShimGen", "bin", configuration, tfm);
+        // Prefer new assembly name (matching PackageId/Project file), but fall back to legacy name
+        var exeCandidates = new[]
+        {
+            Path.Combine(outDirShim, "Headsetsniper.Godot.FSharp.ShimGen.dll"),
+            Path.Combine(outDirShim, "ShimGen.dll"),
+        };
+        var exe = exeCandidates.FirstOrDefault(File.Exists)
+                  ?? Directory.EnumerateFiles(outDirShim, "*ShimGen*.dll", SearchOption.TopDirectoryOnly)
+                       .OrderByDescending(p => p.Length) // stable choice if multiple
+                       .FirstOrDefault();
+        Assert.That(exe, Is.Not.Null.And.Not.Empty, $"ShimGen not built; looked in {outDirShim}");
+        Assert.That(File.Exists(exe!), Is.True, $"ShimGen not built at {exe}");
 
         // Ensure the attribute assembly is next to the impl assembly to help resolution
         var implDir = Path.GetDirectoryName(implPath)!;
