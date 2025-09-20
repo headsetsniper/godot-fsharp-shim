@@ -13,6 +13,8 @@
     <RepositoryUrl>https://github.com/your-org/fsharp-with-shim</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Version will be set by GitVersion in CI: do not hardcode here -->
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Annotations\Godot.FSharp.Annotations.csproj" />

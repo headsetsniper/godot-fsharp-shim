@@ -18,11 +18,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # required for GitVersion to see full history and tags
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v3
+        with:
+          versionSpec: '6.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v3
+        continue-on-error: true
+        with:
+          useConfigFile: true
+          configFilePath: GitVersion.yml
+
+      - name: Resolve Package Version (with fallback)
+        id: resolve_version
+        shell: bash
+        run: |
+          v="${{ steps.gitversion.outputs.nuGetVersionV2 }}"
+          if [ -z "$v" ] || [ "$v" = "undefined" ]; then
+            echo "GitVersion unavailable; using fallback version" >&2
+            v="0.0.0-local.${GITHUB_RUN_NUMBER:-0}"
+          fi
+          echo "value=$v" >> "$GITHUB_OUTPUT"
 
       - name: Cache NuGet
         uses: actions/cache@v4
@@ -34,10 +60,10 @@ jobs:
 
       # Phase 1: Create local feed by packing the dependency projects first
       - name: Pack Annotations (bootstrap local feed)
-        run: dotnet pack Annotations/Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs
+        run: dotnet pack Annotations/Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.resolve_version.outputs.value }}
 
       - name: Pack ShimGen (bootstrap local feed)
-        run: dotnet pack ShimGen/ShimGen.csproj -c Release -o ./.nupkgs
+        run: dotnet pack ShimGen/ShimGen.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.resolve_version.outputs.value }}
 
       # Phase 2: Restore/build/test the rest using the local feed + nuget.org
       - name: Restore main project
@@ -53,7 +79,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nupkgs
-          path: .nupkgs/*.nupkg
+          path: ${{ github.workspace }}/.nupkgs/*.nupkg
 
   publish-nuget:
     name: Publish to NuGet.org
