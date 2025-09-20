@@ -77,6 +77,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      - name: Ensure package output directory
+        run: mkdir -p ./.nupkgs
+
       # Phase 1: Create local feed by packing the dependency projects first
       - name: Pack Annotations (bootstrap local feed)
         run: dotnet pack Annotations/Headsetsniper.Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.resolve_version.outputs.value }}
@@ -94,11 +97,24 @@ jobs:
       - name: Test (Release)
         run: dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release --verbosity normal
 
+      - name: Verify packages produced
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Resolved version: ${{ steps.resolve_version.outputs.value }}"
+          echo "Listing ./.nupkgs contents:" && ls -la ./.nupkgs || true
+          count=$(ls -1 ./.nupkgs/*.nupkg 2>/dev/null | wc -l | xargs)
+          if [ "$count" = "0" ]; then
+            echo "ERROR: No .nupkg files were produced in ./.nupkgs" >&2
+            exit 1
+          fi
+
       - name: Upload .nupkgs
         uses: actions/upload-artifact@v4
         with:
           name: nupkgs
           path: ./.nupkgs
+          if-no-files-found: error
 
   publish-nuget:
     name: Publish to NuGet.org
