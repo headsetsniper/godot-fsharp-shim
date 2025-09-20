@@ -1,6 +1,6 @@
 using System;
 
-namespace Godot.FSharp.Annotations;
+namespace Headsetsniper.Godot.FSharp.Annotations;
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class GodotScriptAttribute : Attribute

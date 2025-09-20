@@ -4,8 +4,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>true</IsPackable>
-  <PackageId>Headsetsniper.Godot.FSharp.Annotations</PackageId>
-  <Title>Headsetsniper.Godot.FSharp.Annotations</Title>
+    <PackageId>Headsetsniper.Godot.FSharp.Annotations</PackageId>
+    <Title>Headsetsniper.Godot.FSharp.Annotations</Title>
     <Description>Annotations for F# to drive Godot shim generation. Provides [GodotScript] attribute.</Description>
     <Authors>YourName</Authors>
     <RepositoryUrl>https://github.com/your-org/fsharp-with-shim</RepositoryUrl>

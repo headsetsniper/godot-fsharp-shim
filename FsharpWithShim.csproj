@@ -16,14 +16,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Godot.FSharp.ShimGen" Version="1.0.0">
+  <PackageReference Include="Headsetsniper.Godot.FSharp.ShimGen" Version="0.1.0">
       <!-- Prevent any assemblies/resources from flowing into compile/runtime/output -->
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>build;buildTransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
 
-  <!-- IDE design-time helper is provided by the Godot.FSharp.ShimGen package's buildTransitive target. -->
+  <!-- IDE design-time helper is provided by the Headsetsniper.Godot.FSharp.ShimGen package's buildTransitive target. -->
 
   <!-- Explicitly include only our gameplay source trees at evaluation time -->
   <ItemGroup>

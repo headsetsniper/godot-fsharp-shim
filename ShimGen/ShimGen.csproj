@@ -6,8 +6,8 @@
     <Nullable>enable</Nullable>
     <UseAppHost>true</UseAppHost>
     <IsPackable>true</IsPackable>
-    <PackageId>Godot.FSharp.ShimGen</PackageId>
-    <Title>Godot.FSharp.ShimGen</Title>
+  <PackageId>Headsetsniper.Godot.FSharp.ShimGen</PackageId>
+  <Title>Headsetsniper.Godot.FSharp.ShimGen</Title>
     <Description>Generates C# shims for F# Godot scripts so Godot's C# tooling can consume them.</Description>
     <Authors>YourName</Authors>
     <RepositoryUrl>https://github.com/your-org/fsharp-with-shim</RepositoryUrl>
@@ -17,11 +17,11 @@
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Annotations\Godot.FSharp.Annotations.csproj" />
+  <ProjectReference Include="..\Annotations\Headsetsniper.Godot.FSharp.Annotations.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
     <!-- buildTransitive target to auto-wire shims for consumers -->
-    <None Include="buildTransitive\Godot.FSharp.ShimGen.targets" Pack="true" PackagePath="buildTransitive/" />
+  <None Include="buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets" Pack="true" PackagePath="buildTransitive/" />
   </ItemGroup>
 </Project>

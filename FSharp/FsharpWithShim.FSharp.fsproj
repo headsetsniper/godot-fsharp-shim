@@ -6,6 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Foo.fs" />
-    <ProjectReference Include="..\Annotations\Godot.FSharp.Annotations.csproj" />
+  <ProjectReference Include="..\Annotations\Headsetsniper.Godot.FSharp.Annotations.csproj" />
   </ItemGroup>
 </Project>

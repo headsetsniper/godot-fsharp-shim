@@ -1,6 +1,6 @@
 namespace Game
 
-open Godot.FSharp.Annotations
+open Headsetsniper.Godot.FSharp.Annotations
 
 [<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D")>]
 type FooImpl() =

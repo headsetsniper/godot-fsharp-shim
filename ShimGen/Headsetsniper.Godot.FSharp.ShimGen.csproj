@@ -1,22 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <UseAppHost>true</UseAppHost>
     <IsPackable>true</IsPackable>
-  <PackageId>Headsetsniper.Godot.FSharp.Annotations</PackageId>
-  <Title>Headsetsniper.Godot.FSharp.Annotations</Title>
-    <Description>Annotations for F# to drive Godot shim generation. Provides [GodotScript] attribute.</Description>
+    <PackageId>Headsetsniper.Godot.FSharp.ShimGen</PackageId>
+    <Title>Headsetsniper.Godot.FSharp.ShimGen</Title>
+    <Description>Generates C# shims for F# Godot scripts so Godot's C# tooling can consume them.</Description>
     <Authors>YourName</Authors>
     <RepositoryUrl>https://github.com/your-org/fsharp-with-shim</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <!-- Version will be set by GitVersion in CI: do not hardcode here -->
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Annotations\Headsetsniper.Godot.FSharp.Annotations.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets" Pack="true" PackagePath="buildTransitive/" />
   </ItemGroup>
 </Project>

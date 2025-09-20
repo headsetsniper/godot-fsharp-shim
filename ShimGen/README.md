@@ -1,4 +1,4 @@
-# Godot.FSharp.ShimGen
+# Headsetsniper.Godot.FSharp.ShimGen
 
 Generates C# shims for F# Godot scripts so Godot's C# tooling can see them.
 
@@ -6,8 +6,8 @@ Generates C# shims for F# Godot scripts so Godot's C# tooling can see them.
 
 In your Godot C# project (net8.0 with Godot 4.5 SDK):
 
-- Add PackageReference: `Godot.FSharp.ShimGen`
-- Add ProjectReference(s) to your F# logic project(s) that use `Godot.FSharp.Annotations`.
+- Add PackageReference: `Headsetsniper.Godot.FSharp.ShimGen`
+- Add ProjectReference(s) to your F# logic project(s) that use `Headsetsniper.Godot.FSharp.Annotations`.
 
 That's it. On build, shims are generated into `Scripts/Generated` and compiled into your project.
 

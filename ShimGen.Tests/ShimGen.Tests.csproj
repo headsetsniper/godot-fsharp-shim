@@ -11,7 +11,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ShimGen\ShimGen.csproj" />
-    <ProjectReference Include="..\Annotations\Godot.FSharp.Annotations.csproj" />
+  <ProjectReference Include="..\ShimGen\Headsetsniper.Godot.FSharp.ShimGen.csproj" />
+  <ProjectReference Include="..\Annotations\Headsetsniper.Godot.FSharp.Annotations.csproj" />
   </ItemGroup>
 </Project>

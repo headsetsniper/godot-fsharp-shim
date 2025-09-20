@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 using Microsoft.CodeAnalysis;
-using Godot.FSharp.Annotations;
+using Headsetsniper.Godot.FSharp.Annotations;
 
 namespace ShimGen.Tests;
 
@@ -15,7 +15,7 @@ public class ShimGenIntegrationTests
     {
         var code =
             "using Godot;\n" +
-            "using Godot.FSharp.Annotations;\n" +
+            "using Headsetsniper.Godot.FSharp.Annotations;\n" +
             "namespace Game\n" +
             "{\n" +
             $"    [GodotScript(ClassName=\"Foo\", BaseTypeName=\"{baseType}\")]\n" +
@@ -37,7 +37,7 @@ public class ShimGenIntegrationTests
     {
         // Arrange: impl with Vector2, Vector3, Color
         var code = string.Join("\n", new[]{
-            "using Godot; using Godot.FSharp.Annotations;",
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
             "  [GodotScript(ClassName=\"Baz\", BaseTypeName=\"Godot.Node\")]",
             "  public class BazImpl {",
@@ -71,7 +71,7 @@ public class ShimGenIntegrationTests
     {
         // Arrange: arrays of primitives and enums
         var code = string.Join("\n", new[]{
-            "using Godot; using Godot.FSharp.Annotations;",
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
             "  [GodotScript(ClassName=\"Qux\", BaseTypeName=\"Godot.Node\")]",
             "  public class QuxImpl {",
@@ -186,7 +186,7 @@ public class ShimGenIntegrationTests
     public void Exports_Only_Primitive_Properties()
     {
         // Arrange: an impl with multiple properties, only primitive ones should get [Export]
-        var code = "using Godot; using Godot.FSharp.Annotations; namespace Game { [GodotScript(ClassName=\"Bar\", BaseTypeName=\"Godot.Node\")] public class BarImpl { public int A {get;set;} public string S {get;set;} public object O {get;set;} public void Ready(){} } }";
+        var code = "using Godot; using Headsetsniper.Godot.FSharp.Annotations; namespace Game { [GodotScript(ClassName=\"Bar\", BaseTypeName=\"Godot.Node\")] public class BarImpl { public int A {get;set;} public string S {get;set;} public object O {get;set;} public void Ready(){} } }";
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
         var stubs = typeof(Godot.Node).Assembly;
         var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "BarImpl");
@@ -225,7 +225,7 @@ public class ShimGenIntegrationTests
     {
         // Convention: a public void method starting with "Signal_" translates to [Signal] public event and an invoker method
         var code = string.Join("\n", new[]{
-            "using Godot; using Godot.FSharp.Annotations;",
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
             "  [GodotScript(ClassName=\"Sig\", BaseTypeName=\"Godot.Node\")]",
             "  public class SigImpl {",
@@ -252,7 +252,7 @@ public class ShimGenIntegrationTests
     public void Forwards_PhysicsProcess_Input_UnhandledInput_Notification()
     {
         var code = string.Join("\n", new[]{
-            "using Godot; using Godot.FSharp.Annotations;",
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
             "  [GodotScript(ClassName=\"Callbacks\", BaseTypeName=\"Godot.Node\")]",
             "  public class CallbacksImpl {",

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text;
-using Godot.FSharp.Annotations;
+using Headsetsniper.Godot.FSharp.Annotations;
 
 internal sealed class Program
 {
@@ -42,6 +42,8 @@ internal sealed class Program
         var loadContext = new IsolatedLoadContext(resolver, asmDir, AppContext.BaseDirectory, Directory.GetCurrentDirectory());
 
         TryEnsureDependency(loadContext, "FSharp.Core");
+        // Probe both legacy and new package IDs for the annotations assembly
+        TryEnsureDependency(loadContext, "Headsetsniper.Godot.FSharp.Annotations");
         TryEnsureDependency(loadContext, "Godot.FSharp.Annotations");
 
         Assembly asm;
@@ -73,7 +75,7 @@ internal sealed class Program
             if (t == null) continue;
             scanned++;
             var cad = t.GetCustomAttributesData()
-                       .FirstOrDefault(a => a.AttributeType.FullName == "Godot.FSharp.Annotations.GodotScriptAttribute");
+                       .FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.GodotScriptAttribute");
             if (cad is null) continue;
             annotated++;
 

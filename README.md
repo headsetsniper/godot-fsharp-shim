@@ -4,11 +4,11 @@ This repository demonstrates how to drive Godot game logic in F# while generatin
 
 ## Projects
 
-- `Annotations` (NuGet: Godot.FSharp.Annotations)
+- `Annotations` (NuGet: Headsetsniper.Godot.FSharp.Annotations)
   - Provides `[GodotScript]` attribute used in F#.
 - `FSharp`
   - Your F# gameplay logic referencing `Annotations`.
-- `ShimGen` (NuGet: Godot.FSharp.ShimGen)
+- `ShimGen` (NuGet: Headsetsniper.Godot.FSharp.ShimGen)
   - Console runner + MSBuild buildTransitive target to generate shims into `Scripts/Generated`.
 - `Scenes`, `Scripts`
   - Your Godot project code.
@@ -17,14 +17,15 @@ This repository demonstrates how to drive Godot game logic in F# while generatin
 
 1. In your F# project:
 
-   - Install `Godot.FSharp.Annotations`.
-   - Annotate classes with:
-     - `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D")>]`
+- Install `Headsetsniper.Godot.FSharp.Annotations`.
+- Annotate classes with:
+  - `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D")>]`
 
 2. In your Godot C# project:
-   - Install `Godot.FSharp.ShimGen`.
-   - Add a `ProjectReference` to your F# project(s).
-   - Build. Shims appear under `Scripts/Generated` and are compiled.
+
+- Install `Headsetsniper.Godot.FSharp.ShimGen`.
+- Add a `ProjectReference` to your F# project(s).
+- Build. Shims appear under `Scripts/Generated` and are compiled.
 
 ## Configuration knobs
 
@@ -40,8 +41,8 @@ This repository demonstrates how to drive Godot game logic in F# while generatin
 
 ```powershell
 # From the repo root
-dotnet pack Annotations\Godot.FSharp.Annotations.csproj -c Release
-dotnet pack ShimGen\ShimGen.csproj -c Release
+dotnet pack Annotations\Headsetsniper.Godot.FSharp.Annotations.csproj -c Release
+dotnet pack ShimGen\Headsetsniper.Godot.FSharp.ShimGen.csproj -c Release
 mkdir -Force .nupkgs
 Copy-Item Annotations\bin\Release\*.nupkg .nupkgs\
 Copy-Item ShimGen\bin\Release\*.nupkg .nupkgs\

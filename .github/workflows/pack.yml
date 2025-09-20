@@ -78,10 +78,10 @@ jobs:
 
       # Phase 1: Create local feed by packing the dependency projects first
       - name: Pack Annotations (bootstrap local feed)
-        run: dotnet pack Annotations/Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.resolve_version.outputs.value }}
+        run: dotnet pack Annotations/Headsetsniper.Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.resolve_version.outputs.value }}
 
       - name: Pack ShimGen (bootstrap local feed)
-        run: dotnet pack ShimGen/ShimGen.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.resolve_version.outputs.value }}
+        run: dotnet pack ShimGen/Headsetsniper.Godot.FSharp.ShimGen.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.resolve_version.outputs.value }}
 
       # Phase 2: Restore/build/test the rest using the local feed + nuget.org
       - name: Restore main project

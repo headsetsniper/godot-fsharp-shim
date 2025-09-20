@@ -5,9 +5,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FsharpWithShim", "FsharpWit
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Annotations", "Annotations", "{E9C9FC3D-8222-1509-ACC8-433918E487AE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Godot.FSharp.Annotations", "Annotations\Godot.FSharp.Annotations.csproj", "{176E30FA-8EB2-45CD-8156-B52EE1B5A6B5}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Headsetsniper.Godot.FSharp.Annotations", "Annotations\Headsetsniper.Godot.FSharp.Annotations.csproj", "{176E30FA-8EB2-45CD-8156-B52EE1B5A6B5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShimGen", "ShimGen\ShimGen.csproj", "{5C31D0ED-BF12-4081-8B2C-CA791AE3AF8E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Headsetsniper.Godot.FSharp.ShimGen", "ShimGen\Headsetsniper.Godot.FSharp.ShimGen.csproj", "{5C31D0ED-BF12-4081-8B2C-CA791AE3AF8E}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "FSharp", "FSharp", "{7D267F8E-13BB-18AD-6EFA-51AEB366085E}"
 EndProject
