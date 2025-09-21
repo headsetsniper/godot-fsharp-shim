@@ -4,8 +4,8 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <!-- Avoid picking up C# files from nested projects like ShimGen/Annotations -->
     <EnableDefaultItems>false</EnableDefaultItems>
-    <!-- Local dev fallback: if CI doesn't pass ShimGenPackageVersion, use a range to allow latest available -->
-    <ShimGenPackageVersion Condition="'$(ShimGenPackageVersion)'==''">[0.0.0,)</ShimGenPackageVersion>
+  <!-- Local dev fallback: if CI doesn't pass ShimGenPackageVersion, use a floating version to get the latest 0.x.y -->
+  <ShimGenPackageVersion Condition="'$(ShimGenPackageVersion)'==''">0.*</ShimGenPackageVersion>
     <!-- Ensure shims are generated even if CoreCompile is up-to-date in Godot builds -->
     <BuildDependsOn>EnsureShims;$(BuildDependsOn)</BuildDependsOn>
   </PropertyGroup>
@@ -24,6 +24,11 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>build;buildTransitive</IncludeAssets>
     </PackageReference>
+    <!-- When developing locally (targets present in repo), exclude package's build assets to avoid duplicate targets. -->
+    <PackageReference Update="Headsetsniper.Godot.FSharp.ShimGen"
+                      Condition="Exists('ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets')">
+      <ExcludeAssets>build;buildTransitive</ExcludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <!-- IDE design-time helper is provided by the Headsetsniper.Godot.FSharp.ShimGen package's buildTransitive target. -->
@@ -39,6 +44,10 @@
     <_LocalShimGenDll>$(MSBuildProjectDirectory)\ShimGen\bin\$(Configuration)\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll</_LocalShimGenDll>
     <ShimGenDll Condition="Exists('$(_LocalShimGenDll)')">$(_LocalShimGenDll)</ShimGenDll>
   </PropertyGroup>
+
+  <!-- Development convenience: import local targets so GenerateFSharpShims is available even before packing the NuGet. -->
+  <Import Project="ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets"
+          Condition="Exists('ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets')" />
 
   <!-- Ensure the package's GenerateFSharpShims target runs as part of Build -->
   <Target Name="EnsureShims" DependsOnTargets="GenerateFSharpShims" />

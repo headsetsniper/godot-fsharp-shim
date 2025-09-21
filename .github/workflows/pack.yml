@@ -95,11 +95,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Installing GitVersion.Tool for act..."
+          dotnet tool install -g GitVersion.Tool || true
+          export PATH="$PATH:$HOME/.dotnet/tools"
           echo "dotnet-gitversion version:"
           dotnet-gitversion /version || true
           echo "Running dotnet-gitversion with Diagnostic verbosity..."
           set +e
-          timeout 15s dotnet-gitversion . /output json /config GitVersion.yml /verbosity Diagnostic /nofetch
+          timeout 30s dotnet-gitversion . /output json /config GitVersion.yml /verbosity Diagnostic /nofetch
           rc=$?
           set -e
           echo "dotnet-gitversion exit code: $rc"
@@ -123,7 +126,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Use MajorMinorPatch from GitVersion and fail if missing
+          # Use MajorMinorPatch from GitVersion and fail if missing (required for both GitHub and act)
           ver='${{ steps.gitversion.outputs.MajorMinorPatch }}'
           if [ -z "$ver" ]; then
             echo "ERROR: GitVersion did not produce MajorMinorPatch. Failing build." >&2
@@ -174,7 +177,6 @@ jobs:
           fi
 
       - name: Upload .nupkgs
-        if: ${{ !env.ACT }}
         uses: actions/upload-artifact@v4
         with:
           name: nupkgs

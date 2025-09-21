@@ -2,48 +2,99 @@
   <PropertyGroup>
     <FSharpShimsEnabled Condition="'$(FSharpShimsEnabled)'==''">true</FSharpShimsEnabled>
     <FSharpShimsOutDir Condition="'$(FSharpShimsOutDir)'==''">$(MSBuildProjectDirectory)\Scripts\Generated</FSharpShimsOutDir>
-    <!-- Ensure our generator participates in Build even when CoreCompile is skipped as up-to-date -->
-    <BuildDependsOn>GenerateFSharpShims;$(BuildDependsOn)</BuildDependsOn>
+    <!-- Place stamp under obj to avoid polluting Scripts/Generated -->
+    <ShimGenStamp>$(IntermediateOutputPath)ShimGen\_shimgen.stamp</ShimGenStamp>
   </PropertyGroup>
 
-  <!-- Include shims at evaluation so they are compiled -->
-  <ItemGroup Condition="'$(FSharpShimsEnabled)'=='true'">
-    <Compile Include="$(FSharpShimsOutDir)\**\*.cs" />
-  </ItemGroup>
+  <!-- Note: We don't include shims at evaluation time to avoid duplicate Compile items.
+       We'll add them after generation within the target so they compile in the same build. -->
 
   <Target Name="GenerateFSharpShims"
     BeforeTargets="CoreCompile"
-    DependsOnTargets="ResolveReferences"
+    DependsOnTargets="ResolveProjectReferences;ResolveReferences"
     Condition="'$(FSharpShimsEnabled)'=='true'"
-    Inputs="@(ProjectReferenceWithTargetPath->'%(TargetPath)');$(ShimGenDll)"
-    Outputs="$(ShimOutDir)\_shimgen.stamp">
+  Inputs="@(ProjectReferenceWithTargetPath->'%(TargetPath)');@(_FsProjOutputs->'%(Identity)');$(ShimGenDll)"
+    Outputs="$(ShimGenStamp)">
+    <Message Importance="High" Text="[shimgen] GenerateFSharpShims running. OutDir=$(FSharpShimsOutDir); ShimGenDll=$(ShimGenDll)" />
 
     <ItemGroup>
-      <!-- Find referenced F# projects via OriginalItemSpec ending with .fsproj -->
+      <!-- Find referenced F# projects via extension filtering -->
       <_FsProjRefs Include="@(ProjectReferenceWithTargetPath)"
-                   Condition="$([System.String]::Copy('%(ProjectReferenceWithTargetPath.OriginalItemSpec)').ToLowerInvariant().EndsWith('.fsproj'))" />
+                   Condition="$([System.String]::Equals($([System.IO.Path]::GetExtension('%(ProjectReferenceWithTargetPath.OriginalItemSpec)')).ToLowerInvariant(), '.fsproj'))" />
+      <!-- Fallback: some SDKs may not populate OriginalItemSpec as expected; also check Identity extension -->
+      <_FsProjRefs Include="@(ProjectReferenceWithTargetPath)"
+                   Condition="$([System.String]::Equals($([System.IO.Path]::GetExtension('%(ProjectReferenceWithTargetPath.Identity)')).ToLowerInvariant(), '.fsproj'))" />
+      <!-- Also capture bare ProjectReference items pointing to F# projects -->
+      <_FsProjects Include="@(ProjectReference)"
+                   Condition="$([System.String]::Equals($([System.IO.Path]::GetExtension('%(ProjectReference.Identity)')).ToLowerInvariant(), '.fsproj'))" />
     </ItemGroup>
+    <!-- Fallback: look for F# projects under a conventional 'FSharp' folder next to this project -->
+    <ItemGroup Condition=" '@(_FsProjects)' == '' ">
+      <_FsProjects Include="$(MSBuildProjectDirectory)\FSharp\*.fsproj" />
+    </ItemGroup>
+    <Message Importance="Normal" Text="[shimgen] candidate F# ProjectReference items: @(_FsProjects->'%(Identity)', ', ')" />
+
+    <!-- If ProjectReferenceWithTargetPath wasn't populated by ResolveReferences, resolve target paths ourselves. -->
+    <MSBuild Projects="@(_FsProjects)"
+             Targets="Build;GetTargetPath"
+             Properties="DesignTimeBuild=false;Configuration=$(Configuration)"
+             BuildInParallel="true">
+      <Output TaskParameter="TargetOutputs" ItemName="_FsProjOutputs" />
+    </MSBuild>
 
     <PropertyGroup>
       <ShimOutDir>$(FSharpShimsOutDir)</ShimOutDir>
-  <!-- ShimGen is packaged under lib/{tfm}; keep tfm aligned with consumer project (Godot 4.5 uses net8.0) -->
-  <ShimGenDll Condition="'$(ShimGenDll)'==''">$(MSBuildThisFileDirectory)..\lib\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll</ShimGenDll>
+      <!-- Prefer externally provided path (e.g., local dev override). If unset, try to resolve from NuGet cache, then fall back to relative lib/ path. -->
+      <!-- Resolve from NuGet global/local cache -->
+      <_ShimGenNuGetRoot Condition="'$(NuGetPackageRoot)' != ''">$(NuGetPackageRoot)</_ShimGenNuGetRoot>
+      <_ShimGenNuGetRoot Condition="'$(_ShimGenNuGetRoot)' == ''">$(UserProfile)\.nuget\packages\</_ShimGenNuGetRoot>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ShimGenDllFromNuGet Include="$(_ShimGenNuGetRoot)headsetsniper.godot.fsharp.shimgen\**\lib\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll" />
+    </ItemGroup>
+    <PropertyGroup>
+      <ShimGenDll Condition="'$(ShimGenDll)'=='' and '@(_ShimGenDllFromNuGet)' != ''">@(_ShimGenDllFromNuGet->'%(FullPath)')</ShimGenDll>
+      <!-- Final fallback: relative to this targets file location when consumed from a packed nupkg -->
+      <ShimGenDll Condition="'$(ShimGenDll)'==''">$(MSBuildThisFileDirectory)..\lib\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll</ShimGenDll>
     </PropertyGroup>
 
-  <MakeDir Directories="$(ShimOutDir)" />
+    <MakeDir Directories="$(ShimOutDir);$([System.IO.Path]::GetDirectoryName('$(ShimGenStamp)'))" />
 
     <!-- Execute ShimGen once per referenced F# project -->
-    <Message Importance="Low" Text="ShimGen scanning @(_FsProjRefs->'%(OriginalItemSpec) | %(_FsProjRefs.TargetPath)', ', ')" />
-  <Exec Command="dotnet &quot;$(ShimGenDll)&quot; &quot;%(_FsProjRefs.TargetPath)&quot; &quot;$(ShimOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FsProjRefs.OriginalItemSpec)'))&quot;"
-          StandardOutputImportance="Low"
-          StandardErrorImportance="High"
-          Condition=" '@(_FsProjRefs)' != '' " />
+    <Message Importance="Normal" Text="[shimgen] scanning via ProjectReferenceWithTargetPath: @(_FsProjRefs->'%(OriginalItemSpec) | %(_FsProjRefs.Identity) | %(_FsProjRefs.TargetPath)', ', ')" />
+  <Message Importance="Normal" Text="[shimgen] scanning via MSBuild GetTargetPath: @(_FsProjOutputs->'%(Identity) from %(MSBuildSourceProjectFile)', ', ')" />
+    <!-- Primary path: Use ProjectReferenceWithTargetPath when available -->
+    <Exec Command="dotnet &quot;$(ShimGenDll)&quot; &quot;%(_FsProjRefs.TargetPath)&quot; &quot;$(ShimOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FsProjRefs.OriginalItemSpec)'))&quot;"
+      StandardOutputImportance="Low"
+      StandardErrorImportance="High"
+      Condition=" '@(_FsProjRefs)' != '' " />
+    <!-- Fallback path: Use resolved target paths and compute fsproj dir from corresponding _FsProjects item -->
+    <Exec Command="dotnet &quot;$(ShimGenDll)&quot; &quot;%(_FsProjOutputs.Identity)&quot; &quot;$(ShimOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FsProjOutputs.MSBuildSourceProjectFile)'))&quot;"
+      StandardOutputImportance="Low"
+      StandardErrorImportance="High"
+      Condition=" '@(_FsProjRefs)' == '' and '@(_FsProjOutputs)' != '' " />
+    <Message Importance="High" Condition=" '@(_FsProjRefs)' == '' and '@(_FsProjOutputs)' == '' " Text="[shimgen] no F# ProjectReference items with resolvable TargetPath found; skipping generation" />
 
     <!-- Write a stamp so Inputs/Outputs incremental build re-runs this when inputs change (F# dll or ShimGen dll) -->
-    <WriteLinesToFile File="$(ShimOutDir)\_shimgen.stamp"
-                      Lines="@(_FsProjRefs->'%(TargetPath)');$(ShimGenDll)"
-                      Overwrite="true" />
+  <WriteLinesToFile File="$(ShimGenStamp)"
+            Lines="@(_FsProjRefs->'%(TargetPath)');@(_FsProjOutputs->'%(Identity)');$(ShimGenDll)"
+            Overwrite="true"
+            Condition=" '@(_FsProjRefs)' != '' or '@(_FsProjOutputs)' != '' " />
+
+    <!-- Ensure generated files are part of Compile in this very build -->
+    <ItemGroup Condition=" '@(_FsProjRefs)' != '' or '@(_FsProjOutputs)' != '' ">
+      <Compile Include="$(FSharpShimsOutDir)\**\*.cs" />
+    </ItemGroup>
+
+    <!-- Back-compat cleanup: remove any legacy stamp that might have been written in Scripts/Generated -->
+    <ItemGroup>
+      <_LegacyStamp Include="$(ShimOutDir)\_shimgen.stamp" />
+    </ItemGroup>
+    <Delete Files="@(_LegacyStamp)" ContinueOnError="true" />
   </Target>
+
+  <!-- Extra safety: hook into the common BeforeBuild extension point to run generator -->
+  <Target Name="BeforeBuild" DependsOnTargets="GenerateFSharpShims" />
 
   <!-- Note: A previous design-time helper attempted to add References based on computed metadata.
        This caused IDE load errors in VS Code due to metadata usage inside Conditions during design-time evaluation.
