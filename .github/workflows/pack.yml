@@ -118,16 +118,15 @@ jobs:
           verbosity: Diagnostic
           additionalArguments: /nofetch
 
-      - name: Set PackageVersion env (NuGetVersionV2 or majorMinorPatch)
+      - name: Set PackageVersion env (MajorMinorPatch only)
         id: set_pkg_version
         shell: bash
         run: |
           set -euo pipefail
-          # Prefer NuGetVersionV2 from GitVersion; if missing, fall back to majorMinorPatch
-          ver='${{ steps.gitversion.outputs.NuGetVersionV2 }}'
-          if [ -z "$ver" ]; then ver='${{ steps.gitversion.outputs.MajorMinorPatch }}'; fi
+          # Use MajorMinorPatch from GitVersion and fail if missing
+          ver='${{ steps.gitversion.outputs.MajorMinorPatch }}'
           if [ -z "$ver" ]; then
-            echo "ERROR: GitVersion did not produce NuGetVersionV2 or majorMinorPatch. Failing build." >&2
+            echo "ERROR: GitVersion did not produce MajorMinorPatch. Failing build." >&2
             exit 1
           fi
           echo "Using package version: $ver"
