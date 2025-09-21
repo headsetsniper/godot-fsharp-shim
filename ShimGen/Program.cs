@@ -8,7 +8,7 @@ internal static class Program
 {
     public static int Main(string[] args)
     {
-        var (ok, asmPath, outDir, fsDir) = ParseOptions(args);
+        var (ok, asmPath, outDir, fsDir, dryRun) = ParseOptions(args);
         if (!ok)
         {
             Console.Error.WriteLine("Usage: ShimGen <FSharpAssemblyPath> <OutDir> [FsSourceDir]");
@@ -26,6 +26,10 @@ internal static class Program
             IEnumerable<Type?>? types = SafeGetTypes(asm);
 
             int scanned = 0, annotated = 0, written = 0;
+            var plannedWrites = new List<string>();
+            var plannedMoves = new List<(string from, string to)>();
+            var plannedDeletes = new List<string>();
+            var plannedSkips = new List<string>();
             var seenSourceRel = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var seenTypeFullNames = new HashSet<string>(StringComparer.Ordinal);
             foreach (var type in types)
@@ -61,10 +65,16 @@ internal static class Program
                     if (!string.IsNullOrEmpty(oldPath) && !PathsEqual(oldPath!, path))
                     {
                         // Ensure new directory exists before removing old
-                        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                        if (!dryRun)
+                            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     }
                 }
-                if (WriteIfChanged(path, code))
+                var wouldWrite = WouldWrite(path, code);
+                if (dryRun)
+                {
+                    if (wouldWrite) plannedWrites.Add(path); else plannedSkips.Add(path);
+                }
+                else if (WriteIfChanged(path, code))
                 {
                     written++;
                     Console.WriteLine($"[shimgen] Wrote {path}");
@@ -73,13 +83,17 @@ internal static class Program
                 if (!string.IsNullOrEmpty(relForThis))
                 {
                     seenSourceRel.Add(relForThis!);
-                    RemoveOtherGeneratedForSource(outDir, relForThis!, path);
+                    RemoveOtherGeneratedForSource(outDir, relForThis!, path, dryRun, plannedDeletes);
                 }
                 if (!string.IsNullOrEmpty(oldPath) && !PathsEqual(oldPath!, path) && File.Exists(oldPath!))
                 {
                     try
                     {
-                        if (IsGeneratedFile(oldPath!)) File.Delete(oldPath!);
+                        if (IsGeneratedFile(oldPath!))
+                        {
+                            plannedMoves.Add((oldPath!, path));
+                            if (!dryRun) File.Delete(oldPath!);
+                        }
                     }
                     catch { }
                 }
@@ -87,7 +101,16 @@ internal static class Program
             // Prune orphans: generated files whose SourceFile no longer exists or whose type is no longer present
             if (!string.IsNullOrEmpty(fsDir))
             {
-                PruneOrphans(outDir, fsDir!, seenTypeFullNames);
+                PruneOrphans(outDir, fsDir!, seenTypeFullNames, dryRun, plannedDeletes);
+            }
+            // Concise summary for CI
+            Console.WriteLine($"[shimgen] Summary: Moves={plannedMoves.Count}, Deletes={plannedDeletes.Count}.");
+            if (dryRun)
+            {
+                Console.WriteLine($"[shimgen] Dry-run: Writes={plannedWrites.Count}, Skipped={plannedSkips.Count}.");
+                foreach (var m in plannedMoves) Console.WriteLine($"[shimgen] plan MOVE {m.from} -> {m.to}");
+                foreach (var d in plannedDeletes) Console.WriteLine($"[shimgen] plan DELETE {d}");
+                foreach (var w in plannedWrites) Console.WriteLine($"[shimgen] plan WRITE {w}");
             }
             Console.WriteLine($"[shimgen] Completed. Scanned={scanned}, Annotated={annotated}, Written={written}.");
             return 0;
@@ -109,14 +132,24 @@ internal static class Program
         }
     }
 
-    private static (bool ok, string asmPath, string outDir, string? fsDir) ParseOptions(string[] args)
+    private static (bool ok, string asmPath, string outDir, string? fsDir, bool dryRun) ParseOptions(string[] args)
     {
-        if (args.Length < 2) return (false, "", "", null);
-        var asm = Path.GetFullPath(args[0]);
-        var outDir = args[1];
+        if (args.Length < 2) return (false, "", "", null, false);
+        string? asm = null; string? outDir = null; string? fsDir = null; bool dry = false;
+        foreach (var a in args)
+        {
+            if (a.StartsWith("-") || a.StartsWith("/"))
+            {
+                var flag = a.TrimStart('-', '/').ToLowerInvariant();
+                if (flag is "dry-run" or "n" or "noop") dry = true;
+            }
+            else if (asm is null) asm = Path.GetFullPath(a);
+            else if (outDir is null) outDir = a;
+            else if (fsDir is null) fsDir = a;
+        }
+        if (asm is null || outDir is null) return (false, "", "", null, false);
         Directory.CreateDirectory(outDir);
-        var fsDir = args.Length >= 3 ? args[2] : null;
-        return (true, asm, outDir, fsDir);
+        return (true, asm, outDir, fsDir, dry);
     }
 
     private static IsolatedLoadContext CreateLoadContext(string mainAsmPath)
@@ -372,7 +405,7 @@ internal static class Program
         return null;
     }
 
-    private static void RemoveOtherGeneratedForSource(string outRoot, string relSourceFile, string keepPath)
+    private static void RemoveOtherGeneratedForSource(string outRoot, string relSourceFile, string keepPath, bool dryRun, List<string> plannedDeletes)
     {
         try
         {
@@ -384,14 +417,22 @@ internal static class Program
                 var (_, srcFile) = ExtractHeaderInfo(content);
                 if (!string.IsNullOrEmpty(srcFile) && PathEqualsRel(srcFile!, relSourceFile))
                 {
-                    try { if (IsGeneratedFile(f)) File.Delete(f); } catch { }
+                    try
+                    {
+                        if (IsGeneratedFile(f))
+                        {
+                            plannedDeletes.Add(f);
+                            if (!dryRun) File.Delete(f);
+                        }
+                    }
+                    catch { }
                 }
             }
         }
         catch { }
     }
 
-    private static void PruneOrphans(string outRoot, string fsSourceRoot, HashSet<string> liveTypeFullNames)
+    private static void PruneOrphans(string outRoot, string fsSourceRoot, HashSet<string> liveTypeFullNames, bool dryRun, List<string> plannedDeletes)
     {
         try
         {
@@ -411,7 +452,15 @@ internal static class Program
                     remove = true;
                 if (remove)
                 {
-                    try { if (IsGeneratedFile(f)) File.Delete(f); } catch { }
+                    try
+                    {
+                        if (IsGeneratedFile(f))
+                        {
+                            plannedDeletes.Add(f);
+                            if (!dryRun) File.Delete(f);
+                        }
+                    }
+                    catch { }
                 }
             }
         }
@@ -474,6 +523,16 @@ internal static class Program
             if (!string.IsNullOrEmpty(oldHash) && oldHash == newHash) return false;
         }
         File.WriteAllText(path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        return true;
+    }
+    private static bool WouldWrite(string path, string content)
+    {
+        var existing = File.Exists(path) ? File.ReadAllText(path) : null;
+        if (existing is null) return true;
+        if (existing == content) return false;
+        var oldHash = ExtractHash(existing);
+        var newHash = ExtractHash(content);
+        if (!string.IsNullOrEmpty(oldHash) && oldHash == newHash) return false;
         return true;
     }
 }
