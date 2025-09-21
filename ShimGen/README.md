@@ -10,14 +10,17 @@ In your Godot C# project (net8.0 with Godot 4.5 SDK):
 - Add ProjectReference(s) to your F# logic project(s) that use `Headsetsniper.Godot.FSharp.Annotations`.
 
 That's it. On build, shims are generated into `Scripts/Generated` and compiled into your project.
+The generator mirrors the F# folder structure, follows moves/renames, and prunes orphaned shims.
 
 ## Configuration
 
 - `FSharpShimsEnabled` (default `true`): set to `false` to disable generation.
 - `FSharpShimsOutDir` (default `$(MSBuildProjectDirectory)\Scripts\Generated`): change output directory.
+- Console runner flags: `--dry-run` to preview planned writes/moves/deletes without applying.
 
 ## How it works
 
 - A buildTransitive target runs before `CoreCompile` after `ResolveReferences`.
 - It finds F# project references by their `.fsproj` extension, resolves their TargetPath, and runs the ShimGen runner.
 - It includes `Scripts/Generated/**/*.cs` in the compile items at evaluation time so the files are compiled.
+- The generated shim will set `IGdScript<TNode>.Node` in `_Ready()` before invoking your F# `Ready()`.

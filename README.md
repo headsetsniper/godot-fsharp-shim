@@ -6,10 +6,12 @@ This repository demonstrates how to drive Godot game logic in F# while generatin
 
 - `Annotations` (NuGet: Headsetsniper.Godot.FSharp.Annotations)
   - Provides `[GodotScript]` attribute used in F#.
+  - Provides `IGdScript<'TNode>` which lets your F# impl receive its Godot node.
 - `FSharp`
   - Your F# gameplay logic referencing `Annotations`.
 - `ShimGen` (NuGet: Headsetsniper.Godot.FSharp.ShimGen)
   - Console runner + MSBuild buildTransitive target to generate shims into `Scripts/Generated`.
+  - Mirrors your F# folder structure under the output. Moves/renames are followed and old files pruned.
 - `Scenes`, `Scripts`
   - Your Godot project code.
 
@@ -20,17 +22,29 @@ This repository demonstrates how to drive Godot game logic in F# while generatin
 - Install `Headsetsniper.Godot.FSharp.Annotations`.
 - Annotate classes with:
   - `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D")>]`
+- Optionally implement `IGdScript<Node2D>` (or your base type) to get the node injected in Ready:
+
+```fsharp
+type FooImpl() =
+  interface IGdScript<Node2D> with
+    member val Node = Unchecked.defaultof<Node2D> with get, set
+  member this.Ready() =
+    // this.Node is set by the generated shim before calling Ready()
+    ()
+```
 
 2. In your Godot C# project:
 
 - Install `Headsetsniper.Godot.FSharp.ShimGen`.
 - Add a `ProjectReference` to your F# project(s).
 - Build. Shims appear under `Scripts/Generated` and are compiled.
+- Shims include headers with SourceFile and SourceHash. The generator relocates outputs on moves/renames and prunes orphans.
 
 ## Configuration knobs
 
 - `FSharpShimsEnabled` (true by default)
 - `FSharpShimsOutDir` (default `Scripts/Generated`)
+- Command-line runner supports `--dry-run` to print planned writes/moves/deletes without changes.
 
 ## Local development flow
 
@@ -70,6 +84,7 @@ dotnet build FsharpWithShim.csproj -v:n
 ```
 
 During build, the package’s `GenerateFSharpShims` target runs before `CoreCompile`, scans the referenced F# project(s), and writes shims into `Scripts/Generated`. Those shims are then included at evaluation time by the package’s buildTransitive target.
+It mirrors folder structure relative to your F# root. If you move/rename source files or classes, the generator will move the corresponding shims and remove old ones. Use `--dry-run` with the console runner to preview actions.
 
 ## Development
 
