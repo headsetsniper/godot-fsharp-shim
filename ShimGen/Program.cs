@@ -15,8 +15,6 @@ internal static class Program
             return 2;
         }
         IsolatedLoadContext? lc = null;
-        Assembly? asm = null;
-        IEnumerable<Type?>? types = null;
         try
         {
             lc = CreateLoadContext(asmPath);
@@ -24,8 +22,8 @@ internal static class Program
             EnsureDependency(lc, "Headsetsniper.Godot.FSharp.Annotations");
             EnsureDependency(lc, "Godot.FSharp.Annotations"); // legacy id support
 
-            asm = LoadAssembly(lc, asmPath);
-            types = SafeGetTypes(asm);
+            Assembly? asm = LoadAssembly(lc, asmPath);
+            IEnumerable<Type?>? types = SafeGetTypes(asm);
 
             int scanned = 0, annotated = 0, written = 0;
             foreach (var type in types)
@@ -55,8 +53,6 @@ internal static class Program
         finally
         {
             // Drop references to allow collectible ALC to unload
-            asm = null;
-            types = null;
             if (lc is not null)
             {
                 try { lc.Unload(); } catch { /* ignore */ }
@@ -328,45 +324,5 @@ internal static class Program
         }
         File.WriteAllText(path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         return true;
-    }
-}
-
-internal readonly record struct ScriptSpec(
-    Type ImplType,
-    string ClassName,
-    string BaseTypeName,
-    PropertyInfo[] Exports,
-    bool HasReady,
-    bool HasProcess,
-    bool HasPhysicsProcess,
-    bool HasInput,
-    bool HasUnhandledInput,
-    bool HasNotification,
-    string[] SignalNames
-);
-
-internal sealed class IsolatedLoadContext : AssemblyLoadContext
-{
-    private readonly AssemblyDependencyResolver _resolver;
-    private readonly string[] _fallbackDirs;
-    public IsolatedLoadContext(AssemblyDependencyResolver resolver, params string[] fallbackDirs) : base(isCollectible: true)
-    { _resolver = resolver; _fallbackDirs = fallbackDirs ?? Array.Empty<string>(); }
-    protected override Assembly Load(AssemblyName assemblyName)
-    {
-        var path = _resolver.ResolveAssemblyToPath(assemblyName);
-        if (path != null) return LoadFromAssemblyPath(path);
-        var fileName = assemblyName.Name + ".dll";
-        foreach (var dir in _fallbackDirs)
-        {
-            var candidate = Path.Combine(dir, fileName);
-            if (File.Exists(candidate)) return LoadFromAssemblyPath(candidate);
-        }
-        return null!;
-    }
-    protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
-    {
-        var path = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
-        if (path != null) return LoadUnmanagedDllFromPath(path);
-        return IntPtr.Zero;
     }
 }
