@@ -8,7 +8,7 @@ branches:
   main:
     regex: ^main$
     increment: Patch
-    label: ''
+    label: ci
   feature:
     regex: ^(feature|feat|bugfix|fix|chore)[/-]
     increment: Inherit
