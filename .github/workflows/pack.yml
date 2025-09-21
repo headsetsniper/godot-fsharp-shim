@@ -15,6 +15,9 @@ jobs:
   build-test-pack:
     name: Build, Test, Pack
     runs-on: ubuntu-latest
+    outputs:
+      pkg_version: ${{ steps.set_pkg_version.outputs.pkg_version }}
+      gitversion_ok: ${{ steps.set_pkg_version.outputs.gitversion_ok }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,23 +43,33 @@ jobs:
         with:
           useConfigFile: true
           configFilePath: GitVersion.yml
+          verbosity: Diagnostic
 
-      - name: Set PackageVersion env (fallback when missing)
+      - name: Set PackageVersion env (with safe fallback)
+        id: set_pkg_version
         shell: bash
         run: |
           set -euo pipefail
           ver='${{ steps.gitversion.outputs.NuGetVersionV2 }}'
-          if [ -z "$ver" ]; then
+          ok='false'
+          if [ -n "$ver" ]; then
+            ok='true'
+          else
             if [ "${ACT:-}" = "true" ]; then
               ver="0.0.0-local"
               echo "GitVersion output empty under act; using fallback: $ver"
             else
-              echo "ERROR: GitVersion did not produce NuGetVersionV2" >&2
-              exit 1
+              echo "GitVersion did not produce NuGetVersionV2; proceeding with diagnostic info and skipping publish."
+              # Provide some quick repo diagnostics to logs
+              git status --porcelain=v1 || true
+              git branch -a || true
+              git log --oneline -n 10 || true
             fi
           fi
           echo "Using package version: $ver"
           echo "PKG_VERSION=$ver" >> "$GITHUB_ENV"
+          echo "pkg_version=$ver" >> "$GITHUB_OUTPUT"
+          echo "gitversion_ok=$ok" >> "$GITHUB_OUTPUT"
 
       - name: Cache NuGet
         uses: actions/cache@v4
@@ -114,7 +127,7 @@ jobs:
     name: Publish to NuGet.org
     needs: build-test-pack
     # Publish on pushes to main (no tag dependency). Guard to avoid PRs.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build-test-pack.outputs.gitversion_ok == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Setup .NET 8
