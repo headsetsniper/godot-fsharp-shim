@@ -7,8 +7,11 @@
   <PackageId>Headsetsniper.Godot.FSharp.Annotations</PackageId>
   <Title>Headsetsniper.Godot.FSharp.Annotations</Title>
     <Description>Annotations for F# to drive Godot shim generation. Provides [GodotScript] attribute.</Description>
-    <Authors>YourName</Authors>
-    <RepositoryUrl>https://github.com/your-org/fsharp-with-shim</RepositoryUrl>
+    <Authors>Sebastian Schwarz; headsetsniper@gmail.com</Authors>
+    <PackageProjectUrl>https://github.com/SebastianAtWork/godot-fsharp-shim</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/SebastianAtWork/godot-fsharp-shim</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>Godot;F#;FSharp;C#;interop;source-generator;game-dev;shim</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeSymbols>true</IncludeSymbols>
