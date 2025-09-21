@@ -27,18 +27,36 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # Use official GitVersion Action (mainline) to calculate version from history/commits
+      # Use official GitVersion Action to calculate version from history/commits
       - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v1
+        uses: gittools/actions/gitversion/setup@v2
         with:
-          versionSpec: '6.x'
+          versionSpec: '6.0.x'
 
       - name: Determine Package Version (GitVersion)
         id: gitversion
-        uses: gittools/actions/gitversion/execute@v1
+        uses: gittools/actions/gitversion/execute@v2
+        continue-on-error: true
         with:
           useConfigFile: true
           configFilePath: GitVersion.yml
+
+      - name: Set PackageVersion env (fallback when missing)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver='${{ steps.gitversion.outputs.NuGetVersionV2 }}'
+          if [ -z "$ver" ]; then
+            if [ "${ACT:-}" = "true" ]; then
+              ver="0.0.0-local"
+              echo "GitVersion output empty under act; using fallback: $ver"
+            else
+              echo "ERROR: GitVersion did not produce NuGetVersionV2" >&2
+              exit 1
+            fi
+          fi
+          echo "Using package version: $ver"
+          echo "PKG_VERSION=$ver" >> "$GITHUB_ENV"
 
       - name: Cache NuGet
         uses: actions/cache@v4
@@ -56,17 +74,17 @@ jobs:
 
       # Phase 1: Create local feed by packing the dependency projects first
       - name: Pack Annotations (bootstrap local feed)
-        run: dotnet pack Annotations/Headsetsniper.Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.gitversion.outputs.NuGetVersionV2 }}
+        run: dotnet pack Annotations/Headsetsniper.Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs /p:Version=${{ env.PKG_VERSION }}
 
       - name: Pack ShimGen (bootstrap local feed)
-        run: dotnet pack ShimGen/Headsetsniper.Godot.FSharp.ShimGen.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.gitversion.outputs.NuGetVersionV2 }}
+        run: dotnet pack ShimGen/Headsetsniper.Godot.FSharp.ShimGen.csproj -c Release -o ./.nupkgs /p:Version=${{ env.PKG_VERSION }}
 
       # Phase 2: Restore/build/test the rest using the local feed + nuget.org
       - name: Restore main project
-        run: dotnet restore FsharpWithShim.csproj -p:ShimGenPackageVersion=${{ steps.gitversion.outputs.NuGetVersionV2 }}
+        run: dotnet restore FsharpWithShim.csproj -p:ShimGenPackageVersion=${{ env.PKG_VERSION }}
 
       - name: Build (Release)
-        run: dotnet build FsharpWithShim.csproj -c Release --no-restore -p:ShimGenPackageVersion=${{ steps.gitversion.outputs.NuGetVersionV2 }}
+        run: dotnet build FsharpWithShim.csproj -c Release --no-restore -p:ShimGenPackageVersion=${{ env.PKG_VERSION }}
 
       - name: Test (Release)
         run: dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release --verbosity normal
@@ -75,7 +93,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Resolved version (GitVersion): ${{ steps.gitversion.outputs.NuGetVersionV2 }}"
+          echo "Resolved version: ${{ env.PKG_VERSION }}"
           echo "Listing ./.nupkgs contents:" && ls -la ./.nupkgs || true
           count=$(ls -1 ./.nupkgs/*.nupkg 2>/dev/null | wc -l | xargs)
           if [ "$count" = "0" ]; then
@@ -84,6 +102,7 @@ jobs:
           fi
 
       - name: Upload .nupkgs
+        if: ${{ !env.ACT }}
         uses: actions/upload-artifact@v4
         with:
           name: nupkgs
