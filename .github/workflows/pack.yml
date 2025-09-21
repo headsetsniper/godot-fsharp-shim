@@ -99,7 +99,7 @@ jobs:
           dotnet-gitversion /version || true
           echo "Running dotnet-gitversion with Diagnostic verbosity..."
           set +e
-          timeout 90s dotnet-gitversion . /output json /config GitVersion.yml /verbosity Diagnostic /nofetch
+          timeout 15s dotnet-gitversion . /output json /config GitVersion.yml /verbosity Diagnostic /nofetch
           rc=$?
           set -e
           echo "dotnet-gitversion exit code: $rc"
@@ -143,9 +143,6 @@ jobs:
 
       - name: Ensure package output directory
         run: mkdir -p ./.nupkgs
-
-      - name: Ensure optional local-shimgen source exists
-        run: mkdir -p ./.nuget-local
 
       # Phase 1: Create local feed by packing the dependency projects first
       - name: Pack Annotations (bootstrap local feed)

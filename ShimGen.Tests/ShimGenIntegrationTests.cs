@@ -318,6 +318,52 @@ public class ShimGenIntegrationTests
     }
 
     [Test]
+    public void Header_Contains_ShimGen_Version()
+    {
+        var impl = BuildImplAssembly();
+        var (fsDir, _) = CreateTempFsSource();
+        var outDir = RunShimGen(impl, fsDir);
+        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
+        var src = File.ReadAllText(fooPath);
+        StringAssert.Contains("// ShimGenVersion:", src);
+    }
+
+    [Test]
+    public void Rewrites_When_Generator_Version_Is_Newer_Even_If_Hash_Matches()
+    {
+        // Arrange: initial run produces a file with SourceHash and ShimGenVersion
+        var impl = BuildImplAssembly();
+        var (fsDir, _) = CreateTempFsSource();
+        var outDir = RunShimGen(impl, fsDir);
+        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
+        var original = File.ReadAllText(fooPath);
+        StringAssert.Contains("// SourceHash:", original);
+        StringAssert.Contains("// ShimGenVersion:", original);
+
+        // Simulate an older generator by modifying the ShimGenVersion header to a lower version, keep the same hash
+        var lines = File.ReadAllLines(fooPath).ToList();
+        for (int i = 0; i < lines.Count; i++)
+        {
+            if (lines[i].TrimStart().StartsWith("// ShimGenVersion:", StringComparison.Ordinal))
+            {
+                lines[i] = "// ShimGenVersion: 0.0.0"; // definitely older
+                break;
+            }
+        }
+        var downgraded = string.Join("\n", lines);
+        File.WriteAllText(fooPath, downgraded);
+
+        // Act: run ShimGen again with same fsDir (hash unchanged) => should rewrite due to newer generator
+        System.Threading.Thread.Sleep(10);
+        RunShimGen(impl, fsDir, outDir);
+        var after = File.ReadAllText(fooPath);
+
+        // Assert: content should no longer equal the downgraded header version; ShimGenVersion should not be 0.0.0
+        Assert.That(after, Is.Not.EqualTo(downgraded));
+        StringAssert.DoesNotContain("// ShimGenVersion: 0.0.0", after);
+    }
+
+    [Test]
     public void HashHeader_Rewrites_When_Hash_Changes()
     {
         // Arrange: initial run

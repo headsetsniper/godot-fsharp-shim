@@ -6,6 +6,8 @@
     <EnableDefaultItems>false</EnableDefaultItems>
     <!-- Local dev fallback: if CI doesn't pass ShimGenPackageVersion, use a range to allow latest available -->
     <ShimGenPackageVersion Condition="'$(ShimGenPackageVersion)'==''">[0.0.0,)</ShimGenPackageVersion>
+    <!-- Ensure shims are generated even if CoreCompile is up-to-date in Godot builds -->
+    <BuildDependsOn>EnsureShims;$(BuildDependsOn)</BuildDependsOn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,4 +33,13 @@
     <Compile Include="Scenes\**\*.cs" />
     <Compile Include="Scripts\**\*.cs" Exclude="Scripts\Generated\**\*.cs" />
   </ItemGroup>
+
+  <!-- Development convenience: if a locally built ShimGen exists, use it instead of the packaged one. -->
+  <PropertyGroup>
+    <_LocalShimGenDll>$(MSBuildProjectDirectory)\ShimGen\bin\$(Configuration)\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll</_LocalShimGenDll>
+    <ShimGenDll Condition="Exists('$(_LocalShimGenDll)')">$(_LocalShimGenDll)</ShimGenDll>
+  </PropertyGroup>
+
+  <!-- Ensure the package's GenerateFSharpShims target runs as part of Build -->
+  <Target Name="EnsureShims" DependsOnTargets="GenerateFSharpShims" />
 </Project>

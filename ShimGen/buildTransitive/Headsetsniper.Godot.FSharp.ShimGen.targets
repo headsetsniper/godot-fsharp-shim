@@ -2,6 +2,8 @@
   <PropertyGroup>
     <FSharpShimsEnabled Condition="'$(FSharpShimsEnabled)'==''">true</FSharpShimsEnabled>
     <FSharpShimsOutDir Condition="'$(FSharpShimsOutDir)'==''">$(MSBuildProjectDirectory)\Scripts\Generated</FSharpShimsOutDir>
+    <!-- Ensure our generator participates in Build even when CoreCompile is skipped as up-to-date -->
+    <BuildDependsOn>GenerateFSharpShims;$(BuildDependsOn)</BuildDependsOn>
   </PropertyGroup>
 
   <!-- Include shims at evaluation so they are compiled -->
@@ -10,9 +12,11 @@
   </ItemGroup>
 
   <Target Name="GenerateFSharpShims"
-          BeforeTargets="CoreCompile"
-          DependsOnTargets="ResolveReferences"
-          Condition="'$(FSharpShimsEnabled)'=='true'">
+    BeforeTargets="CoreCompile"
+    DependsOnTargets="ResolveReferences"
+    Condition="'$(FSharpShimsEnabled)'=='true'"
+    Inputs="@(ProjectReferenceWithTargetPath->'%(TargetPath)');$(ShimGenDll)"
+    Outputs="$(ShimOutDir)\_shimgen.stamp">
 
     <ItemGroup>
       <!-- Find referenced F# projects via OriginalItemSpec ending with .fsproj -->
@@ -23,10 +27,10 @@
     <PropertyGroup>
       <ShimOutDir>$(FSharpShimsOutDir)</ShimOutDir>
   <!-- ShimGen is packaged under lib/{tfm}; keep tfm aligned with consumer project (Godot 4.5 uses net8.0) -->
-  <ShimGenDll>$(MSBuildThisFileDirectory)..\lib\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll</ShimGenDll>
+  <ShimGenDll Condition="'$(ShimGenDll)'==''">$(MSBuildThisFileDirectory)..\lib\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll</ShimGenDll>
     </PropertyGroup>
 
-    <MakeDir Directories="$(ShimOutDir)" />
+  <MakeDir Directories="$(ShimOutDir)" />
 
     <!-- Execute ShimGen once per referenced F# project -->
     <Message Importance="Low" Text="ShimGen scanning @(_FsProjRefs->'%(OriginalItemSpec) | %(_FsProjRefs.TargetPath)', ', ')" />
@@ -34,6 +38,11 @@
           StandardOutputImportance="Low"
           StandardErrorImportance="High"
           Condition=" '@(_FsProjRefs)' != '' " />
+
+    <!-- Write a stamp so Inputs/Outputs incremental build re-runs this when inputs change (F# dll or ShimGen dll) -->
+    <WriteLinesToFile File="$(ShimOutDir)\_shimgen.stamp"
+                      Lines="@(_FsProjRefs->'%(TargetPath)');$(ShimGenDll)"
+                      Overwrite="true" />
   </Target>
 
   <!-- Note: A previous design-time helper attempted to add References based on computed metadata.
