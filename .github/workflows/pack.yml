@@ -55,11 +55,15 @@ jobs:
           if [ -n "$ver" ]; then
             ok='true'
           else
+            # Build a deterministic fallback SemVer when GitVersion fails
+            # Use GitHub run number and short SHA in a CI prerelease
+            short_sha=$(git rev-parse --short HEAD || echo unknown)
+            ver="0.0.0-ci.${GITHUB_RUN_NUMBER}-${short_sha}"
             if [ "${ACT:-}" = "true" ]; then
               ver="0.0.0-local"
               echo "GitVersion output empty under act; using fallback: $ver"
             else
-              echo "GitVersion did not produce NuGetVersionV2; proceeding with diagnostic info and skipping publish."
+              echo "GitVersion did not produce NuGetVersionV2; using fallback: $ver (publishing will be skipped)."
               # Provide some quick repo diagnostics to logs
               git status --porcelain=v1 || true
               git branch -a || true
