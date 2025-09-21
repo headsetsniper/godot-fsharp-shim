@@ -14,16 +14,18 @@ internal static class Program
             Console.Error.WriteLine("Usage: ShimGen <FSharpAssemblyPath> <OutDir> [FsSourceDir]");
             return 2;
         }
-
+        IsolatedLoadContext? lc = null;
+        Assembly? asm = null;
+        IEnumerable<Type?>? types = null;
         try
         {
-            var lc = CreateLoadContext(asmPath);
+            lc = CreateLoadContext(asmPath);
             EnsureDependency(lc, "FSharp.Core");
             EnsureDependency(lc, "Headsetsniper.Godot.FSharp.Annotations");
             EnsureDependency(lc, "Godot.FSharp.Annotations"); // legacy id support
 
-            var asm = LoadAssembly(lc, asmPath);
-            var types = SafeGetTypes(asm);
+            asm = LoadAssembly(lc, asmPath);
+            types = SafeGetTypes(asm);
 
             int scanned = 0, annotated = 0, written = 0;
             foreach (var type in types)
@@ -49,6 +51,18 @@ internal static class Program
         {
             Console.Error.WriteLine($"[shimgen] Error: {ex.Message}");
             return 1;
+        }
+        finally
+        {
+            // Drop references to allow collectible ALC to unload
+            asm = null;
+            types = null;
+            if (lc is not null)
+            {
+                try { lc.Unload(); } catch { /* ignore */ }
+                // Encourage prompt release of native handles loaded via the ALC
+                try { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); } catch { /* ignore */ }
+            }
         }
     }
 
