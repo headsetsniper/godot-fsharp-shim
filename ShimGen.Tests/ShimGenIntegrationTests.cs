@@ -433,6 +433,80 @@ public class ShimGenIntegrationTests
     }
 
     [Test]
+    public void Relocates_On_Class_Rename_And_Removes_Old()
+    {
+        // Arrange: initial class FooImpl with ClassName Foo
+        var root = TestHelpers.CreateTempDir();
+        var dir = Path.Combine(root, "Game");
+        Directory.CreateDirectory(dir);
+        var fs = Path.Combine(dir, "Foo.fs");
+        var fsContent = string.Join("\n", new[]{
+            "namespace Game",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            "[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")>]",
+            "type FooImpl() = do ()"
+        }) + "\n";
+        File.WriteAllText(fs, fsContent);
+
+        var codeFoo = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game { [GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")] public class FooImpl { public void Ready(){} } }"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node2D).Assembly;
+        var implFoo = TestHelpers.CompileCSharp(codeFoo, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameImpl_Rename");
+        var outDir = RunShimGen(implFoo, root);
+        var fooGen = Path.Combine(outDir, "Game", "Foo.cs");
+        Assert.That(File.Exists(fooGen), Is.True);
+
+        // Rename class: ClassName=Bar (same file content for hash, or modify impl to BarImpl)
+        var codeBar = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game { [GodotScript(ClassName=\"Bar\", BaseTypeName=\"Godot.Node2D\")] public class BarImpl { public void Ready(){} } }"
+        });
+        var implBar = TestHelpers.CompileCSharp(codeBar, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameImpl_Rename2");
+
+        // Act: run shimgen again; expect Bar.cs and Foo.cs removed
+        RunShimGen(implBar, root, outDir);
+        var barGen = Path.Combine(outDir, "Game", "Bar.cs");
+        Assert.That(File.Exists(barGen), Is.True, "Expected Bar.cs after rename");
+        Assert.That(File.Exists(fooGen), Is.False, "Old Foo.cs should be removed after rename");
+    }
+
+    [Test]
+    public void Prunes_Generated_When_Source_Removed()
+    {
+        // Arrange: generate one file from fs source, then delete source
+        var root = TestHelpers.CreateTempDir();
+        var dir = Path.Combine(root, "Game");
+        Directory.CreateDirectory(dir);
+        var fs = Path.Combine(dir, "Foo.fs");
+        var fsContent = string.Join("\n", new[]{
+            "namespace Game",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            "[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")>]",
+            "type FooImpl() = do ()"
+        }) + "\n";
+        File.WriteAllText(fs, fsContent);
+
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game { [GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")] public class FooImpl { public void Ready(){} } }"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node2D).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameImpl_Prune");
+        var outDir = RunShimGen(impl, root);
+        var gen = Path.Combine(outDir, "Game", "Foo.cs");
+        Assert.That(File.Exists(gen), Is.True);
+
+        // Remove source and run again: no attributes/types will be found; file should be pruned
+        File.Delete(fs);
+        RunShimGen(impl, root, outDir);
+        Assert.That(File.Exists(gen), Is.False, "Generated file should be pruned when source removed");
+    }
+
+    [Test]
     public void Emits_Signal_Attributes_And_Invokers()
     {
         // Convention: a public void method starting with "Signal_" translates to [Signal] public event and an invoker method

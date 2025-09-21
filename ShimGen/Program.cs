@@ -26,6 +26,8 @@ internal static class Program
             IEnumerable<Type?>? types = SafeGetTypes(asm);
 
             int scanned = 0, annotated = 0, written = 0;
+            var seenSourceRel = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenTypeFullNames = new HashSet<string>(StringComparer.Ordinal);
             foreach (var type in types)
             {
                 if (type is null) continue;
@@ -33,13 +35,16 @@ internal static class Program
                 var spec = TryCreateSpec(type);
                 if (spec is null) continue;
                 annotated++;
+                seenTypeFullNames.Add(spec.Value.ImplType.FullName!);
 
                 var code = GenerateCode(spec.Value, fsDir);
                 // Place output under subfolders that mirror the F# source's relative path (when provided)
                 var destDir = outDir;
+                string? relForThis = null;
                 if (!string.IsNullOrEmpty(fsDir))
                 {
                     var (rel, _) = TryGetSourceInfo(fsDir!, spec.Value.ImplType);
+                    relForThis = rel;
                     if (!string.IsNullOrEmpty(rel))
                     {
                         var relDir = Path.GetDirectoryName(rel);
@@ -64,6 +69,12 @@ internal static class Program
                     written++;
                     Console.WriteLine($"[shimgen] Wrote {path}");
                 }
+                // Remove other generated files that reference the same source file (handles class rename duplicates)
+                if (!string.IsNullOrEmpty(relForThis))
+                {
+                    seenSourceRel.Add(relForThis!);
+                    RemoveOtherGeneratedForSource(outDir, relForThis!, path);
+                }
                 if (!string.IsNullOrEmpty(oldPath) && !PathsEqual(oldPath!, path) && File.Exists(oldPath!))
                 {
                     try
@@ -72,6 +83,11 @@ internal static class Program
                     }
                     catch { }
                 }
+            }
+            // Prune orphans: generated files whose SourceFile no longer exists or whose type is no longer present
+            if (!string.IsNullOrEmpty(fsDir))
+            {
+                PruneOrphans(outDir, fsDir!, seenTypeFullNames);
             }
             Console.WriteLine($"[shimgen] Completed. Scanned={scanned}, Annotated={annotated}, Written={written}.");
             return 0;
@@ -355,6 +371,56 @@ internal static class Program
         catch { }
         return null;
     }
+
+    private static void RemoveOtherGeneratedForSource(string outRoot, string relSourceFile, string keepPath)
+    {
+        try
+        {
+            var files = Directory.EnumerateFiles(outRoot, "*.cs", SearchOption.AllDirectories);
+            foreach (var f in files)
+            {
+                if (PathsEqual(f, keepPath)) continue;
+                string content; try { content = File.ReadAllText(f); } catch { continue; }
+                var (_, srcFile) = ExtractHeaderInfo(content);
+                if (!string.IsNullOrEmpty(srcFile) && PathEqualsRel(srcFile!, relSourceFile))
+                {
+                    try { if (IsGeneratedFile(f)) File.Delete(f); } catch { }
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static void PruneOrphans(string outRoot, string fsSourceRoot, HashSet<string> liveTypeFullNames)
+    {
+        try
+        {
+            var files = Directory.EnumerateFiles(outRoot, "*.cs", SearchOption.AllDirectories);
+            foreach (var f in files)
+            {
+                string content; try { content = File.ReadAllText(f); } catch { continue; }
+                var (srcType, srcFile) = ExtractHeaderInfo(content);
+                bool remove = false;
+                if (!string.IsNullOrEmpty(srcFile))
+                {
+                    var abs = Path.GetFullPath(Path.Combine(fsSourceRoot, srcFile!.Replace('/', Path.DirectorySeparatorChar)));
+                    if (!File.Exists(abs)) remove = true;
+                }
+                // If source file is missing or type is not present in current assembly, remove
+                if (!remove && !string.IsNullOrEmpty(srcType) && !liveTypeFullNames.Contains(srcType!))
+                    remove = true;
+                if (remove)
+                {
+                    try { if (IsGeneratedFile(f)) File.Delete(f); } catch { }
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static bool PathEqualsRel(string a, string b)
+        => string.Equals(NormalizeRel(a), NormalizeRel(b), StringComparison.OrdinalIgnoreCase);
+    private static string NormalizeRel(string p) => p.Replace('\\', '/').TrimStart('.', '/');
     private static string? FindFsSourceForType(string dir, Type type)
     {
         try
