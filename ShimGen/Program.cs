@@ -134,6 +134,7 @@ internal sealed class Program
             sb.AppendLine("// </auto-generated>");
             sb.AppendLine();
             sb.AppendLine("using Godot;");
+            sb.AppendLine("using Headsetsniper.Godot.FSharp.Annotations;");
             sb.AppendLine($"namespace {ns};");
             sb.AppendLine("[GlobalClass]");
             sb.AppendLine($"public partial class {className} : {baseTypeName}");
@@ -142,8 +143,16 @@ internal sealed class Program
 
             foreach (var p in exports)
                 sb.AppendLine($"    [Export] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
-
-            if (hasReady) sb.AppendLine("    public override void _Ready() => _impl.Ready();");
+            // _Ready: first set IGdScript<T>.Node if implemented, then forward Ready()
+            if (hasReady)
+            {
+                sb.AppendLine("    public override void _Ready()");
+                sb.AppendLine("    {");
+                sb.AppendLine("        if (_impl is IGdScript<" + baseTypeName + "> gd)");
+                sb.AppendLine("            gd.Node = this;");
+                sb.AppendLine("        _impl.Ready();");
+                sb.AppendLine("    }");
+            }
             if (hasProcess) sb.AppendLine("    public override void _Process(double delta) => _impl.Process(delta);");
             if (hasPhysicsProcess) sb.AppendLine("    public override void _PhysicsProcess(double delta) => _impl.PhysicsProcess(delta);");
             if (hasInput) sb.AppendLine("    public override void _Input(Godot.InputEvent @event) => _impl.Input(@event);");

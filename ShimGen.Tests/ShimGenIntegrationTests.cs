@@ -187,8 +187,40 @@ public class ShimGenIntegrationTests
         var src = File.ReadAllText(fooPath);
 
         // Assert forwarding methods exist
-        StringAssert.Contains("public override void _Ready() => _impl.Ready();", src);
+        StringAssert.Contains("public override void _Ready()", src);
+        StringAssert.Contains("_impl.Ready();", src);
         StringAssert.Contains("public override void _Process(double delta) => _impl.Process(delta);", src);
+    }
+
+    [Test]
+    public void Ready_Sets_IGdScript_Node_Before_Forwarding()
+    {
+        // Arrange: impl declares Ready and implements IGdScript<Node2D>
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"GdInject\", BaseTypeName=\"Godot.Node2D\")]",
+            "  public class GdInjectImpl : IGdScript<Node2D> {",
+            "    public Node2D Node { get; set; }",
+            "    public bool WasReady { get; private set; }",
+            "    public void Ready(){ WasReady = Node != null; }",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node2D).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GdInjectImpl");
+        var outDir = RunShimGen(impl);
+
+        // Act
+        var path = Directory.EnumerateFiles(outDir, "GdInject.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null, "GdInject.cs not generated");
+        var src = File.ReadAllText(path!);
+
+        // Assert: _Ready sets IGdScript<Node2D>.Node = this; then calls _impl.Ready();
+        StringAssert.Contains("if (_impl is IGdScript<Godot.Node2D> gd)", src);
+        StringAssert.Contains("gd.Node = this;", src);
+        StringAssert.Contains("_impl.Ready();", src);
     }
 
     [Test]
