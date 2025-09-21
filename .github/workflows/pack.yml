@@ -17,13 +17,67 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       pkg_version: ${{ steps.set_pkg_version.outputs.pkg_version }}
-      gitversion_ok: ${{ steps.set_pkg_version.outputs.gitversion_ok }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # required for versioning to see full history
           fetch-tags: true
+
+      - name: Configure git safe.directory (for act/docker)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Marking $GITHUB_WORKSPACE as a safe git directory"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Diagnose git repo state (pre-GitVersion)
+        shell: bash
+        run: |
+          set -euo pipefail
+          pwd
+          ls -la || true
+          echo "-- .git directory --"
+          ls -la .git || echo ".git missing"
+          echo "-- git status --"
+          git status || true
+          echo "-- rev-parse HEAD --"
+          git rev-parse HEAD || true
+          echo "-- branches --"
+          git branch -a || true
+          echo "-- tags (head) --"
+          git tag -l | tail -n 5 || true
+
+      - name: Ensure full git history under act
+        if: env.ACT == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -d .git ] || ! git rev-parse HEAD >/dev/null 2>&1; then
+            echo "Reconstructing git repository for act so GitVersion can run"
+            git init
+            git config user.email "act@example.com"
+            git config user.name "act"
+            git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+            # Fetch full history and tags
+            git fetch --prune --tags --force origin
+            target_ref="${GITHUB_SHA:-}"
+            if [ -z "$target_ref" ]; then
+              target_ref="origin/${GITHUB_REF_NAME:-main}"
+            fi
+            echo "Checking out $target_ref"
+            git checkout -B "${GITHUB_REF_NAME:-main}" "$target_ref" || git checkout "$target_ref" || git checkout -B main origin/main
+          else
+            echo "Git repository detected; skipping reconstruction"
+          fi
+
+      - name: Diagnose git repo state (post-repair)
+        if: env.ACT == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          git describe --tags --always || true
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
@@ -36,6 +90,25 @@ jobs:
         with:
           versionSpec: '6.0.x'
 
+      - name: Debug GitVersion CLI (act only)
+        if: env.ACT == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "dotnet-gitversion version:"
+          dotnet-gitversion /version || true
+          echo "Running dotnet-gitversion with Diagnostic verbosity..."
+          set +e
+          timeout 90s dotnet-gitversion . /output json /config GitVersion.yml /verbosity Diagnostic /nofetch
+          rc=$?
+          set -e
+          echo "dotnet-gitversion exit code: $rc"
+          if [ $rc -ne 0 ]; then
+            echo "Listing .git details for troubleshooting:"; ls -la .git || true
+            echo "Show last commits:"; git log --oneline -n 15 || true
+            # Do not fail here; the next step will compute version or fail cleanly
+          fi
+
       - name: Determine Package Version (GitVersion)
         id: gitversion
         uses: gittools/actions/gitversion/execute@v2
@@ -44,36 +117,40 @@ jobs:
           useConfigFile: true
           configFilePath: GitVersion.yml
           verbosity: Diagnostic
+          additionalArguments: /nofetch
 
-      - name: Set PackageVersion env (with safe fallback)
+      - name: Set PackageVersion env (from action or CLI)
         id: set_pkg_version
         shell: bash
         run: |
           set -euo pipefail
+          # Prefer NuGetVersionV2, fall back to NuGetVersion, then SemVer, then FullSemVer
           ver='${{ steps.gitversion.outputs.NuGetVersionV2 }}'
-          ok='false'
-          if [ -n "$ver" ]; then
-            ok='true'
-          else
-            # Build a deterministic fallback SemVer when GitVersion fails
-            # Use GitHub run number and short SHA in a CI prerelease
-            short_sha=$(git rev-parse --short HEAD || echo unknown)
-            ver="0.0.0-ci.${GITHUB_RUN_NUMBER}-${short_sha}"
-            if [ "${ACT:-}" = "true" ]; then
-              ver="0.0.0-local"
-              echo "GitVersion output empty under act; using fallback: $ver"
-            else
-              echo "GitVersion did not produce NuGetVersionV2; using fallback: $ver (publishing will be skipped)."
-              # Provide some quick repo diagnostics to logs
-              git status --porcelain=v1 || true
-              git branch -a || true
-              git log --oneline -n 10 || true
+          if [ -z "$ver" ]; then ver='${{ steps.gitversion.outputs.NuGetVersion }}'; fi
+          if [ -z "$ver" ]; then ver='${{ steps.gitversion.outputs.SemVer }}'; fi
+          if [ -z "$ver" ]; then ver='${{ steps.gitversion.outputs.FullSemVer }}'; fi
+          if [ -z "$ver" ]; then
+            echo "GitVersion action outputs empty; falling back to GitVersion CLI"
+            # Use CLI to compute JSON and parse version in the same preference order
+            timeout 90s dotnet-gitversion . /output json /config GitVersion.yml /verbosity Diagnostic /nofetch > gv.json
+            ver=$(node -e '
+              const fs = require("fs");
+              try {
+                const j = JSON.parse(fs.readFileSync("gv.json","utf8"));
+                const v = j.NuGetVersionV2 || j.NuGetVersion || j.SemVer || j.FullSemVer || "";
+                if (!v) process.exit(1);
+                console.log(v);
+              } catch (e) { process.exit(1); }
+            ')
+            if [ -z "$ver" ]; then
+              echo "ERROR: GitVersion CLI did not produce a usable version (NuGetVersionV2/NuGetVersion/SemVer/FullSemVer). Failing build." >&2
+              echo "--- gv.json ---"; cat gv.json || true
+              exit 1
             fi
           fi
           echo "Using package version: $ver"
           echo "PKG_VERSION=$ver" >> "$GITHUB_ENV"
           echo "pkg_version=$ver" >> "$GITHUB_OUTPUT"
-          echo "gitversion_ok=$ok" >> "$GITHUB_OUTPUT"
 
       - name: Cache NuGet
         uses: actions/cache@v4
@@ -131,7 +208,7 @@ jobs:
     name: Publish to NuGet.org
     needs: build-test-pack
     # Publish on pushes to main (no tag dependency). Guard to avoid PRs.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build-test-pack.outputs.gitversion_ok == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Setup .NET 8
