@@ -36,23 +36,7 @@
           Condition=" '@(_FsProjRefs)' != '' " />
   </Target>
 
-  <!-- IDE design-time helper: add a hint reference to F# outputs so C# tooling can resolve F# types in editors.
-       This runs only during design-time builds and never copies F# assemblies to the output. -->
-  <ItemGroup Condition="'$(DesignTimeBuild)'=='true' and '$(FSharpShimsEnabled)'=='true'">
-    <!-- Find referenced F# projects by extension -->
-    <_DesignFsProj Include="@(ProjectReference)"
-                   Condition="$([System.String]::Copy('%(ProjectReference.Identity)').ToLowerInvariant().EndsWith('.fsproj'))" />
-
-    <!-- Compute design-time hint path and assembly name from project filename -->
-    <_FsDesignRef Include="@(_DesignFsProj)">
-      <DesignHint>$([System.IO.Path]::Combine($([System.IO.Path]::GetDirectoryName('%(Identity)')),'bin','$(Configuration)','$(TargetFramework)',$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)')) + '.dll'))</DesignHint>
-      <DesignName>$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)'))</DesignName>
-    </_FsDesignRef>
-
-    <!-- Add one Reference per F# project for design-time tooling -->
-    <Reference Include="%(_FsDesignRef.DesignName)">
-      <HintPath>%(_FsDesignRef.DesignHint)</HintPath>
-      <Private>false</Private>
-    </Reference>
-  </ItemGroup>
+  <!-- Note: A previous design-time helper attempted to add References based on computed metadata.
+       This caused IDE load errors in VS Code due to metadata usage inside Conditions during design-time evaluation.
+       The helper is intentionally removed; ProjectReference should suffice for IDE symbol resolution. -->
 </Project>

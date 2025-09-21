@@ -10,11 +10,11 @@
     <!-- Ensure the compiled DLL is included under lib/{tfm} in the NuGet package -->
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <BuildOutputTargetFolder>lib</BuildOutputTargetFolder>
-    <PackageId>Headsetsniper.Godot.FSharp.ShimGen</PackageId>
+  <PackageId>Headsetsniper.Godot.FSharp.ShimGen</PackageId>
     <Title>Headsetsniper.Godot.FSharp.ShimGen</Title>
     <Description>Generates C# shims for F# Godot scripts so Godot's C# tooling can consume them.</Description>
-    <Authors>YourName</Authors>
-    <RepositoryUrl>https://github.com/your-org/fsharp-with-shim</RepositoryUrl>
+  <Authors>SebastianAtWork</Authors>
+  <RepositoryUrl>https://github.com/SebastianAtWork/godot-fsharp-shim</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <!-- Version will be set by GitVersion in CI: do not hardcode here -->

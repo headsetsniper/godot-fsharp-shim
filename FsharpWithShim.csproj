@@ -4,6 +4,8 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <!-- Avoid picking up C# files from nested projects like ShimGen/Annotations -->
     <EnableDefaultItems>false</EnableDefaultItems>
+    <!-- Local dev fallback: if CI doesn't pass ShimGenPackageVersion, use a range to allow latest available -->
+    <ShimGenPackageVersion Condition="'$(ShimGenPackageVersion)'==''">[0.0.0,)</ShimGenPackageVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -11,12 +13,11 @@
     <ProjectReference Include="FSharp\\FsharpWithShim.FSharp.fsproj">
       <!-- Reference for compile so generated shims can see F# types, but do not copy to output. -->
       <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
-      <Private>false</Private>
     </ProjectReference>
   </ItemGroup>
 
   <ItemGroup>
-  <PackageReference Include="Headsetsniper.Godot.FSharp.ShimGen" Version="0.1.0">
+  <PackageReference Include="Headsetsniper.Godot.FSharp.ShimGen" Version="$(ShimGenPackageVersion)">
       <!-- Prevent any assemblies/resources from flowing into compile/runtime/output -->
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>build;buildTransitive</IncludeAssets>

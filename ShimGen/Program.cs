@@ -138,7 +138,8 @@ internal static class Program
         string? asm = null; string? outDir = null; string? fsDir = null; bool dry = false;
         foreach (var a in args)
         {
-            if (a.StartsWith("-") || a.StartsWith("/"))
+            // Accept only '-' prefixes for flags. Treat '/' as path root (Unix) rather than a flag.
+            if (a.StartsWith("-"))
             {
                 var flag = a.TrimStart('-', '/').ToLowerInvariant();
                 if (flag is "dry-run" or "n" or "noop") dry = true;

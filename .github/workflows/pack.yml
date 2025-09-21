@@ -39,10 +39,16 @@ jobs:
             export PATH="$HOME/.dotnet/tools:$PATH"
           fi
           if command -v dotnet-gitversion >/dev/null 2>&1; then
-            # Prefer single-variable output to avoid JSON parsing
-            if dotnet-gitversion /showvariable NuGetVersionV2 >/dev/null 2>&1; then
-              v=$(dotnet-gitversion /showvariable NuGetVersionV2 || echo "")
-            fi
+            # Prefer NuGetVersion, then NuGetVersionV2, then SemVer as last resort
+            for var in NuGetVersion NuGetVersionV2 SemVer; do
+              if dotnet-gitversion /showvariable "$var" >/dev/null 2>&1; then
+                v=$(dotnet-gitversion /showvariable "$var" || echo "")
+                if [[ -n "$v" && "$v" != "undefined" ]]; then
+                  echo "Using GitVersion variable $var: $v" >&2
+                  break
+                fi
+              fi
+            done
           fi
           # Fallback: tag ref like refs/tags/v1.2.3
           if [[ -z "${v}" || "${v}" == "undefined" ]]; then
@@ -80,6 +86,9 @@ jobs:
       - name: Ensure package output directory
         run: mkdir -p ./.nupkgs
 
+      - name: Ensure optional local-shimgen source exists
+        run: mkdir -p ./.nuget-local
+
       # Phase 1: Create local feed by packing the dependency projects first
       - name: Pack Annotations (bootstrap local feed)
         run: dotnet pack Annotations/Headsetsniper.Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.resolve_version.outputs.value }}
@@ -89,10 +98,10 @@ jobs:
 
       # Phase 2: Restore/build/test the rest using the local feed + nuget.org
       - name: Restore main project
-        run: dotnet restore FsharpWithShim.csproj
+        run: dotnet restore FsharpWithShim.csproj -p:ShimGenPackageVersion=${{ steps.resolve_version.outputs.value }}
 
       - name: Build (Release)
-        run: dotnet build FsharpWithShim.csproj -c Release --no-restore
+        run: dotnet build FsharpWithShim.csproj -c Release --no-restore -p:ShimGenPackageVersion=${{ steps.resolve_version.outputs.value }}
 
       - name: Test (Release)
         run: dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release --verbosity normal
