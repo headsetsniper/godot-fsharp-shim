@@ -27,53 +27,18 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Determine Package Version (GitVersion or fallbacks)
-        id: resolve_version
-        shell: bash
-        run: |
-          set -euo pipefail
-          v=""
-          # Try GitVersion.Tool if available; install if missing
-          if ! command -v dotnet-gitversion >/dev/null 2>&1; then
-            dotnet tool install -g GitVersion.Tool >/dev/null 2>&1 || true
-            export PATH="$HOME/.dotnet/tools:$PATH"
-          fi
-          if command -v dotnet-gitversion >/dev/null 2>&1; then
-            # Prefer NuGetVersion, then NuGetVersionV2, then SemVer as last resort
-            for var in NuGetVersion NuGetVersionV2 SemVer; do
-              if dotnet-gitversion /showvariable "$var" >/dev/null 2>&1; then
-                v=$(dotnet-gitversion /showvariable "$var" || echo "")
-                if [[ -n "$v" && "$v" != "undefined" ]]; then
-                  echo "Using GitVersion variable $var: $v" >&2
-                  break
-                fi
-              fi
-            done
-          fi
-          # Fallback: tag ref like refs/tags/v1.2.3
-          if [[ -z "${v}" || "${v}" == "undefined" ]]; then
-            if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
-              v="${GITHUB_REF#refs/tags/v}"
-              echo "Using version from tag ref: $v" >&2
-            fi
-          fi
-          # Fallback: latest tag in repo
-          if [[ -z "${v}" || "${v}" == "undefined" ]]; then
-            if command -v git >/dev/null 2>&1 && git -C "$GITHUB_WORKSPACE" rev-parse --git-dir >/dev/null 2>&1; then
-              tag=$(git -C "$GITHUB_WORKSPACE" describe --tags --abbrev=0 2>/dev/null || true)
-              if [[ -n "$tag" ]]; then
-                v="${tag#v}"
-                echo "Using version from git tag: $v" >&2
-              fi
-            fi
-          fi
-          # Final fallback
-          if [[ -z "${v}" || "${v}" == "undefined" ]]; then
-            v="0.0.0-local.${GITHUB_RUN_NUMBER:-0}"
-            echo "Using fallback version: $v" >&2
-          fi
-          echo "value=$v" >> "$GITHUB_OUTPUT"
-          echo "Resolved package version: $v"
+      # Use official GitVersion Action (mainline) to calculate version from history/commits
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v1
+        with:
+          versionSpec: '6.x'
+
+      - name: Determine Package Version (GitVersion)
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v1
+        with:
+          useConfigFile: true
+          configFilePath: GitVersion.yml
 
       - name: Cache NuGet
         uses: actions/cache@v4
@@ -91,17 +56,17 @@ jobs:
 
       # Phase 1: Create local feed by packing the dependency projects first
       - name: Pack Annotations (bootstrap local feed)
-        run: dotnet pack Annotations/Headsetsniper.Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.resolve_version.outputs.value }}
+        run: dotnet pack Annotations/Headsetsniper.Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.gitversion.outputs.NuGetVersionV2 }}
 
       - name: Pack ShimGen (bootstrap local feed)
-        run: dotnet pack ShimGen/Headsetsniper.Godot.FSharp.ShimGen.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.resolve_version.outputs.value }}
+        run: dotnet pack ShimGen/Headsetsniper.Godot.FSharp.ShimGen.csproj -c Release -o ./.nupkgs /p:Version=${{ steps.gitversion.outputs.NuGetVersionV2 }}
 
       # Phase 2: Restore/build/test the rest using the local feed + nuget.org
       - name: Restore main project
-        run: dotnet restore FsharpWithShim.csproj -p:ShimGenPackageVersion=${{ steps.resolve_version.outputs.value }}
+        run: dotnet restore FsharpWithShim.csproj -p:ShimGenPackageVersion=${{ steps.gitversion.outputs.NuGetVersionV2 }}
 
       - name: Build (Release)
-        run: dotnet build FsharpWithShim.csproj -c Release --no-restore -p:ShimGenPackageVersion=${{ steps.resolve_version.outputs.value }}
+        run: dotnet build FsharpWithShim.csproj -c Release --no-restore -p:ShimGenPackageVersion=${{ steps.gitversion.outputs.NuGetVersionV2 }}
 
       - name: Test (Release)
         run: dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release --verbosity normal
@@ -110,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Resolved version: ${{ steps.resolve_version.outputs.value }}"
+          echo "Resolved version (GitVersion): ${{ steps.gitversion.outputs.NuGetVersionV2 }}"
           echo "Listing ./.nupkgs contents:" && ls -la ./.nupkgs || true
           count=$(ls -1 ./.nupkgs/*.nupkg 2>/dev/null | wc -l | xargs)
           if [ "$count" = "0" ]; then
@@ -129,7 +94,8 @@ jobs:
   publish-nuget:
     name: Publish to NuGet.org
     needs: build-test-pack
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Publish on pushes to main (no tag dependency). Guard to avoid PRs.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Setup .NET 8

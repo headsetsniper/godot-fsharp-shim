@@ -1,15 +1,17 @@
 mode: ContinuousDelivery
-tag-prefix: 'v'
+tag-prefix: ''
 major-version-bump-message: '\+semver:\s?(breaking|major)'
 minor-version-bump-message: '\+semver:\s?(feature|minor)'
-patch-version-bump-message: '\+semver:\s?(fix|patch)'
+patch-version-bump-message: '\+semver:\s?(fix|patch|patch release)'
 commit-message-incrementing: Enabled
 branches:
   main:
     regex: ^main$
+    increment: Patch
     tag: ''
   feature:
-    regex: ^feature[/-]
+    regex: ^(feature|feat|bugfix|fix|chore)[/-]
+    increment: Inherit
     tag: useBranchName
   pull-request:
     regex: ^(pull|pr)[/-]
