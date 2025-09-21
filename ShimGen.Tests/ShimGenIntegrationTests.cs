@@ -385,6 +385,54 @@ public class ShimGenIntegrationTests
     }
 
     [Test]
+    public void Relocates_When_Fs_File_Moved()
+    {
+        // Arrange initial nested location
+        var root = TestHelpers.CreateTempDir();
+        var dirA = Path.Combine(root, "Game", "Scripts");
+        Directory.CreateDirectory(dirA);
+        var fsA = Path.Combine(dirA, "Foo.fs");
+        var fsContent = string.Join("\n", new[]{
+            "namespace Game.Scripts",
+            "",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            "",
+            "[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")>]",
+            "type FooImpl() =",
+            "    do ()"
+        }) + "\n";
+        File.WriteAllText(fsA, fsContent);
+
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game.Scripts {",
+            "  [GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")]",
+            "  public class FooImpl { public void Ready(){} }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node2D).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameScriptsImpl_Move");
+        var outDir = RunShimGen(impl, root);
+
+        var oldGenerated = Path.Combine(outDir, "Game", "Scripts", "Foo.cs");
+        Assert.That(File.Exists(oldGenerated), Is.True, "Initial generated file missing");
+
+        // Move the fs file to a different subfolder (simulate refactor)
+        var dirB = Path.Combine(root, "Game", "Gameplay");
+        Directory.CreateDirectory(dirB);
+        var fsB = Path.Combine(dirB, "Foo.fs");
+        File.Move(fsA, fsB);
+
+        // Act: run ShimGen again; it should generate in new place and remove the old duplicate
+        RunShimGen(impl, root, outDir);
+
+        var newGenerated = Path.Combine(outDir, "Game", "Gameplay", "Foo.cs");
+        Assert.That(File.Exists(newGenerated), Is.True, "New generated file missing at relocated path");
+        Assert.That(File.Exists(oldGenerated), Is.False, "Old generated file should be removed after relocation");
+    }
+
+    [Test]
     public void Emits_Signal_Attributes_And_Invokers()
     {
         // Convention: a public void method starting with "Signal_" translates to [Signal] public event and an invoker method
