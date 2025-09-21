@@ -343,6 +343,48 @@ public class ShimGenIntegrationTests
     }
 
     [Test]
+    public void Writes_To_Subfolders_Mirroring_Fs_Source()
+    {
+        // Arrange: create nested F# source path and a matching type namespace
+        var root = TestHelpers.CreateTempDir();
+        var nestedDir = Path.Combine(root, "Game", "Scripts");
+        Directory.CreateDirectory(nestedDir);
+        var fsFile = Path.Combine(nestedDir, "Foo.fs");
+        var fsContent = string.Join("\n", new[]{
+            "namespace Game.Scripts",
+            "",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            "",
+            "[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")>]",
+            "type FooImpl() =",
+            "    do ()"
+        }) + "\n";
+        File.WriteAllText(fsFile, fsContent);
+
+        // Impl assembly consistent with namespace/type
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game.Scripts {",
+            "  [GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")]",
+            "  public class FooImpl { public void Ready(){} }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node2D).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameScriptsImpl");
+
+        // Act: run shimgen with fsSourceDir pointing at the root
+        var outDir = RunShimGen(impl, root);
+
+        // Expect Foo.cs in Game/Scripts subfolder under outDir
+        var expectedDir = Path.Combine(outDir, "Game", "Scripts");
+        var expectedFile = Path.Combine(expectedDir, "Foo.cs");
+        Assert.That(File.Exists(expectedFile), Is.True, $"Expected generated file at {expectedFile}");
+        var src = File.ReadAllText(expectedFile);
+        StringAssert.Contains("public partial class Foo : Godot.Node2D", src);
+    }
+
+    [Test]
     public void Emits_Signal_Attributes_And_Invokers()
     {
         // Convention: a public void method starting with "Signal_" translates to [Signal] public event and an invoker method

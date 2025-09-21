@@ -35,7 +35,18 @@ internal static class Program
                 annotated++;
 
                 var code = GenerateCode(spec.Value, fsDir);
-                var path = Path.Combine(outDir, spec.Value.ClassName + ".cs");
+                // Place output under subfolders that mirror the F# source's relative path (when provided)
+                var destDir = outDir;
+                if (!string.IsNullOrEmpty(fsDir))
+                {
+                    var (rel, _) = TryGetSourceInfo(fsDir!, spec.Value.ImplType);
+                    if (!string.IsNullOrEmpty(rel))
+                    {
+                        var relDir = Path.GetDirectoryName(rel);
+                        if (!string.IsNullOrEmpty(relDir)) destDir = Path.Combine(outDir, relDir);
+                    }
+                }
+                var path = Path.Combine(destDir, spec.Value.ClassName + ".cs");
                 if (WriteIfChanged(path, code))
                 {
                     written++;
@@ -186,7 +197,8 @@ internal static class Program
         }
         sb.AppendLine("// </auto-generated>");
         sb.AppendLine();
-        sb.AppendLine("using Godot;");
+    sb.AppendLine("using Godot;");
+    sb.AppendLine("using Headsetsniper.Godot.FSharp.Annotations;");
         sb.AppendLine($"namespace {ns};");
         sb.AppendLine("[GlobalClass]");
         sb.AppendLine($"public partial class {spec.ClassName} : {spec.BaseTypeName}");
@@ -200,7 +212,7 @@ internal static class Program
         {
             sb.AppendLine("    public override void _Ready()");
             sb.AppendLine("    {");
-            sb.AppendLine("        if (_impl is Headsetsniper.Godot.FSharp.Annotations.IGdScript<" + spec.BaseTypeName + "> gd)");
+            sb.AppendLine("        if (_impl is IGdScript<" + spec.BaseTypeName + "> gd)");
             sb.AppendLine("            gd.Node = this;");
             sb.AppendLine("        _impl.Ready();");
             sb.AppendLine("    }");
