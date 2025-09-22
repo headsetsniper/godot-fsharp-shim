@@ -4,13 +4,18 @@
     <FSharpShimsOutDir Condition="'$(FSharpShimsOutDir)'==''">$(MSBuildProjectDirectory)\Scripts\Generated</FSharpShimsOutDir>
   </PropertyGroup>
 
+  <!-- Ensure shim generation participates in the standard Build pipeline (Godot.NET.Sdk alters targets) -->
+  <PropertyGroup Condition="'$(FSharpShimsEnabled)'=='true'">
+    <BuildDependsOn>GenerateFSharpShims;$(BuildDependsOn)</BuildDependsOn>
+  </PropertyGroup>
+
   <!-- Include shims at evaluation so they are compiled -->
   <ItemGroup Condition="'$(FSharpShimsEnabled)'=='true'">
     <Compile Include="$(FSharpShimsOutDir)\**\*.cs" />
   </ItemGroup>
 
   <Target Name="GenerateFSharpShims"
-          BeforeTargets="CoreCompile"
+    BeforeTargets="CoreCompile;Build"
           DependsOnTargets="ResolveReferences"
           Condition="'$(FSharpShimsEnabled)'=='true'">
 

@@ -6,11 +6,16 @@
     <ShimGenStamp>$(IntermediateOutputPath)ShimGen\_shimgen.stamp</ShimGenStamp>
   </PropertyGroup>
 
+  <!-- Godot.NET.Sdk customizes the build pipeline; explicitly wire generation into Build -->
+  <PropertyGroup Condition="'$(FSharpShimsEnabled)'=='true'">
+    <BuildDependsOn>GenerateFSharpShims;$(BuildDependsOn)</BuildDependsOn>
+  </PropertyGroup>
+
   <!-- Note: We don't include shims at evaluation time to avoid duplicate Compile items.
        We'll add them after generation within the target so they compile in the same build. -->
 
   <Target Name="GenerateFSharpShims"
-    BeforeTargets="CoreCompile"
+    BeforeTargets="CoreCompile;Build"
     DependsOnTargets="ResolveProjectReferences;ResolveReferences"
     Condition="'$(FSharpShimsEnabled)'=='true'"
   Inputs="@(ProjectReferenceWithTargetPath->'%(TargetPath)');@(_FsProjOutputs->'%(Identity)');$(ShimGenDll)"
