@@ -41,7 +41,7 @@
 
   <!-- Development convenience: if a locally built ShimGen exists, use it instead of the packaged one. -->
   <PropertyGroup>
-    <_LocalShimGenDll>$(MSBuildProjectDirectory)\ShimGen\bin\$(Configuration)\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll</_LocalShimGenDll>
+    <_LocalShimGenDll>$(MSBuildProjectDirectory)\ShimGen\bin\$(Configuration)\$(TargetFramework)\ShimGen.dll</_LocalShimGenDll>
     <ShimGenDll Condition="Exists('$(_LocalShimGenDll)')">$(_LocalShimGenDll)</ShimGenDll>
   </PropertyGroup>
 
