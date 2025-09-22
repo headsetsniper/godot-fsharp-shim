@@ -51,18 +51,28 @@
 
     <PropertyGroup>
       <ShimOutDir>$(FSharpShimsOutDir)</ShimOutDir>
-      <!-- Prefer externally provided path (e.g., local dev override). If unset, try to resolve from NuGet cache, then fall back to relative lib/ path. -->
-      <!-- Resolve from NuGet global/local cache -->
-      <_ShimGenNuGetRoot Condition="'$(NuGetPackageRoot)' != ''">$(NuGetPackageRoot)</_ShimGenNuGetRoot>
-      <_ShimGenNuGetRoot Condition="'$(_ShimGenNuGetRoot)' == ''">$(UserProfile)\.nuget\packages\</_ShimGenNuGetRoot>
+      <!-- Prefer externally provided path (e.g., local dev override). If unset, try to resolve from NuGet cache, then fall back to local bin/ (when using a repo import), then lib/ path (when imported from a nupkg). -->
+      <!-- Discover NuGet packages folder cross-platform: NUGET_PACKAGES env, then NuGetPackageRoot, then HOME/USERPROFILE -->
+      <_NuGetPackagesFolder>$([System.Environment]::GetEnvironmentVariable('NUGET_PACKAGES'))</_NuGetPackagesFolder>
+      <_NuGetPackagesFolder Condition="'$(_NuGetPackagesFolder)' == '' and '$(NuGetPackageRoot)' != ''">$(NuGetPackageRoot)</_NuGetPackagesFolder>
+      <_HomeDir>$([System.Environment]::GetEnvironmentVariable('HOME'))</_HomeDir>
+      <_UserProfileDir>$([System.Environment]::GetEnvironmentVariable('USERPROFILE'))</_UserProfileDir>
+      <_HomeDir Condition="'$(_HomeDir)' == ''">$(_UserProfileDir)</_HomeDir>
+      <_NuGetPackagesFolder Condition="'$(_NuGetPackagesFolder)' == '' and '$(_HomeDir)' != ''">$([System.IO.Path]::Combine('$(_HomeDir)', '.nuget', 'packages'))</_NuGetPackagesFolder>
     </PropertyGroup>
     <ItemGroup>
-      <_ShimGenDllFromNuGet Include="$(_ShimGenNuGetRoot)headsetsniper.godot.fsharp.shimgen\**\lib\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll" />
+      <!-- Try to locate the generator inside the NuGet global cache if this project consumes the package -->
+      <_ShimGenDllFromNuGet Include="$([System.IO.Path]::Combine('$(_NuGetPackagesFolder)', 'headsetsniper.godot.fsharp.shimgen', '**', 'lib', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))" />
     </ItemGroup>
     <PropertyGroup>
-      <ShimGenDll Condition="'$(ShimGenDll)'=='' and '@(_ShimGenDllFromNuGet)' != ''">@(_ShimGenDllFromNuGet->'%(FullPath)')</ShimGenDll>
-      <!-- Final fallback: relative to this targets file location when consumed from a packed nupkg -->
-      <ShimGenDll Condition="'$(ShimGenDll)'==''">$(MSBuildThisFileDirectory)..\lib\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll</ShimGenDll>
+      <!-- If found in NuGet cache, use that -->
+      <ShimGenDll Condition="'$(ShimGenDll)' == '' and '@(_ShimGenDllFromNuGet)' != ''">@(_ShimGenDllFromNuGet->'%(FullPath)')</ShimGenDll>
+      <!-- Fallback: when this targets file is imported from the repo (local dev), prefer the built DLL in bin/{Configuration}/{TFM} -->
+      <_ShimGenLocalBinDll>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '..', 'bin', '$(Configuration)', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenLocalBinDll>
+      <ShimGenDll Condition="'$(ShimGenDll)' == '' and Exists('$(_ShimGenLocalBinDll)')">$(_ShimGenLocalBinDll)</ShimGenDll>
+      <!-- Final fallback: relative to this targets file location when consumed from a packed nupkg (lib/{TFM}/...) -->
+      <_ShimGenLibDll>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '..', 'lib', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenLibDll>
+      <ShimGenDll Condition="'$(ShimGenDll)' == ''">$(_ShimGenLibDll)</ShimGenDll>
     </PropertyGroup>
 
     <MakeDir Directories="$(ShimOutDir);$([System.IO.Path]::GetDirectoryName('$(ShimGenStamp)'))" />

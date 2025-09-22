@@ -27,8 +27,23 @@
 
     <PropertyGroup>
       <ShimOutDir>$(FSharpShimsOutDir)</ShimOutDir>
-  <!-- ShimGen is packaged under lib/{tfm}; keep tfm aligned with consumer project (Godot 4.5 uses net8.0) -->
-  <ShimGenDll>$(MSBuildThisFileDirectory)..\lib\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll</ShimGenDll>
+      <!-- Discover ShimGen.dll robustly: prefer NuGet cache, then local bin (repo dev), then lib/{tfm} fallback -->
+      <_NuGetPackagesFolder>$([System.Environment]::GetEnvironmentVariable('NUGET_PACKAGES'))</_NuGetPackagesFolder>
+      <_NuGetPackagesFolder Condition="'$(_NuGetPackagesFolder)' == '' and '$(NuGetPackageRoot)' != ''">$(NuGetPackageRoot)</_NuGetPackagesFolder>
+      <_HomeDir>$([System.Environment]::GetEnvironmentVariable('HOME'))</_HomeDir>
+      <_UserProfileDir>$([System.Environment]::GetEnvironmentVariable('USERPROFILE'))</_UserProfileDir>
+      <_HomeDir Condition="'$(_HomeDir)' == ''">$(_UserProfileDir)</_HomeDir>
+      <_NuGetPackagesFolder Condition="'$(_NuGetPackagesFolder)' == '' and '$(_HomeDir)' != ''">$([System.IO.Path]::Combine('$(_HomeDir)', '.nuget', 'packages'))</_NuGetPackagesFolder>
+    </PropertyGroup>
+    <ItemGroup>
+      <_ShimGenDllFromNuGet Include="$([System.IO.Path]::Combine('$(_NuGetPackagesFolder)', 'headsetsniper.godot.fsharp.shimgen', '**', 'lib', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))" />
+    </ItemGroup>
+    <PropertyGroup>
+      <ShimGenDll Condition="'$(ShimGenDll)' == '' and '@(_ShimGenDllFromNuGet)' != ''">@(_ShimGenDllFromNuGet->'%(FullPath)')</ShimGenDll>
+      <_ShimGenLocalBinDll>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '..', 'bin', '$(Configuration)', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenLocalBinDll>
+      <ShimGenDll Condition="'$(ShimGenDll)' == '' and Exists('$(_ShimGenLocalBinDll)')">$(_ShimGenLocalBinDll)</ShimGenDll>
+      <_ShimGenLibDll>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '..', 'lib', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenLibDll>
+      <ShimGenDll Condition="'$(ShimGenDll)' == ''">$(_ShimGenLibDll)</ShimGenDll>
     </PropertyGroup>
 
     <MakeDir Directories="$(ShimOutDir)" />
