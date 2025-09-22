@@ -38,6 +38,11 @@
     <Compile Include="Scenes\**\*.cs" />
     <Compile Include="Scripts\**\*.cs" Exclude="Scripts\Generated\**\*.cs" />
   </ItemGroup>
+  
+  <!-- The generated shim scripts must be compiled so Godot can instantiate them -->
+  <ItemGroup>
+    <Compile Include="Scripts\Generated\**\*.cs" />
+  </ItemGroup>
 
   <!-- Development convenience: if a locally built ShimGen exists, use it instead of the packaged one. -->
   <PropertyGroup>
