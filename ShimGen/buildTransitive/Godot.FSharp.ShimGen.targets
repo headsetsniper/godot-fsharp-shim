@@ -4,57 +4,49 @@
     <FSharpShimsOutDir Condition="'$(FSharpShimsOutDir)'==''">$(MSBuildProjectDirectory)\Scripts\Generated</FSharpShimsOutDir>
   </PropertyGroup>
 
-  <!-- Ensure shim generation participates in the standard Build pipeline (Godot.NET.Sdk alters targets) -->
-  <PropertyGroup Condition="'$(FSharpShimsEnabled)'=='true'">
-    <BuildDependsOn>GenerateFSharpShims;$(BuildDependsOn)</BuildDependsOn>
-  </PropertyGroup>
-
-  <!-- Include shims at evaluation so they are compiled -->
-  <ItemGroup Condition="'$(FSharpShimsEnabled)'=='true'">
-    <Compile Include="$(FSharpShimsOutDir)\**\*.cs" />
-  </ItemGroup>
-
-  <Target Name="GenerateFSharpShims"
-    BeforeTargets="CoreCompile;Build"
-          DependsOnTargets="ResolveReferences"
-          Condition="'$(FSharpShimsEnabled)'=='true'">
-
+  <Target Name="ResolveShimGenToolPath" BeforeTargets="RunShimGen" Condition=" '$(FSharpShimsEnabled)' != 'false' ">
     <ItemGroup>
-      <!-- Find referenced F# projects via OriginalItemSpec ending with .fsproj -->
-      <_FsProjRefs Include="@(ProjectReferenceWithTargetPath)"
-                   Condition="$([System.String]::Copy('%(ProjectReferenceWithTargetPath.OriginalItemSpec)').ToLowerInvariant().EndsWith('.fsproj'))" />
+      <_ShimGenPkg Include="@(PackageReference)" Condition="'%(PackageReference.Identity)' == 'Headsetsniper.Godot.FSharp.ShimGen'" />
     </ItemGroup>
-
     <PropertyGroup>
-      <ShimOutDir>$(FSharpShimsOutDir)</ShimOutDir>
-      <!-- Discover ShimGen.dll robustly: prefer NuGet cache, then local bin (repo dev), then lib/{tfm} fallback -->
-      <_NuGetPackagesFolder>$([System.Environment]::GetEnvironmentVariable('NUGET_PACKAGES'))</_NuGetPackagesFolder>
-      <_NuGetPackagesFolder Condition="'$(_NuGetPackagesFolder)' == '' and '$(NuGetPackageRoot)' != ''">$(NuGetPackageRoot)</_NuGetPackagesFolder>
+      <_ShimGenVersion>%(_ShimGenPkg.Version)</_ShimGenVersion>
+      <_NuGetRoot>$(NuGetPackageRoot)</_NuGetRoot>
+      <_NuGetRoot Condition="'$(_NuGetRoot)' == ''">$([System.Environment]::GetEnvironmentVariable('NUGET_PACKAGES'))</_NuGetRoot>
       <_HomeDir>$([System.Environment]::GetEnvironmentVariable('HOME'))</_HomeDir>
       <_UserProfileDir>$([System.Environment]::GetEnvironmentVariable('USERPROFILE'))</_UserProfileDir>
       <_HomeDir Condition="'$(_HomeDir)' == ''">$(_UserProfileDir)</_HomeDir>
-      <_NuGetPackagesFolder Condition="'$(_NuGetPackagesFolder)' == '' and '$(_HomeDir)' != ''">$([System.IO.Path]::Combine('$(_HomeDir)', '.nuget', 'packages'))</_NuGetPackagesFolder>
+      <_NuGetRoot Condition="'$(_NuGetRoot)' == '' and '$(_HomeDir)' != ''">$([System.IO.Path]::Combine('$(_HomeDir)', '.nuget', 'packages'))</_NuGetRoot>
+      <_ShimGenToolFromPkg>$([System.IO.Path]::Combine('$(_NuGetRoot)', 'headsetsniper.godot.fsharp.shimgen', '$(_ShimGenVersion)', 'lib', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenToolFromPkg>
+      <_ShimGenLocalBin>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '..', 'bin', '$(Configuration)', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenLocalBin>
+      <_ShimGenLibNextToTargets>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '..', 'lib', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenLibNextToTargets>
+      <_ShimGenTool Condition="Exists('$(_ShimGenToolFromPkg)')">$(_ShimGenToolFromPkg)</_ShimGenTool>
+      <_ShimGenTool Condition="'$(_ShimGenTool)' == '' and Exists('$(_ShimGenLocalBin)')">$(_ShimGenLocalBin)</_ShimGenTool>
+      <_ShimGenTool Condition="'$(_ShimGenTool)' == '' and Exists('$(_ShimGenLibNextToTargets)')">$(_ShimGenLibNextToTargets)</_ShimGenTool>
     </PropertyGroup>
-    <ItemGroup>
-      <_ShimGenDllFromNuGet Include="$([System.IO.Path]::Combine('$(_NuGetPackagesFolder)', 'headsetsniper.godot.fsharp.shimgen', '**', 'lib', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))" />
-    </ItemGroup>
-    <PropertyGroup>
-      <ShimGenDll Condition="'$(ShimGenDll)' == '' and '@(_ShimGenDllFromNuGet)' != ''">@(_ShimGenDllFromNuGet->'%(FullPath)')</ShimGenDll>
-      <_ShimGenLocalBinDll>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '..', 'bin', '$(Configuration)', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenLocalBinDll>
-      <ShimGenDll Condition="'$(ShimGenDll)' == '' and Exists('$(_ShimGenLocalBinDll)')">$(_ShimGenLocalBinDll)</ShimGenDll>
-      <_ShimGenLibDll>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '..', 'lib', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenLibDll>
-      <ShimGenDll Condition="'$(ShimGenDll)' == ''">$(_ShimGenLibDll)</ShimGenDll>
-    </PropertyGroup>
-
-    <MakeDir Directories="$(ShimOutDir)" />
-
-    <!-- Execute ShimGen once per referenced F# project -->
-    <Message Importance="Low" Text="ShimGen scanning @( _FsProjRefs->'%(OriginalItemSpec) | %(_FsProjRefs.TargetPath)', ', ')" />
-  <Exec Command="dotnet &quot;$(ShimGenDll)&quot; &quot;%(_FsProjRefs.TargetPath)&quot; &quot;$(ShimOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FsProjRefs.OriginalItemSpec)'))&quot;"
-          StandardOutputImportance="Low"
-          StandardErrorImportance="High"
-          Condition=" '@(_FsProjRefs)' != '' " />
+    <Message Text="[shimgen] Tool candidates: pkg=$(_ShimGenToolFromPkg)[exists=$([System.IO.File]::Exists('$(_ShimGenToolFromPkg)'))] localBin=$(_ShimGenLocalBin)[exists=$([System.IO.File]::Exists('$(_ShimGenLocalBin)'))] libNext=$(_ShimGenLibNextToTargets)[exists=$([System.IO.File]::Exists('$(_ShimGenLibNextToTargets)'))]" Importance="Low" />
   </Target>
 
-  <!-- Design-time helper removed; see sibling targets file for rationale. -->
+  <Target Name="CollectFSharpOutputs" AfterTargets="ResolveReferences" BeforeTargets="RunShimGen" Condition=" '$(FSharpShimsEnabled)' != 'false' ">
+    <ItemGroup>
+      <_FSharpRefs Include="@(ReferencePath)" Condition="$([System.String]::Copy('%(ReferencePath.MSBuildSourceProjectFile)').EndsWith('.fsproj', System.StringComparison.OrdinalIgnoreCase))" />
+    </ItemGroup>
+    <Message Text="[shimgen] F# ReferencePath count=@(_FSharpRefs->Count())" Importance="Low" />
+  </Target>
+
+  <Target Name="RunShimGen" AfterTargets="ResolveReferences" BeforeTargets="CoreCompile;Compile" Condition=" '$(FSharpShimsEnabled)' != 'false' and '@(_FSharpRefs)' != '' and Exists('$(_ShimGenTool)') ">
+    <MakeDir Directories="$(FSharpShimsOutDir)" Condition="!Exists('$(FSharpShimsOutDir)')" />
+    <Message Text="[shimgen] Using tool: $(_ShimGenTool)" Importance="High" />
+    <Message Text="[shimgen] F# assemblies: @(_FSharpRefs)" Importance="Low" />
+    <Exec Command="dotnet &quot;$(_ShimGenTool)&quot; &quot;%(_FSharpRefs.Identity)&quot; &quot;$(FSharpShimsOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.MSBuildSourceProjectFile)'))&quot;"
+          WorkingDirectory="$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.Identity)'))"
+          StandardOutputImportance="Low" StandardErrorImportance="High" />
+    <ItemGroup>
+      <Compile Include="$(FSharpShimsOutDir)\**\*.cs" Visible="false" />
+      <FileWrites Include="$(FSharpShimsOutDir)\**\*.cs" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="CleanGeneratedShims" AfterTargets="Clean">
+    <RemoveDir Directories="$(FSharpShimsOutDir)" Condition="Exists('$(FSharpShimsOutDir)')" />
+  </Target>
 </Project>
