@@ -18,7 +18,7 @@
     BeforeTargets="CoreCompile;Build"
     DependsOnTargets="ResolveProjectReferences;ResolveReferences"
     Condition="'$(FSharpShimsEnabled)'=='true'">
-    <Message Importance="High" Text="[shimgen] GenerateFSharpShims: Project=$(MSBuildProjectFullPath) OutDir=$(FSharpShimsOutDir) ShimGenDll=$(ShimGenDll)" />
+  <!-- initial banner will be printed after we resolve ShimGenDll below -->
 
     <ItemGroup>
       <!-- Find referenced F# projects via extension filtering -->
@@ -60,11 +60,18 @@
       <_HomeDir Condition="'$(_HomeDir)' == ''">$(_UserProfileDir)</_HomeDir>
       <_NuGetPackagesFolder Condition="'$(_NuGetPackagesFolder)' == '' and '$(_HomeDir)' != ''">$([System.IO.Path]::Combine('$(_HomeDir)', '.nuget', 'packages'))</_NuGetPackagesFolder>
     </PropertyGroup>
-    <ItemGroup>
-      <!-- Try to locate the generator inside the NuGet global cache if this project consumes the package -->
-      <_ShimGenDllFromNuGet Include="$([System.IO.Path]::Combine('$(_NuGetPackagesFolder)', 'headsetsniper.godot.fsharp.shimgen', '**', 'lib', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))" />
+    <!-- Try to locate the generator inside the NuGet global cache if this project consumes the package -->
+    <ItemGroup Condition="'$(ShimGenPackageVersion)' != ''">
+      <_ShimGenDllFromNuGet Include="$(_NuGetPackagesFolder)/headsetsniper.godot.fsharp.shimgen/$(ShimGenPackageVersion)/lib/$(TargetFramework)/Headsetsniper.Godot.FSharp.ShimGen.dll" />
+    </ItemGroup>
+    <!-- Fallback: search any version (single-level wildcard to allow proper item expansion) -->
+    <ItemGroup Condition="'@(_ShimGenDllFromNuGet)' == ''">
+      <_ShimGenDllFromNuGet Include="$(_NuGetPackagesFolder)/headsetsniper.godot.fsharp.shimgen/*/lib/$(TargetFramework)/Headsetsniper.Godot.FSharp.ShimGen.dll" />
     </ItemGroup>
     <PropertyGroup>
+      <!-- Exact version path when CI passes ShimGenPackageVersion -->
+      <_ShimGenDllFromNuGetExact>$([System.IO.Path]::Combine('$(_NuGetPackagesFolder)', 'headsetsniper.godot.fsharp.shimgen', '$(ShimGenPackageVersion)', 'lib', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenDllFromNuGetExact>
+      <ShimGenDll Condition="'$(ShimGenDll)' == '' and '$(ShimGenPackageVersion)' != '' and Exists('$(_ShimGenDllFromNuGetExact)')">$(_ShimGenDllFromNuGetExact)</ShimGenDll>
       <!-- If found in NuGet cache, use that -->
       <ShimGenDll Condition="'$(ShimGenDll)' == '' and '@(_ShimGenDllFromNuGet)' != ''">@(_ShimGenDllFromNuGet->'%(FullPath)')</ShimGenDll>
       <!-- Fallback: when this targets file is imported from the repo (local dev), prefer the built DLL in bin/{Configuration}/{TFM} -->
@@ -74,6 +81,10 @@
       <_ShimGenLibDll>$([System.IO.Path]::Combine('$(MSBuildThisFileDirectory)', '..', 'lib', '$(TargetFramework)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenLibDll>
       <ShimGenDll Condition="'$(ShimGenDll)' == ''">$(_ShimGenLibDll)</ShimGenDll>
     </PropertyGroup>
+
+    <!-- Diagnostics: print resolved and candidate paths so CI logs are actionable -->
+    <Message Importance="High" Text="[shimgen] GenerateFSharpShims: Project=$(MSBuildProjectFullPath) OutDir=$(FSharpShimsOutDir) ShimGenDll=$(ShimGenDll)" />
+  <Message Importance="Normal" Text="[shimgen] candidates: NuGetExact=$(_ShimGenDllFromNuGetExact)[exists=$([System.IO.File]::Exists('$(_ShimGenDllFromNuGetExact)'))]; NuGetGlob=@(_ShimGenDllFromNuGet->'%(FullPath)'); LocalBin=$(_ShimGenLocalBinDll)[exists=$([System.IO.File]::Exists('$(_ShimGenLocalBinDll)'))]; Lib=$(_ShimGenLibDll)[exists=$([System.IO.File]::Exists('$(_ShimGenLibDll)'))]" />
 
     <MakeDir Directories="$(ShimOutDir);$([System.IO.Path]::GetDirectoryName('$(ShimGenStamp)'))" />
 
