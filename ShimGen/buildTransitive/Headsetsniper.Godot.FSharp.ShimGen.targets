@@ -17,10 +17,8 @@
   <Target Name="GenerateFSharpShims"
     BeforeTargets="CoreCompile;Build"
     DependsOnTargets="ResolveProjectReferences;ResolveReferences"
-    Condition="'$(FSharpShimsEnabled)'=='true'"
-  Inputs="@(ProjectReferenceWithTargetPath->'%(TargetPath)');@(_FsProjOutputs->'%(Identity)');$(ShimGenDll)"
-    Outputs="$(ShimGenStamp)">
-    <Message Importance="High" Text="[shimgen] GenerateFSharpShims running. OutDir=$(FSharpShimsOutDir); ShimGenDll=$(ShimGenDll)" />
+    Condition="'$(FSharpShimsEnabled)'=='true'">
+    <Message Importance="High" Text="[shimgen] GenerateFSharpShims: Project=$(MSBuildProjectFullPath) OutDir=$(FSharpShimsOutDir) ShimGenDll=$(ShimGenDll)" />
 
     <ItemGroup>
       <!-- Find referenced F# projects via extension filtering -->
@@ -33,11 +31,14 @@
       <_FsProjects Include="@(ProjectReference)"
                    Condition="$([System.String]::Equals($([System.IO.Path]::GetExtension('%(ProjectReference.Identity)')).ToLowerInvariant(), '.fsproj'))" />
     </ItemGroup>
-    <!-- Fallback: look for F# projects under a conventional 'FSharp' folder next to this project -->
+    <!-- Fallbacks: look for F# projects in a sibling 'FSharp' folder or parent tree when ProjectReference metadata is missing -->
     <ItemGroup Condition=" '@(_FsProjects)' == '' ">
-      <_FsProjects Include="$(MSBuildProjectDirectory)\FSharp\*.fsproj" />
+      <_FsProjects Include="$(MSBuildProjectDirectory)\..\FSharp\*.fsproj" />
     </ItemGroup>
-    <Message Importance="Normal" Text="[shimgen] candidate F# ProjectReference items: @(_FsProjects->'%(Identity)', ', ')" />
+    <ItemGroup Condition=" '@(_FsProjects)' == '' ">
+      <_FsProjects Include="$(MSBuildProjectDirectory)\..\*.fsproj" />
+    </ItemGroup>
+  <Message Importance="High" Text="[shimgen] discovered F# projects: @(_FsProjects->'%(Identity)', ', ')" />
 
     <!-- If ProjectReferenceWithTargetPath wasn't populated by ResolveReferences, resolve target paths ourselves. -->
     <MSBuild Projects="@(_FsProjects)"
@@ -46,6 +47,7 @@
              BuildInParallel="true">
       <Output TaskParameter="TargetOutputs" ItemName="_FsProjOutputs" />
     </MSBuild>
+    <Message Importance="High" Text="[shimgen] resolved outputs: @(_FsProjOutputs->'%(Identity) from %(MSBuildSourceProjectFile)', ', ')" Condition=" '@(_FsProjOutputs)' != '' " />
 
     <PropertyGroup>
       <ShimOutDir>$(FSharpShimsOutDir)</ShimOutDir>
@@ -80,9 +82,12 @@
       Condition=" '@(_FsProjRefs)' == '' and '@(_FsProjOutputs)' != '' " />
     <Message Importance="High" Condition=" '@(_FsProjRefs)' == '' and '@(_FsProjOutputs)' == '' " Text="[shimgen] no F# ProjectReference items with resolvable TargetPath found; skipping generation" />
 
-    <!-- Write a stamp so Inputs/Outputs incremental build re-runs this when inputs change (F# dll or ShimGen dll) -->
-  <WriteLinesToFile File="$(ShimGenStamp)"
-            Lines="@(_FsProjRefs->'%(TargetPath)');@(_FsProjOutputs->'%(Identity)');$(ShimGenDll)"
+    <!-- Write a stamp for troubleshooting (not used for skip logic anymore) -->
+    <PropertyGroup>
+      <_ShimgenStampContent>[stamp] Project=$(MSBuildProjectFullPath) ShimGen=$(ShimGenDll)</_ShimgenStampContent>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(ShimGenStamp)"
+            Lines="$(_ShimgenStampContent)"
             Overwrite="true"
             Condition=" '@(_FsProjRefs)' != '' or '@(_FsProjOutputs)' != '' " />
 
@@ -96,6 +101,11 @@
       <_LegacyStamp Include="$(ShimOutDir)\_shimgen.stamp" />
     </ItemGroup>
     <Delete Files="@(_LegacyStamp)" ContinueOnError="true" />
+
+    <ItemGroup>
+      <_GeneratedCs Include="$(FSharpShimsOutDir)\**\*.cs" />
+    </ItemGroup>
+    <Message Importance="High" Text="[shimgen] Generated @(_GeneratedCs->'%(RecursiveDir)%(Filename)%(Extension)', ', ')" Condition=" '@(_GeneratedCs)' != '' " />
   </Target>
 
   <!-- Extra safety: hook into the common BeforeBuild extension point to run generator -->
