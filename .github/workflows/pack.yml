@@ -149,19 +149,24 @@ jobs:
 
       # Phase 1: Create local feed by packing the dependency projects first
       - name: Pack Annotations (bootstrap local feed)
+        timeout-minutes: 5
         run: dotnet pack Annotations/Headsetsniper.Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs /p:Version=${{ env.PKG_VERSION }}
 
       - name: Pack ShimGen (bootstrap local feed)
+        timeout-minutes: 5
         run: dotnet pack ShimGen/Headsetsniper.Godot.FSharp.ShimGen.csproj -c Release -o ./.nupkgs /p:Version=${{ env.PKG_VERSION }}
 
       # Phase 2: Restore/build/test the rest using the local feed + nuget.org
       - name: Restore main project
+        timeout-minutes: 10
         run: dotnet restore ExampleProject/FsharpWithShim.csproj -p:ShimGenPackageVersion=${{ env.PKG_VERSION }} --configfile ExampleProject/NuGet.Config
 
       - name: Build (Release)
+        timeout-minutes: 15
         run: dotnet build ExampleProject/FsharpWithShim.csproj -c Release --no-restore -p:ShimGenPackageVersion=${{ env.PKG_VERSION }}
 
       - name: Test (Release)
+        timeout-minutes: 15
         run: dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release --verbosity normal
 
       - name: Verify packages produced
@@ -177,8 +182,9 @@ jobs:
           fi
 
       - name: Create and push git tag
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && env.ACT != 'true'
         shell: bash
+        timeout-minutes: 2
         run: |
           set -euo pipefail
           TAG="v${PKG_VERSION}"
@@ -199,6 +205,7 @@ jobs:
           git push origin "${TAG}"
 
       - name: Upload .nupkgs
+        if: env.ACT != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: nupkgs
@@ -225,6 +232,7 @@ jobs:
           path: ./.nupkgs
 
       - name: Push to NuGet.org
+        timeout-minutes: 10
         run: dotnet nuget push ./.nupkgs/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
   # Optional: Publish to GitHub Packages (NuGet)
