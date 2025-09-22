@@ -156,10 +156,10 @@ jobs:
 
       # Phase 2: Restore/build/test the rest using the local feed + nuget.org
       - name: Restore main project
-        run: dotnet restore FsharpWithShim.csproj -p:ShimGenPackageVersion=${{ env.PKG_VERSION }}
+        run: dotnet restore ExampleProject/FsharpWithShim.csproj.csproj -p:ShimGenPackageVersion=${{ env.PKG_VERSION }}
 
       - name: Build (Release)
-        run: dotnet build FsharpWithShim.csproj -c Release --no-restore -p:ShimGenPackageVersion=${{ env.PKG_VERSION }}
+        run: dotnet build ExampleProject/FsharpWithShim.csproj.csproj -c Release --no-restore -p:ShimGenPackageVersion=${{ env.PKG_VERSION }}
 
       - name: Test (Release)
         run: dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release --verbosity normal
