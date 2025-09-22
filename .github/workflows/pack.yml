@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -175,6 +175,28 @@ jobs:
             echo "ERROR: No .nupkg files were produced in ./.nupkgs" >&2
             exit 1
           fi
+
+      - name: Create and push git tag
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v${PKG_VERSION}"
+          echo "Preparing to create tag: $TAG"
+          # Ensure we have all tags locally for idempotency checks
+          git fetch --tags --force --prune || true
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists locally; skipping tag create/push"
+            exit 0
+          fi
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q .; then
+            echo "Tag ${TAG} already exists on origin; skipping tag create/push"
+            exit 0
+          fi
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
 
       - name: Upload .nupkgs
         uses: actions/upload-artifact@v4
