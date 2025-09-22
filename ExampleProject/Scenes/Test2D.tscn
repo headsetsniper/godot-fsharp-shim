@@ -10,4 +10,3 @@ script = ExtResource("1_8lpnn")
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture = ExtResource("2_cnry4")
 script = ExtResource("2_2y80p")
-Speed = 10
