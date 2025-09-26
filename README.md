@@ -83,8 +83,8 @@ dotnet restore FsharpWithShim.csproj
 dotnet build FsharpWithShim.csproj -v:n
 ```
 
-During build, the package’s `GenerateFSharpShims` target runs before `CoreCompile`, scans the referenced F# project(s), and writes shims into `Scripts/Generated`. Those shims are then included at evaluation time by the package’s buildTransitive target.
-It mirrors folder structure relative to your F# root. If you move/rename source files or classes, the generator will move the corresponding shims and remove old ones. Use `--dry-run` with the console runner to preview actions.
+- During build, the package’s `GenerateFSharpShims` target runs before `CoreCompile`, scans the referenced F# project(s), and writes shims into `Scripts/Generated`. Those shims are then included at evaluation time by the package’s buildTransitive target.
+  It mirrors folder structure relative to your F# root. If you move/rename source files or classes, the generator will move the corresponding shims and remove old ones. Use `--dry-run` with the console runner to preview actions.
 
 ## Development
 
