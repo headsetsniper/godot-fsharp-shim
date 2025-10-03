@@ -186,7 +186,7 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 
   - Types: aim for parity across primitives V, enums (incl. flags/bitmask) V, arrays/lists V, dictionaries V, Godot resources V, math types V, NodePath V, StringName V, RID V.
   - Hints/UI: Range (min/max/step/slider) V, file/dir/resource path filters V, multiline/string hint V, color-no-alpha V, layer masks V, enum lists V, flags bitmask V.
-  - Defaults/categories: respect default values; support category/subgroup grouping. Support Tooltips.
+  - Defaults/categories: respect default values; support category/subgroup grouping. Support Tooltips. V
 
 - Signals
 
