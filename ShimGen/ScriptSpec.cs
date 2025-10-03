@@ -8,6 +8,7 @@ internal readonly record struct ScriptSpec(
     string BaseTypeName,
     PropertyInfo[] Exports,
     bool Tool,
+    string? Icon,
     bool HasReady,
     bool HasEnterTree,
     bool HasExitTree,

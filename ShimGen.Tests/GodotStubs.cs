@@ -15,6 +15,7 @@ namespace Godot
     public class Node2D : Node { }
     public class Control : Node { }
     public class GlobalClassAttribute : System.Attribute { }
+    public class IconAttribute : System.Attribute { public IconAttribute(string path) { } }
     public class ToolAttribute : System.Attribute { }
     public class ExportAttribute : System.Attribute
     {

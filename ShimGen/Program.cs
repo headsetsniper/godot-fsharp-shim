@@ -198,6 +198,7 @@ internal static class Program
         string? classNameArg = null;
         string? baseTypeNameArg = null;
         bool tool = false;
+        string? icon = null;
         foreach (var na in attr.NamedArguments)
         {
             if (na.MemberName == nameof(Annotations.GodotScriptAttribute.ClassName))
@@ -206,6 +207,8 @@ internal static class Program
                 baseTypeNameArg = na.TypedValue.Value as string;
             else if (na.MemberName == nameof(Annotations.GodotScriptAttribute.Tool) && na.TypedValue.Value is bool b)
                 tool = b;
+            else if (na.MemberName == nameof(Annotations.GodotScriptAttribute.Icon))
+                icon = na.TypedValue.Value as string;
         }
         var className = string.IsNullOrWhiteSpace(classNameArg) ? t.Name : classNameArg!;
         var baseTypeName = string.IsNullOrWhiteSpace(baseTypeNameArg) ? "Godot.Node" : baseTypeNameArg!;
@@ -259,7 +262,7 @@ internal static class Program
                 nodePathMembers.Add(new NodePathMember(p.Name, memberType, isProp, path, required));
         }
 
-        return new ScriptSpec(t, className, baseTypeName, exports, tool, hasReady, hasEnterTree, hasExitTree, hasProcess, hasPhysicsProcess, hasInput, hasUnhandledInput, hasNotification, signalMethods, nodePathMembers.ToArray());
+        return new ScriptSpec(t, className, baseTypeName, exports, tool, icon, hasReady, hasEnterTree, hasExitTree, hasProcess, hasPhysicsProcess, hasInput, hasUnhandledInput, hasNotification, signalMethods, nodePathMembers.ToArray());
     }
 
     private static bool IsExportable(Type t)
@@ -303,6 +306,7 @@ internal static class Program
         sb.AppendLine($"namespace {ns};");
         if (spec.Tool) sb.AppendLine("[Tool]");
         sb.AppendLine("[GlobalClass]");
+        if (!string.IsNullOrWhiteSpace(spec.Icon)) sb.AppendLine($"[Icon(\"{spec.Icon}\")] ");
         sb.AppendLine($"public partial class {spec.ClassName} : {spec.BaseTypeName}");
         sb.AppendLine("{");
         sb.AppendLine($"    private readonly {GetTypeDisplayName(spec.ImplType)} _impl = new {GetTypeDisplayName(spec.ImplType)}();");

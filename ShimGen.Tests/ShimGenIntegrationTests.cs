@@ -178,6 +178,27 @@ public class ShimGenIntegrationTests
     }
 
     [Test]
+    public void Emits_GlobalClass_And_Icon_When_Provided()
+    {
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Iconed\", BaseTypeName=\"Godot.Node\", Icon=\"res://icon.svg\")]",
+            "  public class IconedImpl { public void Ready(){} }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "IconedImpl");
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Iconed.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("[GlobalClass]", src);
+        StringAssert.Contains("[Icon(\"res://icon.svg\")]", src);
+    }
+
+    [Test]
     public void Emits_Tool_Attribute_When_Requested()
     {
         var code = string.Join("\n", new[]{
