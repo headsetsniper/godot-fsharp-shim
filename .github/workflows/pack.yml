@@ -147,6 +147,12 @@ jobs:
       - name: Ensure package output directory
         run: mkdir -p ./.nupkgs
 
+      - name: Copy main README into ShimGen (for NuGet)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -f README.md ShimGen/README.md
+
       # Phase 1: Create local feed by packing the dependency projects first
       - name: Pack Annotations (bootstrap local feed)
         timeout-minutes: 5
