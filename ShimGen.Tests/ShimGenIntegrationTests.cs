@@ -66,6 +66,15 @@ public class ShimGenIntegrationTests
 
     public enum TestEnum { A = 0, B = 1 }
 
+    [Flags]
+    public enum TestFlags
+    {
+        None = 0,
+        One = 1 << 0,
+        Two = 1 << 1,
+        Three = One | Two
+    }
+
     [Test]
     public void Exports_Arrays_And_Enums()
     {
@@ -96,6 +105,173 @@ public class ShimGenIntegrationTests
         StringAssert.Contains("[Export] public System.Int32[] Numbers", src);
         StringAssert.Contains("[Export] public System.String[] Names", src);
         StringAssert.Contains("[Export] public ShimGen.Tests.ShimGenIntegrationTests.TestEnum Mode", src);
+    }
+
+    [Test]
+    public void Exports_Primitives_And_Strings()
+    {
+        // Arrange
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Prim\", BaseTypeName=\"Godot.Node\")]",
+            "  public class PrimImpl {",
+            "    public int I { get; set; }",
+            "    public float F { get; set; }",
+            "    public double D { get; set; }",
+            "    public bool B { get; set; }",
+            "    public string S { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "PrimImpl");
+
+        // Act
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Prim.cs", SearchOption.AllDirectories).FirstOrDefault();
+
+        // Assert
+        Assert.That(path, Is.Not.Null, "Prim.cs not generated");
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("[Export] public System.Int32 I", src);
+        StringAssert.Contains("[Export] public System.Single F", src);
+        StringAssert.Contains("[Export] public System.Double D", src);
+        StringAssert.Contains("[Export] public System.Boolean B", src);
+        StringAssert.Contains("[Export] public System.String S", src);
+    }
+
+    [Test]
+    public void Exports_Enum_Type()
+    {
+        // Arrange
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Enumy\", BaseTypeName=\"Godot.Node\")]",
+            "  public class EnumyImpl {",
+            "    public ShimGen.Tests.ShimGenIntegrationTests.TestEnum Mode { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath), MetadataReference.CreateFromFile(typeof(ShimGenIntegrationTests).Assembly.Location) }, asmName: "EnumyImpl");
+
+        // Act
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Enumy.cs", SearchOption.AllDirectories).FirstOrDefault();
+
+        // Assert
+        Assert.That(path, Is.Not.Null, "Enumy.cs not generated");
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("[Export] public ShimGen.Tests.ShimGenIntegrationTests.TestEnum Mode", src);
+    }
+
+    [Test]
+    public void Exports_Flags_Enum_With_Flags_Hint()
+    {
+        // Arrange
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Flaggy\", BaseTypeName=\"Godot.Node\")]",
+            "  public class FlaggyImpl {",
+            "    public ShimGen.Tests.ShimGenIntegrationTests.TestFlags Mask { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath), MetadataReference.CreateFromFile(typeof(ShimGenIntegrationTests).Assembly.Location) }, asmName: "FlaggyImpl");
+
+        // Act
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Flaggy.cs", SearchOption.AllDirectories).FirstOrDefault();
+
+        // Assert
+        Assert.That(path, Is.Not.Null, "Flaggy.cs not generated");
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("[Export(PropertyHint.Flags, \"None,One,Two,Three\")]", src);
+        StringAssert.Contains("public ShimGen.Tests.ShimGenIntegrationTests.TestFlags Mask", src);
+    }
+
+    [Test]
+    public void Exports_Godot_Math_And_Engine_Types()
+    {
+        // Arrange
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Typer\", BaseTypeName=\"Godot.Node\")]",
+            "  public class TyperImpl {",
+            "    public Basis B { get; set; }",
+            "    public Rect2 R { get; set; }",
+            "    public Transform2D T2 { get; set; }",
+            "    public Transform3D T3 { get; set; }",
+            "    public NodePath P { get; set; }",
+            "    public StringName S { get; set; }",
+            "    public RID Id { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "TyperImpl");
+
+        // Act
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Typer.cs", SearchOption.AllDirectories).FirstOrDefault();
+
+        // Assert
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("[Export] public Godot.Basis B", src);
+        StringAssert.Contains("[Export] public Godot.Rect2 R", src);
+        StringAssert.Contains("[Export] public Godot.Transform2D T2", src);
+        StringAssert.Contains("[Export] public Godot.Transform3D T3", src);
+        StringAssert.Contains("[Export] public Godot.NodePath P", src);
+        StringAssert.Contains("[Export] public Godot.StringName S", src);
+        StringAssert.Contains("[Export] public Godot.RID Id", src);
+    }
+
+    [Test]
+    public void Exports_Collections_And_Resources()
+    {
+        // Arrange
+        var code = string.Join("\n", new[]{
+            "using System.Collections.Generic; using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Bag\", BaseTypeName=\"Godot.Node\")]",
+            "  public class BagImpl {",
+            "    public List<int> Numbers { get; set; }",
+            "    public Dictionary<string,int> Map { get; set; }",
+            "    public Texture2D Texture { get; set; }",
+            "    public PackedScene Scene { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "BagImpl");
+
+        // Act
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Bag.cs", SearchOption.AllDirectories).FirstOrDefault();
+
+        // Assert
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("[Export] public System.Collections.Generic.List<System.Int32> Numbers", src);
+        StringAssert.Contains("[Export] public System.Collections.Generic.Dictionary<System.String, System.Int32> Map", src);
+        StringAssert.Contains("[Export] public Godot.Texture2D Texture", src);
+        StringAssert.Contains("[Export] public Godot.PackedScene Scene", src);
     }
 
     private static string RunShimGen(string implPath, string? fsSourceDir = null, string? outDirOverride = null)

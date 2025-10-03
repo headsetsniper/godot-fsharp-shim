@@ -267,17 +267,60 @@ internal static class Program
 
     private static bool IsExportable(Type t)
     {
+        // Primitives and strings
         if (t == typeof(int) || t == typeof(float) || t == typeof(double) ||
             t == typeof(bool) || t == typeof(string))
             return true;
-        if (t.FullName == "Godot.Vector2" || t.FullName == "Godot.Vector3" || t.FullName == "Godot.Color")
+
+        // Godot math/engine types commonly exported
+        if (t.FullName == "Godot.Vector2" || t.FullName == "Godot.Vector3" || t.FullName == "Godot.Color" ||
+            t.FullName == "Godot.Basis" || t.FullName == "Godot.Rect2" ||
+            t.FullName == "Godot.Transform2D" || t.FullName == "Godot.Transform3D" ||
+            t.FullName == "Godot.NodePath" || t.FullName == "Godot.StringName" || t.FullName == "Godot.RID")
             return true;
+
+        // Enums
         if (t.IsEnum) return true;
+
+        // Arrays of exportable types
         if (t.IsArray)
         {
             var et = t.GetElementType();
             return et != null && IsExportable(et);
         }
+
+        // List<T> of exportable T
+        if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(System.Collections.Generic.List<>))
+        {
+            var ga = t.GetGenericArguments();
+            return ga.Length == 1 && IsExportable(ga[0]);
+        }
+
+        // Dictionary<string, V> with exportable V
+        if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(System.Collections.Generic.Dictionary<,>))
+        {
+            var ga = t.GetGenericArguments();
+            return ga.Length == 2 && ga[0] == typeof(string) && IsExportable(ga[1]);
+        }
+
+        // Godot resources (Texture2D, PackedScene, etc.)
+        if (IsSubclassOfByName(t, "Godot.Resource")) return true;
+
+        return false;
+    }
+
+    private static bool IsSubclassOfByName(Type t, string baseFullName)
+    {
+        try
+        {
+            var cur = t;
+            while (cur != null)
+            {
+                if (cur.FullName == baseFullName) return true;
+                cur = cur.BaseType;
+            }
+        }
+        catch { }
         return false;
     }
 
@@ -313,16 +356,12 @@ internal static class Program
 
         foreach (var p in spec.Exports)
         {
+            // ExportRange support
             var rangeAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportRangeAttribute");
             if (rangeAttr is not null)
             {
                 // Emit [Export(PropertyHint.Range, "min,max,step,slider")] when range is defined
                 double min = 0, max = 0, step = 0; bool slider = false;
-                foreach (var na in rangeAttr.ConstructorArguments)
-                {
-                    // ctor(min, max, step=0, orSlider=false)
-                }
-                // NamedArguments aren't necessary since we used positional in attribute
                 var ctorArgs = rangeAttr.ConstructorArguments;
                 if (ctorArgs.Count >= 1) min = Convert.ToDouble(ctorArgs[0].Value);
                 if (ctorArgs.Count >= 2) max = Convert.ToDouble(ctorArgs[1].Value);
@@ -330,11 +369,19 @@ internal static class Program
                 if (ctorArgs.Count >= 4 && ctorArgs[3].ArgumentType == typeof(bool)) slider = (bool)ctorArgs[3].Value!;
                 var hintStr = $"{min},{max},{step},{(slider ? 1 : 0)}";
                 sb.AppendLine($"    [Export(PropertyHint.Range, \"{hintStr}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                continue;
             }
-            else
+
+            // Flags enum support: when property type is enum with [Flags], emit PropertyHint.Flags with names
+            if (p.PropertyType.IsEnum && p.PropertyType.GetCustomAttributesData().Any(a => a.AttributeType.FullName == "System.FlagsAttribute"))
             {
-                sb.AppendLine($"    [Export] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                string hintList = string.Join(',', Enum.GetNames(p.PropertyType));
+                sb.AppendLine($"    [Export(PropertyHint.Flags, \"{hintList}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                continue;
             }
+
+            // Default export
+            sb.AppendLine($"    [Export] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
         }
 
         if (spec.HasEnterTree) sb.AppendLine("    public override void _EnterTree() => _impl.EnterTree();");
@@ -402,11 +449,27 @@ internal static class Program
 
     private static string GetTypeDisplayName(Type t)
     {
+        // Arrays
         if (t.IsArray)
         {
             var elem = t.GetElementType()!;
             return GetTypeDisplayName(elem) + "[]";
         }
+
+        // Generics (e.g., List<int>, Dictionary<string,int>)
+        if (t.IsGenericType)
+        {
+            var def = t.GetGenericTypeDefinition();
+            var ns = def.Namespace;
+            var name = def.Name;
+            var backtick = name.IndexOf('`');
+            if (backtick >= 0) name = name.Substring(0, backtick);
+            var args = t.GetGenericArguments().Select(GetTypeDisplayName);
+            var prefix = string.IsNullOrEmpty(ns) ? string.Empty : ns + ".";
+            return prefix + name + "<" + string.Join(", ", args) + ">";
+        }
+
+        // Nested types
         if (t.IsNested)
         {
             var parts = new List<string>();
@@ -421,6 +484,7 @@ internal static class Program
             var prefix = string.IsNullOrEmpty(ns) ? string.Empty : ns + ".";
             return prefix + string.Join(".", parts);
         }
+
         return t.FullName!;
     }
 
