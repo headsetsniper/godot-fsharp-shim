@@ -197,4 +197,50 @@ public class LifecycleAndMetadataTests
         StringAssert.Contains("public event System.Action<System.Int32, System.String> Scored;", src);
         StringAssert.Contains("public void EmitScored(System.Int32 points, System.String who) => Scored?.Invoke(points, who);", src);
     }
+
+    [Test]
+    public void Autoconnect_Emits_Connect_NoArgs()
+    {
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"AutoA\", BaseTypeName=\"Godot.Node\")]",
+            "  public class AutoAImpl {",
+            "    [AutoConnect(Path:\"/root/World\", Signal:\"Fired\")] public void OnFired() {}",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "AutoAImpl");
+        var outDir = IntegrationTestUtil.RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "AutoA.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("GetNodeOrNull<Node>(new NodePath(\"/root/World\"))?.Connect(\"Fired\", Callable.From(() => _impl.OnFired()))", src);
+    }
+
+    [Test]
+    public void Autoconnect_Emits_Connect_TypedArgs()
+    {
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"AutoB\", BaseTypeName=\"Godot.Node\")]",
+            "  public class AutoBImpl {",
+            "    [AutoConnect(Path:\"/root/World\", Signal:\"Scored\")] public void OnScored(int points, string who) {}",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "AutoBImpl");
+        var outDir = IntegrationTestUtil.RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "AutoB.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("GetNodeOrNull<Node>(new NodePath(\"/root/World\"))?.Connect(\"Scored\", Callable.From((System.Int32 arg0, System.String arg1) => _impl.OnScored(arg0, arg1)))", src);
+    }
 }

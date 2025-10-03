@@ -3,6 +3,7 @@ namespace Godot
     public class Node
     {
         public T? GetNodeOrNull<T>(NodePath path) where T : class => null;
+        public void Connect(string signal, Callable callable) { }
         public virtual void _Ready() { }
         public virtual void _Process(double delta) { }
         public virtual void _PhysicsProcess(double delta) { }
@@ -52,4 +53,13 @@ namespace Godot
     public struct Transform2D { }
     public struct Transform3D { }
     public class InputEvent { }
+
+    public class Callable
+    {
+        public static Callable From(System.Action action) => new Callable();
+        public static Callable From<T1>(System.Action<T1> action) => new Callable();
+        public static Callable From<T1, T2>(System.Action<T1, T2> action) => new Callable();
+        public static Callable From<T1, T2, T3>(System.Action<T1, T2, T3> action) => new Callable();
+        public static Callable From<T1, T2, T3, T4>(System.Action<T1, T2, T3, T4> action) => new Callable();
+    }
 }

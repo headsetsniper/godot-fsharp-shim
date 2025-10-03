@@ -197,6 +197,46 @@ Notes
   - Use regular .NET types compatible with Godot for parameters (e.g., `int`, `string`, Godot types).
   - You can emit the signal from your F# code by calling the shim’s `Emit<Name>(...)` method as shown above.
 
+### Autoconnect
+
+- Automatically connect a node's signal to a method on your F# implementation.
+
+  - Decorate a public method with `[<AutoConnect(Path = "child/path", Signal = "pressed")>]`.
+  - In `_Ready()`, the shim will resolve the node at `Path` and call `Connect("Signal", Callable.From(...))` to forward to your method.
+
+- Examples:
+
+  - No-arg signal (e.g., Button.pressed):
+
+    ```fsharp
+    [<GodotScript(ClassName = "Hud", BaseTypeName = "Godot.Control")>]
+    type Hud() =
+      member _.Ready() = ()
+
+      [<AutoConnect(Path = "StartButton", Signal = "pressed")>]
+      member _.OnStartPressed() =
+        // Handle the button press
+        ()
+    ```
+
+  - Typed signal args:
+
+    ```fsharp
+    [<GodotScript(ClassName = "Spawner", BaseTypeName = "Godot.Node2D")>]
+    type Spawner() =
+      member _.Ready() = ()
+
+      [<AutoConnect(Path = "Enemy", Signal = "damaged")>]
+      member _.OnEnemyDamaged(amount:int, source:string) =
+        // amount and source are forwarded from the signal
+        ()
+    ```
+
+- Notes:
+  - `Path` is resolved via `GetNodeOrNull<Node>(new NodePath(Path))`; if missing, no connection is made.
+  - Method parameters must match the signal's argument types and order.
+  - You can stack multiple `[<AutoConnect ...>]` attributes on the same method to connect several nodes/signals.
+
 ## Todo
 
 Planned work to reach comprehensive Godot capability support in F# via shims.
@@ -216,7 +256,7 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 - Signals
 
   - Declaration: F# attribute for strongly-typed signals (arg names/types); generate [Signal], event, and Emit methods. V
-  - Autoconnect: optional attribute to auto-wire child node signals to methods (on \_Ready or explicit).
+  - Autoconnect: optional attribute to auto-wire child node signals to methods (on \_Ready or explicit). V
 
 - Lifecycle and callbacks coverage
 

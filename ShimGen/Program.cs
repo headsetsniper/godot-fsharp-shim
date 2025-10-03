@@ -267,7 +267,29 @@ internal static class Program
                 nodePathMembers.Add(new NodePathMember(p.Name, memberType, isProp, path, required));
         }
 
-        return new ScriptSpec(t, className, baseTypeName, exports, tool, icon, hasReady, hasEnterTree, hasExitTree, hasProcess, hasPhysicsProcess, hasInput, hasUnhandledInput, hasNotification, signals, nodePathMembers.ToArray());
+        // Discover [AutoConnect(Path, Signal)] on public methods
+        var autoConnects = new List<AutoConnectSpec>();
+        var acAttrFull = "Headsetsniper.Godot.FSharp.Annotations.AutoConnectAttribute";
+        foreach (var m in t.GetMethods(BindingFlags.Instance | BindingFlags.Public))
+        {
+            foreach (var ad in m.GetCustomAttributesData())
+            {
+                if (ad.AttributeType.FullName == acAttrFull)
+                {
+                    // Prefer named arguments (properties), fallback to constructor positional args
+                    string path = ad.NamedArguments.FirstOrDefault(na => na.MemberName == "Path").TypedValue.Value as string ?? string.Empty;
+                    string sig = ad.NamedArguments.FirstOrDefault(na => na.MemberName == "Signal").TypedValue.Value as string ?? string.Empty;
+                    if (string.IsNullOrEmpty(path) && ad.ConstructorArguments.Count > 0)
+                        path = ad.ConstructorArguments[0].Value as string ?? string.Empty;
+                    if (string.IsNullOrEmpty(sig) && ad.ConstructorArguments.Count > 1)
+                        sig = ad.ConstructorArguments[1].Value as string ?? string.Empty;
+                    var paramTypes = m.GetParameters().Select(p => p.ParameterType).ToArray();
+                    autoConnects.Add(new AutoConnectSpec(path, sig, m.Name, paramTypes));
+                }
+            }
+        }
+
+        return new ScriptSpec(t, className, baseTypeName, exports, tool, icon, hasReady, hasEnterTree, hasExitTree, hasProcess, hasPhysicsProcess, hasInput, hasUnhandledInput, hasNotification, signals, nodePathMembers.ToArray(), autoConnects.ToArray());
     }
 
     private static bool IsExportable(Type t)
@@ -501,6 +523,18 @@ internal static class Program
                         sb.AppendLine($"        if (__n_{np.Name} == null) GD.PushError(\"[shimgen] Missing required NodePath for {np.Name}\");");
                     }
                     sb.AppendLine($"        {assignTarget} = __n_{np.Name};");
+                }
+            }
+            // Autoconnect signals to impl methods
+            if (spec.AutoConnects.Length > 0)
+            {
+                foreach (var ac in spec.AutoConnects)
+                {
+                    var pnames = Enumerable.Range(0, ac.ParamTypes.Length).Select(i => "arg" + i).ToArray();
+                    var paramDecls = string.Join(", ", ac.ParamTypes.Select(GetTypeDisplayName).Zip(pnames, (t, n) => t + " " + n));
+                    var argList = string.Join(", ", pnames);
+                    var handlerName = $"__On_{ac.Signal}";
+                    sb.AppendLine($"        GetNodeOrNull<Node>(new NodePath(\"{ac.Path}\"))?.Connect(\"{ac.Signal}\", Callable.From(({paramDecls}) => _impl.{ac.HandlerName}({argList})));".Replace("( )", "()"));
                 }
             }
             sb.AppendLine("        _impl.Ready();");

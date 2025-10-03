@@ -18,7 +18,8 @@ internal readonly record struct ScriptSpec(
     bool HasUnhandledInput,
     bool HasNotification,
     SignalSpec[] Signals,
-    NodePathMember[] NodePathMembers
+    NodePathMember[] NodePathMembers,
+    AutoConnectSpec[] AutoConnects
 );
 
 internal readonly record struct NodePathMember(
@@ -33,4 +34,11 @@ internal readonly record struct SignalSpec(
     string Name,
     Type[] ParamTypes,
     string[] ParamNames
+);
+
+internal readonly record struct AutoConnectSpec(
+    string Path,
+    string Signal,
+    string HandlerName,
+    Type[] ParamTypes
 );
