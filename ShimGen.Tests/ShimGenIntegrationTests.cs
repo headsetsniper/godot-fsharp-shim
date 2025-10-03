@@ -178,6 +178,94 @@ public class ShimGenIntegrationTests
     }
 
     [Test]
+    public void Emits_Tool_Attribute_When_Requested()
+    {
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Tooly\", BaseTypeName=\"Godot.Node\", Tool=true)]",
+            "  public class ToolyImpl { public void Ready(){} }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "ToolyImpl");
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Tooly.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("[Tool]", src);
+    }
+
+    [Test]
+    public void Forwards_EnterTree_And_ExitTree_When_Present()
+    {
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"TreeGuy\", BaseTypeName=\"Godot.Node\")]",
+            "  public class TreeGuyImpl { public void EnterTree(){} public void ExitTree(){} public void Ready(){} }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "TreeGuyImpl");
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "TreeGuy.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("public override void _EnterTree() => _impl.EnterTree();", src);
+        StringAssert.Contains("public override void _ExitTree() => _impl.ExitTree();", src);
+    }
+
+    [Test]
+    public void NodePath_Auto_Wiring_In_Ready()
+    {
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Wire\", BaseTypeName=\"Godot.Node\")]",
+            "  public class WireImpl {",
+            "    [NodePath] public Node2D Player { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "WireImpl");
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Wire.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("GetNodeOrNull<Godot.Node2D>(new NodePath(nameof(Player)))", src);
+        StringAssert.Contains("_impl.Ready();", src);
+    }
+
+    [Test]
+    public void Export_Range_Hint_Is_Emitted()
+    {
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Rangey\", BaseTypeName=\"Godot.Node\")]",
+            "  public class RangeyImpl {",
+            "    [ExportRange(0, 10, 0.5, true)] public float Speed { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "RangeyImpl");
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Rangey.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("[Export(PropertyHint.Range, \"0,10,0.5,1\")]", src);
+    }
+
+    [Test]
     public void Forwards_Lifecycle_Ready_And_Process()
     {
         // Arrange

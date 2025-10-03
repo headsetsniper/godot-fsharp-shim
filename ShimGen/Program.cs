@@ -192,17 +192,20 @@ internal static class Program
     private static ScriptSpec? TryCreateSpec(Type t)
     {
         var attr = t.GetCustomAttributesData()
-                     .FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.GodotScriptAttribute");
+                 .FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.GodotScriptAttribute");
         if (attr is null) return null;
 
         string? classNameArg = null;
         string? baseTypeNameArg = null;
+        bool tool = false;
         foreach (var na in attr.NamedArguments)
         {
             if (na.MemberName == nameof(Annotations.GodotScriptAttribute.ClassName))
                 classNameArg = na.TypedValue.Value as string;
             else if (na.MemberName == nameof(Annotations.GodotScriptAttribute.BaseTypeName))
                 baseTypeNameArg = na.TypedValue.Value as string;
+            else if (na.MemberName == nameof(Annotations.GodotScriptAttribute.Tool) && na.TypedValue.Value is bool b)
+                tool = b;
         }
         var className = string.IsNullOrWhiteSpace(classNameArg) ? t.Name : classNameArg!;
         var baseTypeName = string.IsNullOrWhiteSpace(baseTypeNameArg) ? "Godot.Node" : baseTypeNameArg!;
@@ -218,6 +221,8 @@ internal static class Program
                                                   m.GetParameters()[0].ParameterType.FullName == paramFullName);
 
         var hasReady = HasNoArgs("Ready");
+        var hasEnterTree = HasNoArgs("EnterTree");
+        var hasExitTree = HasNoArgs("ExitTree");
         var hasProcess = t.GetMethod("Process", BindingFlags.Instance | BindingFlags.Public, new[] { typeof(double) }) != null;
         var hasPhysicsProcess = t.GetMethod("PhysicsProcess", BindingFlags.Instance | BindingFlags.Public, new[] { typeof(double) }) != null;
         var hasInput = HasOneParam("Input", "Godot.InputEvent");
@@ -229,7 +234,32 @@ internal static class Program
                              .Select(m => m.Name.Substring("Signal_".Length))
                              .ToArray();
 
-        return new ScriptSpec(t, className, baseTypeName, exports, hasReady, hasProcess, hasPhysicsProcess, hasInput, hasUnhandledInput, hasNotification, signalMethods);
+        // Discover NodePath members (properties/fields) annotated with NodePathAttribute
+        var nodePathMembers = new List<NodePathMember>();
+        var npAttrFull = "Headsetsniper.Godot.FSharp.Annotations.NodePathAttribute";
+        foreach (var p in t.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+        {
+            var attrs = p.GetCustomAttributesData();
+            var np = attrs.FirstOrDefault(a => a.AttributeType.FullName == npAttrFull);
+            if (np is null) continue;
+            string? path = null; bool required = true; Type? memberType = null; bool isProp = false;
+            foreach (var na2 in np.NamedArguments)
+            {
+                if (na2.MemberName == "Path") path = na2.TypedValue.Value as string;
+                else if (na2.MemberName == "Required" && na2.TypedValue.Value is bool rb) required = rb;
+            }
+            switch (p)
+            {
+                case PropertyInfo pi:
+                    memberType = pi.PropertyType; isProp = true; break;
+                case FieldInfo fi:
+                    memberType = fi.FieldType; isProp = false; break;
+            }
+            if (memberType is not null)
+                nodePathMembers.Add(new NodePathMember(p.Name, memberType, isProp, path, required));
+        }
+
+        return new ScriptSpec(t, className, baseTypeName, exports, tool, hasReady, hasEnterTree, hasExitTree, hasProcess, hasPhysicsProcess, hasInput, hasUnhandledInput, hasNotification, signalMethods, nodePathMembers.ToArray());
     }
 
     private static bool IsExportable(Type t)
@@ -271,23 +301,64 @@ internal static class Program
         sb.AppendLine("using Godot;");
         sb.AppendLine("using Headsetsniper.Godot.FSharp.Annotations;");
         sb.AppendLine($"namespace {ns};");
+        if (spec.Tool) sb.AppendLine("[Tool]");
         sb.AppendLine("[GlobalClass]");
         sb.AppendLine($"public partial class {spec.ClassName} : {spec.BaseTypeName}");
         sb.AppendLine("{");
         sb.AppendLine($"    private readonly {GetTypeDisplayName(spec.ImplType)} _impl = new {GetTypeDisplayName(spec.ImplType)}();");
 
         foreach (var p in spec.Exports)
-            sb.AppendLine($"    [Export] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+        {
+            var rangeAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportRangeAttribute");
+            if (rangeAttr is not null)
+            {
+                // Emit [Export(PropertyHint.Range, "min,max,step,slider")] when range is defined
+                double min = 0, max = 0, step = 0; bool slider = false;
+                foreach (var na in rangeAttr.ConstructorArguments)
+                {
+                    // ctor(min, max, step=0, orSlider=false)
+                }
+                // NamedArguments aren't necessary since we used positional in attribute
+                var ctorArgs = rangeAttr.ConstructorArguments;
+                if (ctorArgs.Count >= 1) min = Convert.ToDouble(ctorArgs[0].Value);
+                if (ctorArgs.Count >= 2) max = Convert.ToDouble(ctorArgs[1].Value);
+                if (ctorArgs.Count >= 3) step = Convert.ToDouble(ctorArgs[2].Value);
+                if (ctorArgs.Count >= 4 && ctorArgs[3].ArgumentType == typeof(bool)) slider = (bool)ctorArgs[3].Value!;
+                var hintStr = $"{min},{max},{step},{(slider ? 1 : 0)}";
+                sb.AppendLine($"    [Export(PropertyHint.Range, \"{hintStr}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+            }
+            else
+            {
+                sb.AppendLine($"    [Export] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+            }
+        }
 
+        if (spec.HasEnterTree) sb.AppendLine("    public override void _EnterTree() => _impl.EnterTree();");
         if (spec.HasReady)
         {
             sb.AppendLine("    public override void _Ready()");
             sb.AppendLine("    {");
             sb.AppendLine("        if (_impl is IGdScript<" + spec.BaseTypeName + "> gd)");
             sb.AppendLine("            gd.Node = this;");
+            // NodePath auto-wiring before calling Ready()
+            if (spec.NodePathMembers.Length > 0)
+            {
+                foreach (var np in spec.NodePathMembers)
+                {
+                    var assignTarget = np.IsProperty ? $"_impl.{np.Name}" : $"_impl.{np.Name}"; // fields/properties same syntax
+                    var pathExpr = string.IsNullOrEmpty(np.Path) ? $"nameof({np.Name})" : $"\"{np.Path}\"";
+                    sb.AppendLine($"        var __n_{np.Name} = GetNodeOrNull<{GetTypeDisplayName(np.MemberType)}>(new NodePath({pathExpr}));");
+                    if (np.Required)
+                    {
+                        sb.AppendLine($"        if (__n_{np.Name} == null) GD.PushError(\"[shimgen] Missing required NodePath for {np.Name}\");");
+                    }
+                    sb.AppendLine($"        {assignTarget} = __n_{np.Name};");
+                }
+            }
             sb.AppendLine("        _impl.Ready();");
             sb.AppendLine("    }");
         }
+        if (spec.HasExitTree) sb.AppendLine("    public override void _ExitTree() => _impl.ExitTree();");
         if (spec.HasProcess) sb.AppendLine("    public override void _Process(double delta) => _impl.Process(delta);");
         if (spec.HasPhysicsProcess) sb.AppendLine("    public override void _PhysicsProcess(double delta) => _impl.PhysicsProcess(delta);");
         if (spec.HasInput) sb.AppendLine("    public override void _Input(Godot.InputEvent @event) => _impl.Input(@event);");

@@ -90,8 +90,40 @@ dotnet build FsharpWithShim.csproj -v:n
 
 - Run tests: `dotnet test ShimGen.Tests`
 - Pack packages:
+
   - `dotnet pack Annotations -c Release`
   - `dotnet pack ShimGen -c Release`
+
+## Features
+
+The generator and annotations now support these capabilities out of the box:
+
+- Tool scripts
+
+  - Enable editor-time behavior by setting `Tool=true` on `GodotScript`.
+  - F#: `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D", Tool = true)>]`
+
+- Lifecycle forwarding (EnterTree/ExitTree)
+
+  - Implement `EnterTree()` or `ExitTree()` in your F# type to receive those callbacks.
+  - `_Ready`, `_Process`, `_PhysicsProcess`, `_Input`, `_UnhandledInput`, `_Notification` are also supported when present.
+
+- NodePath auto‑wiring in \_Ready
+
+  - Decorate fields/properties with `[NodePath]` to auto‑resolve nodes before calling `Ready()`.
+  - Default path is `nameof(Member)`; override with `Path = "Some/Child"`. Use `Required=false` to suppress error when missing.
+  - F# example: - `[<NodePath>]
+member val Player : Godot.Node2D = Unchecked.defaultof<_> with get, set`
+
+- Export range hints
+  - Add `[ExportRange(min, max, step, orSlider)]` to numeric properties to show a range control in the editor.
+  - F# example: - `[<ExportRange(0.0, 10.0, 0.5, true)>]
+member val Speed : float32 = 1.0f with get, set`
+
+Notes
+
+- The shim sets `IGdScript<TNode>.Node = this` inside `_Ready()` before invoking your `Ready()`.
+- NodePath wiring also runs inside `_Ready()` prior to `Ready()`.
 
 ## Todo
 
@@ -100,13 +132,13 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 - Script metadata and registration
 
   - Global class registration: F# attribute to declare name/icon; emit [GlobalClass] on shim.
-  - Tool scripts: F# attribute to mark scripts as editor tools; emit [Tool] on shim.
+  - Tool scripts: F# attribute to mark scripts as editor tools; emit [Tool] on shim. V
   - Class name/base type: ensure shim class name and base type mirror F# type and intended Godot base.
 
 - Exports (editor parity)
 
   - Types: primitives, enums, flags/bitmask, arrays/lists, dictionaries, Godot resources (Texture2D, PackedScene, etc.), math types (Vector2/3, Color, Basis, Rect2, Transform\*), NodePath, StringName, RID.
-  - Hints/UI: Range (min/max/step/slider), file/dir/resource path filters, multiline/string hint, color-no-alpha, layer masks, enum lists, flags bitmask, category/group/subgroup, tooltips.
+  - Hints/UI: Range (min/max/step/slider) V, file/dir/resource path filters, multiline/string hint, color-no-alpha, layer masks, enum lists, flags bitmask, category/group/subgroup, tooltips.
   - Defaults/categories: respect default values; support category/subgroup grouping.
 
 - Signals
