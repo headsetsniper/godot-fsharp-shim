@@ -14,7 +14,7 @@ public class GenerationHeadersAndRelocationTests
     [OneTimeSetUp]
     public void BeforeAll()
     {
-        FsBatchComponent.BuildForFixture(typeof(GenerationHeadersAndRelocationTests));
+        FsBatchComponent.BuildForFixture(typeof(GenerationHeadersAndRelocationTests), eagerHeaderScenarios: true);
     }
 
     [OneTimeTearDown]
@@ -44,14 +44,9 @@ type FooImpl() =
 """)]
     public void Idempotent_Writes_Do_Not_Rewrite()
     {
-        var outDir = FsBatch.GetOutDir<GenerationHeadersAndRelocationTests>();
-        var fooPath = Directory.EnumerateFiles(outDir!, "Foo.cs", SearchOption.AllDirectories).First();
-        var firstWrite = File.GetLastWriteTimeUtc(fooPath);
-        var initialContent = File.ReadAllText(fooPath);
-        var secondWrite = File.GetLastWriteTimeUtc(fooPath);
-        Assert.That(secondWrite, Is.EqualTo(firstWrite));
-        var afterContent = File.ReadAllText(fooPath);
-        Assert.That(afterContent, Is.EqualTo(initialContent));
+        var snap = FsBatch.GetHeaderSnapshots<GenerationHeadersAndRelocationTests>()!;
+        Assert.That(snap.AfterImmediateRerunWrite, Is.EqualTo(snap.FirstWrite));
+        Assert.That(snap.AfterImmediateRerunContent, Is.EqualTo(snap.InitialContent));
     }
 
     [Test]
@@ -75,26 +70,11 @@ type FooImpl() =
 """)]
     public void HashHeader_Skips_Rewrite_When_Hash_Unchanged()
     {
-        var outDir = FsBatch.GetOutDir<GenerationHeadersAndRelocationTests>()!;
-        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
-        var original = File.ReadAllText(fooPath);
-        StringAssert.Contains("// SourceHash:", original);
-        StringAssert.Contains("// SourceFile:", original);
-        var firstWrite = File.GetLastWriteTimeUtc(fooPath);
-
-        var lines = File.ReadAllLines(fooPath).ToList();
-        var idxEndHeader = lines.FindIndex(l => l.Contains("</auto-generated>"));
-        Assert.That(idxEndHeader, Is.GreaterThan(0));
-        lines.Add("// trailing comment that should not trigger rewrite when hash unchanged");
-        var editedContent = string.Join("\n", lines);
-        File.WriteAllText(fooPath, editedContent);
-        var editedWrite = File.GetLastWriteTimeUtc(fooPath);
-        Assert.That(editedWrite, Is.GreaterThanOrEqualTo(firstWrite));
-
-        // Rerun should keep content identical when hash unchanged
-        FsBatchComponent.RerunForFixture(typeof(GenerationHeadersAndRelocationTests));
-        var after = File.ReadAllText(fooPath);
-        Assert.That(after, Is.EqualTo(editedContent));
+        var snap = FsBatch.GetHeaderSnapshots<GenerationHeadersAndRelocationTests>()!;
+        StringAssert.Contains("// SourceHash:", snap.InitialContent);
+        StringAssert.Contains("// SourceFile:", snap.InitialContent);
+        Assert.That(snap.EditedWrite, Is.GreaterThanOrEqualTo(snap.FirstWrite));
+        Assert.That(snap.AfterEditedRerunContent, Is.EqualTo(snap.EditedContent));
     }
 
     [Test]
@@ -109,10 +89,8 @@ type FooImpl() =
 """)]
     public void Header_Contains_ShimGen_Version()
     {
-        var outDir = FsBatch.GetOutDir<GenerationHeadersAndRelocationTests>()!;
-        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
-        var src = File.ReadAllText(fooPath);
-        StringAssert.Contains("// ShimGenVersion:", src);
+        var snap = FsBatch.GetHeaderSnapshots<GenerationHeadersAndRelocationTests>()!;
+        StringAssert.Contains("// ShimGenVersion:", snap.InitialContent);
     }
 
     [Test]
@@ -136,29 +114,10 @@ type FooImpl() =
 """)]
     public void Rewrites_When_Generator_Version_Is_Newer_Even_If_Hash_Matches()
     {
-        var outDir = FsBatch.GetOutDir<GenerationHeadersAndRelocationTests>()!;
-        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
-        var original = File.ReadAllText(fooPath);
-        StringAssert.Contains("// SourceHash:", original);
-        StringAssert.Contains("// ShimGenVersion:", original);
-
-        var lines = File.ReadAllLines(fooPath).ToList();
-        for (int i = 0; i < lines.Count; i++)
-        {
-            if (lines[i].TrimStart().StartsWith("// ShimGenVersion:", StringComparison.Ordinal))
-            {
-                lines[i] = "// ShimGenVersion: 0.0.0";
-                break;
-            }
-        }
-        var downgraded = string.Join("\n", lines);
-        File.WriteAllText(fooPath, downgraded);
-
-        System.Threading.Thread.Sleep(10); // ensure timestamp difference if needed
-        FsBatchComponent.RerunForFixture(typeof(GenerationHeadersAndRelocationTests));
-        var after = File.ReadAllText(fooPath);
-        Assert.That(after, Is.Not.EqualTo(downgraded));
-        StringAssert.DoesNotContain("// ShimGenVersion: 0.0.0", after);
+        var snap = FsBatch.GetHeaderSnapshots<GenerationHeadersAndRelocationTests>()!;
+        StringAssert.Contains("// SourceHash:", snap.InitialContent);
+        StringAssert.Contains("// ShimGenVersion:", snap.InitialContent);
+        StringAssert.DoesNotContain("// ShimGenVersion: 0.0.0", snap.AfterVersionDowngradeRerunContent);
     }
 
     [Test]
@@ -182,18 +141,9 @@ type FooImpl() =
 """)]
     public void HashHeader_Rewrites_When_Hash_Changes()
     {
-        var outDir = FsBatch.GetOutDir<GenerationHeadersAndRelocationTests>()!;
-        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
-        var originalSrc = File.ReadAllText(fooPath);
-
-        var fsFile = FsBatch.GetFsPath<GenerationHeadersAndRelocationTests>("Foo")!;
-        File.WriteAllText(fsFile, ($"namespace Game\n\nopen Headsetsniper.Godot.FSharp.Annotations\n\n[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]\ntype FooImpl() =\n    do ()\n// changed\n"));
-
-        System.Threading.Thread.Sleep(10);
-        FsBatchComponent.RerunForFixture(typeof(GenerationHeadersAndRelocationTests));
-        var updated = File.ReadAllText(fooPath);
-        StringAssert.Contains("// SourceHash:", updated);
-        Assert.That(updated, Is.Not.EqualTo(originalSrc));
+        var snap = FsBatch.GetHeaderSnapshots<GenerationHeadersAndRelocationTests>()!;
+        StringAssert.Contains("// SourceHash:", snap.AfterHashChangeRerunContent);
+        Assert.That(snap.AfterHashChangeRerunContent, Is.Not.EqualTo(snap.InitialContent));
     }
 
     [Test]

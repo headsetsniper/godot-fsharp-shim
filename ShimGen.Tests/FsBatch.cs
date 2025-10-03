@@ -27,6 +27,22 @@ internal sealed class FsFixtureInfo
     public required string ImplAssemblyPath { get; init; }
     public required string OutDir { get; init; }
     public required IReadOnlyDictionary<string, string> ScriptClassToFile { get; init; }
+    public HeaderScenarioSnapshots? HeaderSnapshots { get; set; }
+}
+
+public sealed class HeaderScenarioSnapshots
+{
+    public required string FooGeneratedPath { get; init; }
+    public required DateTime FirstWrite { get; init; }
+    public required string InitialContent { get; init; }
+    public required DateTime AfterImmediateRerunWrite { get; init; }
+    public required string AfterImmediateRerunContent { get; init; }
+    public required DateTime EditedWrite { get; init; }
+    public required string EditedContent { get; init; }
+    public required DateTime AfterEditedRerunWrite { get; init; }
+    public required string AfterEditedRerunContent { get; init; }
+    public required string AfterVersionDowngradeRerunContent { get; init; }
+    public required string AfterHashChangeRerunContent { get; init; }
 }
 
 internal static class FsBatchRegistry
@@ -122,6 +138,78 @@ public static class FsBatchComponent
         FsBatchRegistry.Register(fixtureType, info);
     }
 
+    public static void BuildForFixture(Type fixtureType, bool eagerHeaderScenarios)
+    {
+        BuildForFixture(fixtureType);
+        if (!eagerHeaderScenarios) return;
+        var info = FsBatchRegistry.Get(fixtureType);
+        if (info == null) return;
+
+        // Only proceed if Foo exists
+        var fooGen = Directory.EnumerateFiles(info.OutDir, "Foo.cs", SearchOption.AllDirectories).FirstOrDefault();
+        if (fooGen == null) return;
+
+        // Baseline
+        var firstWrite = File.GetLastWriteTimeUtc(fooGen);
+        var initial = File.ReadAllText(fooGen);
+        // Immediate rerun without changes
+        IntegrationTestUtil.RunShimGen(info.ImplAssemblyPath, fsSourceDir: info.TempDir, outDirOverride: info.OutDir);
+        var afterImmediateWrite = File.GetLastWriteTimeUtc(fooGen);
+        var afterImmediate = File.ReadAllText(fooGen);
+
+        // Edit generated file (unchanged hash) and rerun → should keep edits
+        var lines = File.ReadAllLines(fooGen).ToList();
+        lines.Add("// trailing comment that should not trigger rewrite when hash unchanged");
+        var edited = string.Join("\n", lines);
+        File.WriteAllText(fooGen, edited);
+        var editedWrite = File.GetLastWriteTimeUtc(fooGen);
+        IntegrationTestUtil.RunShimGen(info.ImplAssemblyPath, fsSourceDir: info.TempDir, outDirOverride: info.OutDir);
+        var afterEdited = File.ReadAllText(fooGen);
+        var afterEditedWrite = File.GetLastWriteTimeUtc(fooGen);
+
+        // Downgrade version header then rerun → should rewrite header to current version
+        var lines2 = File.ReadAllLines(fooGen).ToList();
+        for (int i = 0; i < lines2.Count; i++)
+        {
+            if (lines2[i].TrimStart().StartsWith("// ShimGenVersion:", StringComparison.Ordinal))
+            {
+                lines2[i] = "// ShimGenVersion: 0.0.0";
+                break;
+            }
+        }
+        var downgraded = string.Join("\n", lines2);
+        File.WriteAllText(fooGen, downgraded);
+        System.Threading.Thread.Sleep(10);
+        IntegrationTestUtil.RunShimGen(info.ImplAssemblyPath, fsSourceDir: info.TempDir, outDirOverride: info.OutDir);
+        var afterVersionFix = File.ReadAllText(fooGen);
+
+        // Change F# source (hash) then rerun → should rewrite
+        if (info.ScriptClassToFile.TryGetValue("Foo", out var fooFs))
+        {
+            var fsChanged = "namespace Game\n\nopen Headsetsniper.Godot.FSharp.Annotations\n\n[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"" + Headsetsniper.Godot.FSharp.ShimGen.KnownGodot.Node2D + "\")>]\ntype FooImpl() =\n    do ()\n// changed\n";
+            File.WriteAllText(fooFs, fsChanged);
+            System.Threading.Thread.Sleep(10);
+            IntegrationTestUtil.RunShimGen(info.ImplAssemblyPath, fsSourceDir: info.TempDir, outDirOverride: info.OutDir);
+        }
+        var afterHashChange = File.ReadAllText(fooGen);
+
+        info.HeaderSnapshots = new HeaderScenarioSnapshots
+        {
+            FooGeneratedPath = fooGen,
+            FirstWrite = firstWrite,
+            InitialContent = initial,
+            AfterImmediateRerunWrite = afterImmediateWrite,
+            AfterImmediateRerunContent = afterImmediate,
+            EditedWrite = editedWrite,
+            EditedContent = edited,
+            AfterEditedRerunWrite = afterEditedWrite,
+            AfterEditedRerunContent = afterEdited,
+            AfterVersionDowngradeRerunContent = afterVersionFix,
+            AfterHashChangeRerunContent = afterHashChange
+        };
+        FsBatchRegistry.Register(fixtureType, info);
+    }
+
     public static void CleanupForFixture(Type fixtureType)
     {
         // silent cleanup
@@ -199,4 +287,7 @@ public static class FsBatch
         if (info == null) return null;
         return info.ScriptClassToFile.TryGetValue(scriptClassName, out var path) ? path : null;
     }
+
+    public static HeaderScenarioSnapshots? GetHeaderSnapshots<TFixture>()
+        => FsBatchRegistry.Get(typeof(TFixture))?.HeaderSnapshots;
 }
