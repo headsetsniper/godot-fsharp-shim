@@ -5,6 +5,7 @@ using System.Reflection;
 using Microsoft.CodeAnalysis;
 using NUnit.Framework;
 using Headsetsniper.Godot.FSharp.Annotations;
+using Headsetsniper.Godot.FSharp.ShimGen;
 
 namespace ShimGen.Tests;
 
@@ -47,7 +48,7 @@ public class ExportTypesAndDefaultsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Baz\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Baz\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class BazImpl {",
             "    public Vector2 V2 { get; set; }",
             "    public Vector3 V3 { get; set; }",
@@ -74,7 +75,7 @@ public class ExportTypesAndDefaultsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Bar\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Bar\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class BarImpl {",
             "    public int A {get;set;}",
             "    public string S {get;set;}",
@@ -101,7 +102,7 @@ public class ExportTypesAndDefaultsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Prim\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Prim\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class PrimImpl {",
             "    public int I { get; set; }",
             "    public float F { get; set; }",
@@ -133,7 +134,7 @@ public class ExportTypesAndDefaultsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Enumy\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Enumy\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class EnumyImpl {",
             "    public ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum Mode { get; set; }",
             "    public void Ready(){}",
@@ -157,7 +158,7 @@ public class ExportTypesAndDefaultsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Qux\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Qux\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class QuxImpl {",
             "    public int[] Numbers { get; set; }",
             "    public string[] Names { get; set; }",
@@ -185,7 +186,7 @@ public class ExportTypesAndDefaultsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Flaggy\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Flaggy\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class FlaggyImpl {",
             "    public ShimGen.Tests.ExportTypesAndDefaultsTests.TestFlags Mask { get; set; }",
             "    public void Ready(){}",
@@ -210,7 +211,7 @@ public class ExportTypesAndDefaultsTests
         var code = string.Join("\n", new[]{
             "using System.Collections.Generic; using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Bag\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Bag\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class BagImpl {",
             "    public List<int> Numbers { get; set; }",
             "    public Dictionary<string,int> Map { get; set; }",
@@ -240,7 +241,7 @@ public class ExportTypesAndDefaultsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Typer\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Typer\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class TyperImpl {",
             "    public Basis B { get; set; }",
             "    public Rect2 R { get; set; }",
@@ -276,7 +277,7 @@ public class ExportTypesAndDefaultsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Def\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Def\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class DefImpl {",
             "    public int A { get; set; } = 123;",
             "    public void Ready(){}",

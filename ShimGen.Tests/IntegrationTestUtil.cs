@@ -5,12 +5,13 @@ using System.Reflection;
 using NUnit.Framework;
 using Microsoft.CodeAnalysis;
 using Headsetsniper.Godot.FSharp.Annotations;
+using Headsetsniper.Godot.FSharp.ShimGen;
 
 namespace ShimGen.Tests;
 
 internal static class IntegrationTestUtil
 {
-    public static string BuildImplAssembly(string className = "FooImpl", string baseType = "Godot.Node2D")
+    public static string BuildImplAssembly(string className = "FooImpl", string baseType = KnownGodot.Node2D)
     {
         var code =
             "using Godot;\n" +

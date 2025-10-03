@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 using Headsetsniper.Godot.FSharp.Annotations;
+using Headsetsniper.Godot.FSharp.ShimGen;
 
 namespace ShimGen.Tests;
 
@@ -13,13 +14,13 @@ public class LifecycleAndMetadataTests
     [Test]
     public void Emits_Class_And_BaseType()
     {
-        var impl = IntegrationTestUtil.BuildImplAssembly(baseType: "Godot.Node2D");
+        var impl = IntegrationTestUtil.BuildImplAssembly(baseType: KnownGodot.Node2D);
         var outDir = IntegrationTestUtil.RunShimGen(impl);
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(fooPath, Is.Not.Null, "Foo.cs not generated");
         var src = File.ReadAllText(fooPath!);
         StringAssert.Contains("[GlobalClass]", src);
-        StringAssert.Contains("public partial class Foo : Godot.Node2D", src);
+        StringAssert.Contains($"public partial class Foo : {KnownGodot.Node2D}", src);
     }
 
     [Test]
@@ -28,7 +29,7 @@ public class LifecycleAndMetadataTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Wire\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Wire\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class WireImpl {",
             "    [NodePath] public Node2D Player { get; set; }",
             "    public void Ready(){}",
@@ -42,7 +43,7 @@ public class LifecycleAndMetadataTests
         var path = Directory.EnumerateFiles(outDir, "Wire.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null);
         var src = File.ReadAllText(path!);
-        StringAssert.Contains("GetNodeOrNull<Godot.Node2D>(new NodePath(nameof(Player)))", src);
+        StringAssert.Contains($"GetNodeOrNull<{KnownGodot.Node2D}>(new NodePath(nameof(Player)))", src);
         StringAssert.Contains("_impl.Ready();", src);
     }
 
@@ -52,7 +53,7 @@ public class LifecycleAndMetadataTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Iconed\", BaseTypeName=\"Godot.Node\", Icon=\"res://icon.svg\")]",
+            $"  [GodotScript(ClassName=\"Iconed\", BaseTypeName=\"{KnownGodot.Node}\", Icon=\"res://icon.svg\")]",
             "  public class IconedImpl { public void Ready(){} }",
             "}"
         });
@@ -73,7 +74,7 @@ public class LifecycleAndMetadataTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Tooly\", BaseTypeName=\"Godot.Node\", Tool=true)]",
+            $"  [GodotScript(ClassName=\"Tooly\", BaseTypeName=\"{KnownGodot.Node}\", Tool=true)]",
             "  public class ToolyImpl { public void Ready(){} }",
             "}"
         });
@@ -93,7 +94,7 @@ public class LifecycleAndMetadataTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"TreeGuy\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"TreeGuy\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class TreeGuyImpl { public void EnterTree(){} public void ExitTree(){} public void Ready(){} }",
             "}"
         });
@@ -141,7 +142,7 @@ public class LifecycleAndMetadataTests
         var path = Directory.EnumerateFiles(outDir, "GdInject.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null, "GdInject.cs not generated");
         var src = File.ReadAllText(path!);
-        StringAssert.Contains("if (_impl is IGdScript<Godot.Node2D> gd)", src);
+        StringAssert.Contains($"if (_impl is IGdScript<{KnownGodot.Node2D}> gd)", src);
         StringAssert.Contains("gd.Node = this;", src);
         StringAssert.Contains("_impl.Ready();", src);
     }
@@ -152,7 +153,7 @@ public class LifecycleAndMetadataTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Sig\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Sig\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class SigImpl {",
             "    public void Signal_Fired() {}",
             "    public void Ready(){}",
@@ -177,7 +178,7 @@ public class LifecycleAndMetadataTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Sig2\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Sig2\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class Sig2Impl {",
             "    public void Signal_Scored(int points, string who) {}",
             "    public void Ready(){}",
@@ -204,7 +205,7 @@ public class LifecycleAndMetadataTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"AutoA\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"AutoA\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class AutoAImpl {",
             "    [AutoConnect(Path:\"/root/World\", Signal:\"Fired\")] public void OnFired() {}",
             "    public void Ready(){}",
@@ -227,7 +228,7 @@ public class LifecycleAndMetadataTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"AutoB\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"AutoB\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class AutoBImpl {",
             "    [AutoConnect(Path:\"/root/World\", Signal:\"Scored\")] public void OnScored(int points, string who) {}",
             "    public void Ready(){}",

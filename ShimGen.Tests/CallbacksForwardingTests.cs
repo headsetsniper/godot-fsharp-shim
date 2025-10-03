@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 using Headsetsniper.Godot.FSharp.Annotations;
+using Headsetsniper.Godot.FSharp.ShimGen;
 
 namespace ShimGen.Tests;
 
@@ -15,7 +16,7 @@ public class CallbacksForwardingTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Callbacks\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Callbacks\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class CallbacksImpl {",
             "    public void PhysicsProcess(double delta){}",
             "    public void Input(InputEvent e){}",
@@ -46,7 +47,7 @@ public class CallbacksForwardingTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"UI\", BaseTypeName=\"Godot.Control\")]",
+            $"  [GodotScript(ClassName=\"UI\", BaseTypeName=\"{KnownGodot.Control}\")]",
             "  public class UiImpl {",
             "    public void Ready(){}",
             "    public void GuiInput(InputEvent e){}",
@@ -89,7 +90,7 @@ public class CallbacksForwardingTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Painter\", BaseTypeName=\"Godot.Node2D\")]",
+            $"  [GodotScript(ClassName=\"Painter\", BaseTypeName=\"{KnownGodot.Node2D}\")]",
             "  public class PainterImpl {",
             "    public void Ready(){}",
             "    public void Draw(){}",

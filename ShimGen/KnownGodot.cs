@@ -1,7 +1,9 @@
 namespace Headsetsniper.Godot.FSharp.ShimGen;
 
-internal static class KnownGodot
+public static class KnownGodot
 {
+    public const string Node = "Godot.Node";
+    public const string Node2D = "Godot.Node2D";
     public const string Vector2 = "Godot.Vector2";
     public const string Vector3 = "Godot.Vector3";
     public const string Color = "Godot.Color";

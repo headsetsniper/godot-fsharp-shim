@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 using Headsetsniper.Godot.FSharp.Annotations;
+using Headsetsniper.Godot.FSharp.ShimGen;
 
 namespace ShimGen.Tests;
 
@@ -15,7 +16,7 @@ public class EditorHintsAndDocsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Rangey\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Rangey\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class RangeyImpl {",
             "    [ExportRange(0, 10, 0.5, true)] public float Speed { get; set; }",
             "    public void Ready(){}",
@@ -38,7 +39,7 @@ public class EditorHintsAndDocsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Paths\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Paths\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class PathsImpl {",
             "    [ExportFile(\"*.png,*.jpg\")] public string ImagePath { get; set; }",
             "    [ExportDir] public string Folder { get; set; }",
@@ -64,7 +65,7 @@ public class EditorHintsAndDocsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Hints\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Hints\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class HintsImpl {",
             "    [ExportResourceType(\"Texture2D\")] public string TexturePath { get; set; }",
             "    [ExportEnumList(\"A,B,C\")] public string Choice { get; set; }",
@@ -92,7 +93,7 @@ public class EditorHintsAndDocsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Visuals\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Visuals\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class VisualsImpl {",
             "    [ExportColorNoAlpha] public Color Tint { get; set; }",
             "    [ExportLayerMask2DRender] public int Layers { get; set; }",
@@ -118,7 +119,7 @@ public class EditorHintsAndDocsTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game {",
-            "  [GodotScript(ClassName=\"Docs\", BaseTypeName=\"Godot.Node\")]",
+            $"  [GodotScript(ClassName=\"Docs\", BaseTypeName=\"{KnownGodot.Node}\")]",
             "  public class DocsImpl {",
             "    [ExportCategory(\"Movement\")]",
             "    [ExportSubgroup(\"Speed\", Prefix=\"spd_\")]",

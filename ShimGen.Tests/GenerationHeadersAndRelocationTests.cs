@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using Headsetsniper.Godot.FSharp.Annotations;
+using Headsetsniper.Godot.FSharp.ShimGen;
 using NUnit.Framework;
 
 namespace ShimGen.Tests;
@@ -102,7 +103,7 @@ public class GenerationHeadersAndRelocationTests
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
         var originalSrc = File.ReadAllText(fooPath);
 
-        File.WriteAllText(fsFile, ("namespace Game\n\nopen Headsetsniper.Godot.FSharp.Annotations\n\n[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")>]\ntype FooImpl() =\n    do ()\n// changed\n"));
+        File.WriteAllText(fsFile, ($"namespace Game\n\nopen Headsetsniper.Godot.FSharp.Annotations\n\n[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]\ntype FooImpl() =\n    do ()\n// changed\n"));
 
         System.Threading.Thread.Sleep(10);
         IntegrationTestUtil.RunShimGen(impl, fsDir, outDir);
@@ -123,7 +124,7 @@ public class GenerationHeadersAndRelocationTests
             "",
             "open Headsetsniper.Godot.FSharp.Annotations",
             "",
-            "[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")>]",
+            $"[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
             "type FooImpl() =",
             "    do ()"
         }) + "\n";
@@ -132,7 +133,7 @@ public class GenerationHeadersAndRelocationTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game.Scripts {",
-            "  [GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")]",
+            $"  [GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")]",
             "  public class FooImpl { public void Ready(){} }",
             "}"
         });
@@ -146,7 +147,7 @@ public class GenerationHeadersAndRelocationTests
         var expectedFile = Path.Combine(expectedDir, "Foo.cs");
         Assert.That(File.Exists(expectedFile), Is.True, $"Expected generated file at {expectedFile}");
         var src = File.ReadAllText(expectedFile);
-        StringAssert.Contains("public partial class Foo : Godot.Node2D", src);
+        StringAssert.Contains($"public partial class Foo : {KnownGodot.Node2D}", src);
     }
 
     [Test]
@@ -161,7 +162,7 @@ public class GenerationHeadersAndRelocationTests
             "",
             "open Headsetsniper.Godot.FSharp.Annotations",
             "",
-            "[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")>]",
+            $"[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
             "type FooImpl() =",
             "    do ()"
         }) + "\n";
@@ -170,7 +171,7 @@ public class GenerationHeadersAndRelocationTests
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
             "namespace Game.Scripts {",
-            "  [GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")]",
+            $"  [GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")]",
             "  public class FooImpl { public void Ready(){} }",
             "}"
         });
@@ -211,7 +212,7 @@ public class GenerationHeadersAndRelocationTests
 
         var codeFoo = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            "namespace Game { [GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")] public class FooImpl { public void Ready(){} } }"
+            $"namespace Game {{ [GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")] public class FooImpl {{ public void Ready(){{}} }} }}"
         });
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
         var stubs = typeof(Godot.Node2D).Assembly;
@@ -222,7 +223,7 @@ public class GenerationHeadersAndRelocationTests
 
         var codeBar = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            "namespace Game { [GodotScript(ClassName=\"Bar\", BaseTypeName=\"Godot.Node2D\")] public class BarImpl { public void Ready(){} } }"
+            $"namespace Game {{ [GodotScript(ClassName=\"Bar\", BaseTypeName=\"{KnownGodot.Node2D}\")] public class BarImpl {{ public void Ready(){{}} }} }}"
         });
         var implBar = TestHelpers.CompileCSharp(codeBar, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameImpl_Rename2");
 
@@ -242,14 +243,14 @@ public class GenerationHeadersAndRelocationTests
         var fsContent = string.Join("\n", new[]{
             "namespace Game",
             "open Headsetsniper.Godot.FSharp.Annotations",
-            "[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")>]",
+            $"[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
             "type FooImpl() = do ()"
         }) + "\n";
         File.WriteAllText(fs, fsContent);
 
         var code = string.Join("\n", new[]{
             "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            "namespace Game { [GodotScript(ClassName=\"Foo\", BaseTypeName=\"Godot.Node2D\")] public class FooImpl { public void Ready(){} } }"
+            $"namespace Game {{ [GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")] public class FooImpl {{ public void Ready(){{}} }} }}"
         });
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
         var stubs = typeof(Godot.Node2D).Assembly;
