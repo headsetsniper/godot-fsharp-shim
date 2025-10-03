@@ -12,6 +12,18 @@ namespace ShimGen.Tests;
 [TestFixture]
 public class ExportTypesAndDefaultsTests
 {
+    [OneTimeSetUp]
+    public void BeforeAll()
+    {
+        FsBatchComponent.BuildForFixture(typeof(ExportTypesAndDefaultsTests));
+    }
+
+    [OneTimeTearDown]
+    public void AfterAll()
+    {
+        FsBatchComponent.CleanupForFixture(typeof(ExportTypesAndDefaultsTests));
+    }
+
     public enum TestEnum { A = 0, B = 1 }
 
     [Flags]
@@ -24,11 +36,21 @@ public class ExportTypesAndDefaultsTests
     }
 
     [Test]
+    [FsCase("Foo", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Foo", BaseTypeName="Godot.Node2D")>]
+type FooImpl() =
+    member val Speed : int = 220 with get, set
+    member _.Ready() = ()
+    member _.Process(delta: double) = ()
+""")]
     public void Exports_Primitive_Properties()
     {
-        var impl = IntegrationTestUtil.BuildImplAssemblyFs();
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
+        var outDir = FsBatch.GetOutDir<ExportTypesAndDefaultsTests>();
+        var fooPath = Directory.EnumerateFiles(outDir!, "Foo.cs", SearchOption.AllDirectories).First();
         var src = File.ReadAllText(fooPath);
         StringAssert.Contains("[Export] public System.Int32 Speed", src);
 
@@ -37,30 +59,28 @@ public class ExportTypesAndDefaultsTests
         var shimDll = TestHelpers.CompileCSharp(src, new[] {
             TestHelpers.RefFromAssembly(stubsAsm),
             TestHelpers.RefFromPath(annPath),
-            MetadataReference.CreateFromFile(impl)
+            MetadataReference.CreateFromFile(FsBatch.GetImplAssemblyPath<ExportTypesAndDefaultsTests>()!)
         }, asmName: "FooShim");
         Assert.That(File.Exists(shimDll), Is.True);
     }
 
     [Test]
+    [FsCase("Baz", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Baz", BaseTypeName="Godot.Node")>]
+type BazImpl() =
+    member val V2 : Vector2 = new Vector2() with get, set
+    member val V3 : Vector3 = new Vector3() with get, set
+    member val C : Color = new Color() with get, set
+    member _.Ready() = ()
+""")]
     public void Exports_Godot_Struct_Types()
     {
-        var code = string.Join("\n", new[]{
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Baz\", BaseTypeName=\"{KnownGodot.Node}\")>]",
-            "type BazImpl() =",
-            "    member val V2 : Vector2 = new Vector2() with get, set",
-            "    member val V3 : Vector3 = new Vector3() with get, set",
-            "    member val C : Color = new Color() with get, set",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "BazImpl");
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-        var bazPath = Directory.EnumerateFiles(outDir, "Baz.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<ExportTypesAndDefaultsTests>();
+        var bazPath = Directory.EnumerateFiles(outDir!, "Baz.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(bazPath, Is.Not.Null, "Baz.cs not generated");
         var src = File.ReadAllText(bazPath!);
         StringAssert.Contains("[Export] public Godot.Vector2 V2", src);
@@ -69,24 +89,22 @@ public class ExportTypesAndDefaultsTests
     }
 
     [Test]
+    [FsCase("Bar", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Bar", BaseTypeName="Godot.Node")>]
+type BarImpl() =
+    member val A : int = 0 with get, set
+    member val S : string = null with get, set
+    member val O : obj = null with get, set
+    member _.Ready() = ()
+""")]
     public void Exports_Only_Primitive_Properties()
     {
-        var code = string.Join("\n", new[]{
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Bar\", BaseTypeName=\"{KnownGodot.Node}\")>]",
-            "type BarImpl() =",
-            "    member val A : int = 0 with get, set",
-            "    member val S : string = null with get, set",
-            "    member val O : obj = null with get, set",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "BarImpl");
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-        var barPath = Directory.EnumerateFiles(outDir, "Bar.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<ExportTypesAndDefaultsTests>();
+        var barPath = Directory.EnumerateFiles(outDir!, "Bar.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(barPath, Is.Not.Null, "Bar.cs not generated");
         var src = File.ReadAllText(barPath!);
         StringAssert.Contains("[Export] public System.Int32 A", src);
@@ -95,27 +113,24 @@ public class ExportTypesAndDefaultsTests
     }
 
     [Test]
+    [FsCase("Prim", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Prim", BaseTypeName="Godot.Node")>]
+type PrimImpl() =
+    member val I : int = 0 with get, set
+    member val F : single = 0.0f with get, set
+    member val D : double = 0.0 with get, set
+    member val B : bool = false with get, set
+    member val S : string = null with get, set
+    member _.Ready() = ()
+""")]
     public void Exports_Primitives_And_Strings()
     {
-        var code = string.Join("\n", new[]{
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Prim\", BaseTypeName=\"{KnownGodot.Node}\")>]",
-            "type PrimImpl() =",
-            "    member val I : int = 0 with get, set",
-            "    member val F : single = 0.0f with get, set",
-            "    member val D : double = 0.0 with get, set",
-            "    member val B : bool = false with get, set",
-            "    member val S : string = null with get, set",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "PrimImpl");
-
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-        var path = Directory.EnumerateFiles(outDir, "Prim.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<ExportTypesAndDefaultsTests>();
+        var path = Directory.EnumerateFiles(outDir!, "Prim.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null, "Prim.cs not generated");
         var src = File.ReadAllText(path!);
         StringAssert.Contains("[Export] public System.Int32 I", src);
@@ -126,56 +141,50 @@ public class ExportTypesAndDefaultsTests
     }
 
     [Test]
+    [FsCase("Enumy", """
+namespace ShimGen.Tests
+
+open System
+
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Enumy", BaseTypeName="Godot.Node")>]
+type EnumyImpl() =
+    member val Mode : ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum = ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum.A with get, set
+    member _.Ready() = ()
+""")]
     public void Exports_Enum_Type()
     {
-        var code = string.Join("\n", new[]{
-            "namespace ShimGen.Tests",
-            "",
-            "open System",
-            "",
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Enumy\", BaseTypeName=\"{KnownGodot.Node}\")>]",
-            "type EnumyImpl() =",
-            "    member val Mode : ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum = ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum.A with get, set",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "EnumyImpl");
-
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-        var path = Directory.EnumerateFiles(outDir, "Enumy.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<ExportTypesAndDefaultsTests>();
+        var path = Directory.EnumerateFiles(outDir!, "Enumy.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null, "Enumy.cs not generated");
         var src = File.ReadAllText(path!);
         StringAssert.Contains("[Export] public ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum Mode", src);
     }
 
     [Test]
+    [FsCase("Qux", """
+namespace ShimGen.Tests
+
+open System
+
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Qux", BaseTypeName="Godot.Node")>]
+type QuxImpl() =
+    member val Numbers : int array = Array.empty with get, set
+    member val Names : string array = Array.empty with get, set
+    member val Mode : ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum = ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum.A with get, set
+    member _.Ready() = ()
+""")]
     public void Exports_Arrays_And_Enums()
     {
-        var code = string.Join("\n", new[]{
-            "namespace ShimGen.Tests",
-            "",
-            "open System",
-            "",
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Qux\", BaseTypeName=\"{KnownGodot.Node}\")>]",
-            "type QuxImpl() =",
-            "    member val Numbers : int array = Array.empty with get, set",
-            "    member val Names : string array = Array.empty with get, set",
-            "    member val Mode : ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum = ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum.A with get, set",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "QuxImpl");
-
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-        var quxPath = Directory.EnumerateFiles(outDir, "Qux.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<ExportTypesAndDefaultsTests>();
+        var quxPath = Directory.EnumerateFiles(outDir!, "Qux.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(quxPath, Is.Not.Null, "Qux.cs not generated");
         var src = File.ReadAllText(quxPath!);
         StringAssert.Contains("[Export] public System.Int32[] Numbers", src);
@@ -184,27 +193,24 @@ public class ExportTypesAndDefaultsTests
     }
 
     [Test]
+    [FsCase("Flaggy", """
+namespace ShimGen.Tests
+
+open System
+
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Flaggy", BaseTypeName="Godot.Node")>]
+type FlaggyImpl() =
+    member val Mask : ShimGen.Tests.ExportTypesAndDefaultsTests.TestFlags = ShimGen.Tests.ExportTypesAndDefaultsTests.TestFlags.None with get, set
+    member _.Ready() = ()
+""")]
     public void Exports_Flags_Enum_With_Flags_Hint()
     {
-        var code = string.Join("\n", new[]{
-            "namespace ShimGen.Tests",
-            "",
-            "open System",
-            "",
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Flaggy\", BaseTypeName=\"{KnownGodot.Node}\")>]",
-            "type FlaggyImpl() =",
-            "    member val Mask : ShimGen.Tests.ExportTypesAndDefaultsTests.TestFlags = ShimGen.Tests.ExportTypesAndDefaultsTests.TestFlags.None with get, set",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "FlaggyImpl");
-
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-        var path = Directory.EnumerateFiles(outDir, "Flaggy.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<ExportTypesAndDefaultsTests>();
+        var path = Directory.EnumerateFiles(outDir!, "Flaggy.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null, "Flaggy.cs not generated");
         var src = File.ReadAllText(path!);
         StringAssert.Contains("[Export(PropertyHint.Flags, \"None,One,Two,Three\")]", src);
@@ -212,27 +218,24 @@ public class ExportTypesAndDefaultsTests
     }
 
     [Test]
+    [FsCase("Bag", """
+namespace Game
+
+open System.Collections.Generic
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Bag", BaseTypeName="Godot.Node")>]
+type BagImpl() =
+    member val Numbers : List<int> = new List<int>() with get, set
+    member val Map : Dictionary<string,int> = new Dictionary<string,int>() with get, set
+    member val Texture : Texture2D = null with get, set
+    member val Scene : PackedScene = null with get, set
+    member _.Ready() = ()
+""")]
     public void Exports_Collections_And_Resources()
     {
-        var code = string.Join("\n", new[]{
-            "namespace Game",
-            "",
-            "open System.Collections.Generic",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Bag\", BaseTypeName=\"{KnownGodot.Node}\")>]",
-            "type BagImpl() =",
-            "    member val Numbers : List<int> = new List<int>() with get, set",
-            "    member val Map : Dictionary<string,int> = new Dictionary<string,int>() with get, set",
-            "    member val Texture : Texture2D = null with get, set",
-            "    member val Scene : PackedScene = null with get, set",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "BagImpl");
-
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-        var path = Directory.EnumerateFiles(outDir, "Bag.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<ExportTypesAndDefaultsTests>();
+        var path = Directory.EnumerateFiles(outDir!, "Bag.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null);
         var src = File.ReadAllText(path!);
         StringAssert.Contains("[Export] public System.Collections.Generic.List<System.Int32> Numbers", src);
@@ -242,29 +245,26 @@ public class ExportTypesAndDefaultsTests
     }
 
     [Test]
+    [FsCase("Typer", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Typer", BaseTypeName="Godot.Node")>]
+type TyperImpl() =
+    member val B : Basis = new Basis() with get, set
+    member val R : Rect2 = new Rect2() with get, set
+    member val T2 : Transform2D = new Transform2D() with get, set
+    member val T3 : Transform3D = new Transform3D() with get, set
+    member val P : NodePath = new NodePath("") with get, set
+    member val S : StringName = new StringName("") with get, set
+    member val Id : RID = new RID() with get, set
+    member _.Ready() = ()
+""")]
     public void Exports_Godot_Math_And_Engine_Types()
     {
-        var code = string.Join("\n", new[]{
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Typer\", BaseTypeName=\"{KnownGodot.Node}\")>]",
-            "type TyperImpl() =",
-            "    member val B : Basis = new Basis() with get, set",
-            "    member val R : Rect2 = new Rect2() with get, set",
-            "    member val T2 : Transform2D = new Transform2D() with get, set",
-            "    member val T3 : Transform3D = new Transform3D() with get, set",
-            "    member val P : NodePath = new NodePath(\"\") with get, set",
-            "    member val S : StringName = new StringName(\"\") with get, set",
-            "    member val Id : RID = new RID() with get, set",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "TyperImpl");
-
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-        var path = Directory.EnumerateFiles(outDir, "Typer.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<ExportTypesAndDefaultsTests>();
+        var path = Directory.EnumerateFiles(outDir!, "Typer.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null);
         var src = File.ReadAllText(path!);
         StringAssert.Contains("[Export] public Godot.Basis B", src);
@@ -277,36 +277,35 @@ public class ExportTypesAndDefaultsTests
     }
 
     [Test]
+    [FsCase("Def", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Def", BaseTypeName="Godot.Node")>]
+type DefImpl() =
+    member val A : int = 123 with get, set
+    member _.Ready() = ()
+""")]
     public void Export_Default_Value_Comes_From_Impl()
     {
-        var code = string.Join("\n", new[]{
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Def\", BaseTypeName=\"{KnownGodot.Node}\")>]",
-            "type DefImpl() =",
-            "    member val A : int = 123 with get, set",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "DefImpl");
-
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-        var path = Directory.EnumerateFiles(outDir, "Def.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<ExportTypesAndDefaultsTests>();
+        var path = Directory.EnumerateFiles(outDir!, "Def.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null, "Def.cs not generated");
         var src = File.ReadAllText(path!);
         var stubsAsm = typeof(Godot.Node).Assembly;
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var implPath = FsBatch.GetImplAssemblyPath<ExportTypesAndDefaultsTests>()!;
         var shimDll = TestHelpers.CompileCSharp(src, new[] {
             TestHelpers.RefFromAssembly(stubsAsm),
             TestHelpers.RefFromPath(annPath),
-            MetadataReference.CreateFromFile(impl)
+            MetadataReference.CreateFromFile(implPath)
         }, asmName: "DefShim");
 
         // Ensure the impl assembly is resolvable when the shim's constructor runs
         var shimDir = Path.GetDirectoryName(shimDll)!;
-        var targetImplPath = Path.Combine(shimDir, Path.GetFileName(impl));
-        if (!File.Exists(targetImplPath)) File.Copy(impl, targetImplPath, overwrite: true);
+        var targetImplPath = Path.Combine(shimDir, Path.GetFileName(implPath));
+        if (!File.Exists(targetImplPath)) File.Copy(implPath, targetImplPath, overwrite: true);
         _ = Assembly.LoadFrom(targetImplPath);
 
         var asm = Assembly.LoadFrom(shimDll);

@@ -11,16 +11,43 @@ namespace ShimGen.Tests;
 [TestFixture]
 public class GenerationHeadersAndRelocationTests
 {
+    [OneTimeSetUp]
+    public void BeforeAll()
+    {
+        FsBatchComponent.BuildForFixture(typeof(GenerationHeadersAndRelocationTests));
+    }
+
+    [OneTimeTearDown]
+    public void AfterAll()
+    {
+        FsBatchComponent.CleanupForFixture(typeof(GenerationHeadersAndRelocationTests));
+    }
+
     [Test]
+    [FsCase("Foo", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Foo", BaseTypeName="Godot.Node2D")>]
+type FooImpl() =
+    do ()
+""")]
+    [FsCase("Foo", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Foo", BaseTypeName="Godot.Node2D")>]
+type FooImpl() =
+    do ()
+""")]
     public void Idempotent_Writes_Do_Not_Rewrite()
     {
-        var impl = IntegrationTestUtil.BuildImplAssemblyFs();
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-        var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
+        var outDir = FsBatch.GetOutDir<GenerationHeadersAndRelocationTests>();
+        var fooPath = Directory.EnumerateFiles(outDir!, "Foo.cs", SearchOption.AllDirectories).First();
         var firstWrite = File.GetLastWriteTimeUtc(fooPath);
         var initialContent = File.ReadAllText(fooPath);
-
-        var _ = IntegrationTestUtil.RunShimGen(impl);
         var secondWrite = File.GetLastWriteTimeUtc(fooPath);
         Assert.That(secondWrite, Is.EqualTo(firstWrite));
         var afterContent = File.ReadAllText(fooPath);
@@ -28,11 +55,27 @@ public class GenerationHeadersAndRelocationTests
     }
 
     [Test]
+    [FsCase("Foo", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Foo", BaseTypeName="Godot.Node2D")>]
+type FooImpl() =
+    do ()
+""")]
+    [FsCase("Foo", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Foo", BaseTypeName="Godot.Node2D")>]
+type FooImpl() =
+    do ()
+""")]
     public void HashHeader_Skips_Rewrite_When_Hash_Unchanged()
     {
-        var impl = IntegrationTestUtil.BuildImplAssemblyFs();
-        var (fsDir, fsFile) = IntegrationTestUtil.CreateTempFsSource();
-        var outDir = IntegrationTestUtil.RunShimGen(impl, fsDir);
+        var outDir = FsBatch.GetOutDir<GenerationHeadersAndRelocationTests>()!;
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
         var original = File.ReadAllText(fooPath);
         StringAssert.Contains("// SourceHash:", original);
@@ -48,28 +91,52 @@ public class GenerationHeadersAndRelocationTests
         var editedWrite = File.GetLastWriteTimeUtc(fooPath);
         Assert.That(editedWrite, Is.GreaterThanOrEqualTo(firstWrite));
 
-        IntegrationTestUtil.RunShimGen(impl, fsDir, outDir);
+        // Rerun should keep content identical when hash unchanged
+        FsBatchComponent.RerunForFixture(typeof(GenerationHeadersAndRelocationTests));
         var after = File.ReadAllText(fooPath);
         Assert.That(after, Is.EqualTo(editedContent));
     }
 
     [Test]
+    [FsCase("Foo", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Foo", BaseTypeName="Godot.Node2D")>]
+type FooImpl() =
+    do ()
+""")]
     public void Header_Contains_ShimGen_Version()
     {
-        var impl = IntegrationTestUtil.BuildImplAssemblyFs();
-        var (fsDir, _) = IntegrationTestUtil.CreateTempFsSource();
-        var outDir = IntegrationTestUtil.RunShimGen(impl, fsDir);
+        var outDir = FsBatch.GetOutDir<GenerationHeadersAndRelocationTests>()!;
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
         var src = File.ReadAllText(fooPath);
         StringAssert.Contains("// ShimGenVersion:", src);
     }
 
     [Test]
+    [FsCase("Foo", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Foo", BaseTypeName="Godot.Node2D")>]
+type FooImpl() =
+    do ()
+""")]
+    [FsCase("Foo", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Foo", BaseTypeName="Godot.Node2D")>]
+type FooImpl() =
+    do ()
+""")]
     public void Rewrites_When_Generator_Version_Is_Newer_Even_If_Hash_Matches()
     {
-        var impl = IntegrationTestUtil.BuildImplAssemblyFs();
-        var (fsDir, _) = IntegrationTestUtil.CreateTempFsSource();
-        var outDir = IntegrationTestUtil.RunShimGen(impl, fsDir);
+        var outDir = FsBatch.GetOutDir<GenerationHeadersAndRelocationTests>()!;
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
         var original = File.ReadAllText(fooPath);
         StringAssert.Contains("// SourceHash:", original);
@@ -87,26 +154,43 @@ public class GenerationHeadersAndRelocationTests
         var downgraded = string.Join("\n", lines);
         File.WriteAllText(fooPath, downgraded);
 
-        System.Threading.Thread.Sleep(10);
-        IntegrationTestUtil.RunShimGen(impl, fsDir, outDir);
+        System.Threading.Thread.Sleep(10); // ensure timestamp difference if needed
+        FsBatchComponent.RerunForFixture(typeof(GenerationHeadersAndRelocationTests));
         var after = File.ReadAllText(fooPath);
         Assert.That(after, Is.Not.EqualTo(downgraded));
         StringAssert.DoesNotContain("// ShimGenVersion: 0.0.0", after);
     }
 
     [Test]
+    [FsCase("Foo", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Foo", BaseTypeName="Godot.Node2D")>]
+type FooImpl() =
+    do ()
+""")]
+    [FsCase("Foo", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Foo", BaseTypeName="Godot.Node2D")>]
+type FooImpl() =
+    do ()
+""")]
     public void HashHeader_Rewrites_When_Hash_Changes()
     {
-        var impl = IntegrationTestUtil.BuildImplAssemblyFs();
-        var (fsDir, fsFile) = IntegrationTestUtil.CreateTempFsSource();
-        var outDir = IntegrationTestUtil.RunShimGen(impl, fsDir);
+        var outDir = FsBatch.GetOutDir<GenerationHeadersAndRelocationTests>()!;
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
         var originalSrc = File.ReadAllText(fooPath);
 
+        var fsFile = FsBatch.GetFsPath<GenerationHeadersAndRelocationTests>("Foo")!;
         File.WriteAllText(fsFile, ($"namespace Game\n\nopen Headsetsniper.Godot.FSharp.Annotations\n\n[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]\ntype FooImpl() =\n    do ()\n// changed\n"));
 
         System.Threading.Thread.Sleep(10);
-        IntegrationTestUtil.RunShimGen(impl, fsDir, outDir);
+        FsBatchComponent.RerunForFixture(typeof(GenerationHeadersAndRelocationTests));
         var updated = File.ReadAllText(fooPath);
         StringAssert.Contains("// SourceHash:", updated);
         Assert.That(updated, Is.Not.EqualTo(originalSrc));

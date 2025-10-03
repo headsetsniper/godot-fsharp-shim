@@ -10,27 +10,36 @@ namespace ShimGen.Tests;
 [TestFixture]
 public class CallbacksForwardingTests
 {
+    [OneTimeSetUp]
+    public void BeforeAll()
+    {
+        FsBatchComponent.BuildForFixture(typeof(CallbacksForwardingTests));
+    }
+
+    [OneTimeTearDown]
+    public void AfterAll()
+    {
+        FsBatchComponent.CleanupForFixture(typeof(CallbacksForwardingTests));
+    }
+
     [Test]
+    [FsCase("Callbacks", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Callbacks", BaseTypeName="Godot.Node")>]
+type CallbacksImpl() =
+    member _.PhysicsProcess(delta: double) = ()
+    member _.Input(e: InputEvent) = ()
+    member _.UnhandledInput(e: InputEvent) = ()
+    member _.Notification(what: int64) = ()
+    member _.Ready() = ()
+""")]
     public void Forwards_PhysicsProcess_Input_UnhandledInput_Notification()
     {
-        var code = string.Join("\n", new[]{
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Callbacks\", BaseTypeName=\"{KnownGodot.Node}\")>]",
-            "type CallbacksImpl() =",
-            "    member _.PhysicsProcess(delta: double) = ()",
-            "    member _.Input(e: InputEvent) = ()",
-            "    member _.UnhandledInput(e: InputEvent) = ()",
-            "    member _.Notification(what: int64) = ()",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "CallbacksImpl");
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-
-        var path = Directory.EnumerateFiles(outDir, "Callbacks.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<CallbacksForwardingTests>();
+        var path = Directory.EnumerateFiles(outDir!, "Callbacks.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null, "Callbacks.cs not generated");
         var src = File.ReadAllText(path!);
 
@@ -41,32 +50,29 @@ public class CallbacksForwardingTests
     }
 
     [Test]
+    [FsCase("UI", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="UI", BaseTypeName="Godot.Control")>]
+type UiImpl() =
+    member _.Ready() = ()
+    member _.GuiInput(e: InputEvent) = ()
+    member _.ShortcutInput(e: InputEvent) = ()
+    member _.UnhandledKeyInput(e: InputEvent) = ()
+    member _.CanDropData(p: Vector2, v: Variant) : bool = true
+    member _.DropData(p: Vector2, v: Variant) = ()
+    member _.GetDragData(p: Vector2) : obj = obj()
+    member _.HasPoint(p: Vector2) : bool = true
+    member _.GetMinimumSize() : Vector2 = new Vector2()
+    member _.MakeCustomTooltip(s: string) : Control = new Control()
+    member _.GetTooltip(p: Vector2) : string = "tip"
+""")]
     public void Forwards_Control_Ui_And_DragDrop_Callbacks()
     {
-        var code = string.Join("\n", new[]{
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"UI\", BaseTypeName=\"{KnownGodot.Control}\")>]",
-            "type UiImpl() =",
-            "    member _.Ready() = ()",
-            "    member _.GuiInput(e: InputEvent) = ()",
-            "    member _.ShortcutInput(e: InputEvent) = ()",
-            "    member _.UnhandledKeyInput(e: InputEvent) = ()",
-            "    member _.CanDropData(p: Vector2, v: Variant) : bool = true",
-            "    member _.DropData(p: Vector2, v: Variant) = ()",
-            "    member _.GetDragData(p: Vector2) : obj = obj()",
-            "    member _.HasPoint(p: Vector2) : bool = true",
-            "    member _.GetMinimumSize() : Vector2 = new Vector2()",
-            "    member _.MakeCustomTooltip(s: string) : Control = new Control()",
-            "    member _.GetTooltip(p: Vector2) : string = \"tip\""
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Control).Assembly), annPath }, asmName: "UiImpl");
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-
-        var path = Directory.EnumerateFiles(outDir, "UI.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<CallbacksForwardingTests>();
+        var path = Directory.EnumerateFiles(outDir!, "UI.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null, "UI.cs not generated");
         var src = File.ReadAllText(path!);
 
@@ -83,23 +89,20 @@ public class CallbacksForwardingTests
     }
 
     [Test]
+    [FsCase("Painter", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Painter", BaseTypeName="Godot.Node2D")>]
+type PainterImpl() =
+    member _.Ready() = ()
+    member _.Draw() = ()
+""")]
     public void Forwards_Draw_For_CanvasItem_Derived()
     {
-        var code = string.Join("\n", new[]{
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Painter\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
-            "type PainterImpl() =",
-            "    member _.Ready() = ()",
-            "    member _.Draw() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node2D).Assembly), annPath }, asmName: "PainterImpl");
-        var outDir = IntegrationTestUtil.RunShimGen(impl);
-
-        var path = Directory.EnumerateFiles(outDir, "Painter.cs", SearchOption.AllDirectories).FirstOrDefault();
+        var outDir = FsBatch.GetOutDir<CallbacksForwardingTests>();
+        var path = Directory.EnumerateFiles(outDir!, "Painter.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null, "Painter.cs not generated");
         var src = File.ReadAllText(path!);
 
