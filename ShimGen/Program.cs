@@ -232,10 +232,15 @@ internal static class Program
         var hasUnhandledInput = HasOneParam("UnhandledInput", "Godot.InputEvent");
         var hasNotification = t.GetMethod("Notification", BindingFlags.Instance | BindingFlags.Public, new[] { typeof(long) }) != null;
 
-        var signalMethods = t.GetMethods(BindingFlags.Instance | BindingFlags.Public)
-                             .Where(m => m.Name.StartsWith("Signal_") && m.GetParameters().Length == 0 && m.ReturnType == typeof(void))
-                             .Select(m => m.Name.Substring("Signal_".Length))
-                             .ToArray();
+        var signals = t.GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                       .Where(m => m.Name.StartsWith("Signal_") && m.ReturnType == typeof(void))
+                       .Select(m => new { Method = m, Name = m.Name.Substring("Signal_".Length) })
+                       .Select(x => new SignalSpec(
+                           x.Name,
+                           x.Method.GetParameters().Select(p => p.ParameterType).ToArray(),
+                           x.Method.GetParameters().Select(p => p.Name ?? "arg").ToArray()
+                       ))
+                       .ToArray();
 
         // Discover NodePath members (properties/fields) annotated with NodePathAttribute
         var nodePathMembers = new List<NodePathMember>();
@@ -262,7 +267,7 @@ internal static class Program
                 nodePathMembers.Add(new NodePathMember(p.Name, memberType, isProp, path, required));
         }
 
-        return new ScriptSpec(t, className, baseTypeName, exports, tool, icon, hasReady, hasEnterTree, hasExitTree, hasProcess, hasPhysicsProcess, hasInput, hasUnhandledInput, hasNotification, signalMethods, nodePathMembers.ToArray());
+        return new ScriptSpec(t, className, baseTypeName, exports, tool, icon, hasReady, hasEnterTree, hasExitTree, hasProcess, hasPhysicsProcess, hasInput, hasUnhandledInput, hasNotification, signals, nodePathMembers.ToArray());
     }
 
     private static bool IsExportable(Type t)
@@ -508,10 +513,22 @@ internal static class Program
         if (spec.HasUnhandledInput) sb.AppendLine("    public override void _UnhandledInput(Godot.InputEvent @event) => _impl.UnhandledInput(@event);");
         if (spec.HasNotification) sb.AppendLine("    public override void _Notification(long what) => _impl.Notification(what);");
 
-        foreach (var sig in spec.SignalNames)
+        foreach (var sig in spec.Signals)
         {
-            sb.AppendLine($"    [Signal] public event System.Action {sig};");
-            sb.AppendLine($"    public void Emit{sig}() => {sig}?.Invoke();");
+            // Build typed Action signature if parameters exist; otherwise Action
+            if (sig.ParamTypes.Length == 0)
+            {
+                sb.AppendLine($"    [Signal] public event System.Action {sig.Name};");
+                sb.AppendLine($"    public void Emit{sig.Name}() => {sig.Name}?.Invoke();");
+            }
+            else
+            {
+                var typeList = string.Join(", ", sig.ParamTypes.Select(GetTypeDisplayName));
+                var paramDecls = string.Join(", ", sig.ParamTypes.Select(GetTypeDisplayName).Zip(sig.ParamNames, (t, n) => t + " " + n));
+                var argList = string.Join(", ", sig.ParamNames);
+                sb.AppendLine($"    [Signal] public event System.Action<{typeList}> {sig.Name};");
+                sb.AppendLine($"    public void Emit{sig.Name}({paramDecls}) => {sig.Name}?.Invoke({argList});");
+            }
         }
 
         sb.AppendLine("}");

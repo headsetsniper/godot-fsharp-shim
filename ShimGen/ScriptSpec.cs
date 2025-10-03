@@ -17,7 +17,7 @@ internal readonly record struct ScriptSpec(
     bool HasInput,
     bool HasUnhandledInput,
     bool HasNotification,
-    string[] SignalNames,
+    SignalSpec[] Signals,
     NodePathMember[] NodePathMembers
 );
 
@@ -27,4 +27,10 @@ internal readonly record struct NodePathMember(
     bool IsProperty,
     string? Path,
     bool Required
+);
+
+internal readonly record struct SignalSpec(
+    string Name,
+    Type[] ParamTypes,
+    string[] ParamNames
 );

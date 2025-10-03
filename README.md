@@ -172,6 +172,31 @@ Notes
 - The shim sets `IGdScript<TNode>.Node = this` inside `_Ready()` before invoking your `Ready()`.
 - NodePath wiring also runs inside `_Ready()` prior to `Ready()`.
 
+### Signals
+
+- Convention-based signals with strong typing are supported.
+
+  - Declare public methods in your F# implementation whose names start with `Signal_`.
+  - The portion after `Signal_` becomes the signal name on the generated shim.
+  - The method parameters determine the signal's argument types; zero parameters produce a parameterless signal.
+
+- What the shim generates:
+
+  - For `member this.Signal_Fired() = ()`:
+
+    - `[Signal] public event System.Action Fired;`
+    - `public void EmitFired() => Fired?.Invoke();`
+
+  - For `member this.Signal_Scored(points:int, who:string) = ()`:
+    - `[Signal] public event System.Action<System.Int32, System.String> Scored;`
+    - `public void EmitScored(System.Int32 points, System.String who) => Scored?.Invoke(points, who);`
+
+- Notes:
+
+  - Signal names are taken verbatim from the suffix after `Signal_` (e.g., `Signal_GameOver` -> `GameOver`).
+  - Use regular .NET types compatible with Godot for parameters (e.g., `int`, `string`, Godot types).
+  - You can emit the signal from your F# code by calling the shim’s `Emit<Name>(...)` method as shown above.
+
 ## Todo
 
 Planned work to reach comprehensive Godot capability support in F# via shims.
@@ -190,7 +215,7 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 
 - Signals
 
-  - Declaration: F# attribute for strongly-typed signals (arg names/types); generate [Signal], event, and Emit methods.
+  - Declaration: F# attribute for strongly-typed signals (arg names/types); generate [Signal], event, and Emit methods. V
   - Autoconnect: optional attribute to auto-wire child node signals to methods (on \_Ready or explicit).
 
 - Lifecycle and callbacks coverage

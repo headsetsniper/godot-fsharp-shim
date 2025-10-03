@@ -170,4 +170,31 @@ public class LifecycleAndMetadataTests
         StringAssert.Contains("public event System.Action Fired;", src);
         StringAssert.Contains("public void EmitFired()", src);
     }
+
+    [Test]
+    public void Emits_Typed_Signals_With_Args()
+    {
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Sig2\", BaseTypeName=\"Godot.Node\")]",
+            "  public class Sig2Impl {",
+            "    public void Signal_Scored(int points, string who) {}",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "Sig2Impl");
+        var outDir = IntegrationTestUtil.RunShimGen(impl);
+
+        var sigPath = Directory.EnumerateFiles(outDir, "Sig2.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(sigPath, Is.Not.Null, "Sig2.cs not generated");
+        var src = File.ReadAllText(sigPath!);
+
+        StringAssert.Contains("[Signal]", src);
+        StringAssert.Contains("public event System.Action<System.Int32, System.String> Scored;", src);
+        StringAssert.Contains("public void EmitScored(System.Int32 points, System.String who) => Scored?.Invoke(points, who);", src);
+    }
 }
