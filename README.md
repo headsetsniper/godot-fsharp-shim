@@ -98,6 +98,16 @@ dotnet build FsharpWithShim.csproj -v:n
 
 The generator and annotations now support these capabilities out of the box:
 
+- GlobalClass and Icon
+
+  - Shims are emitted with `[GlobalClass]` automatically so the script shows up in the Godot editor.
+  - Provide an editor icon by setting `Icon` on `GodotScript`.
+  - F#: `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D", Icon = "res://icon.svg")>]`
+  - Notes:
+    - `Icon` should be a Godot resource path (e.g., `res://...` or `uid://...`).
+    - The asset must exist in the project and be imported by Godot for the icon to appear.
+    - `ClassName` controls the name of the generated shim/script visible in the editor; defaults to the F# type name if omitted.
+
 - Tool scripts
 
   - Enable editor-time behavior by setting `Tool=true` on `GodotScript`.
@@ -131,9 +141,9 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 
 - Script metadata and registration
 
-  - Global class registration: F# attribute to declare name/icon; emit [GlobalClass] on shim.
+  - Global class registration: F# attribute to declare name/icon; emit [GlobalClass] on shim. V
   - Tool scripts: F# attribute to mark scripts as editor tools; emit [Tool] on shim. V
-  - Class name/base type: ensure shim class name and base type mirror F# type and intended Godot base.
+  - Class name/base type: ensure shim class name and base type mirror F# type and intended Godot base. V
 
 - Exports (editor parity)
 
