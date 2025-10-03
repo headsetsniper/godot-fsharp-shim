@@ -13,8 +13,8 @@
   <PackageId>Headsetsniper.Godot.FSharp.ShimGen</PackageId>
     <Title>Headsetsniper.Godot.FSharp.ShimGen</Title>
     <Description>Generates C# shims for F# Godot scripts so Godot's C# tooling can consume them.</Description>
-  <Authors>SebastianAtWork</Authors>
-  <RepositoryUrl>https://github.com/SebastianAtWork/godot-fsharp-shim</RepositoryUrl>
+  <Authors>headsetsniper</Authors>
+  <RepositoryUrl>https://github.com/headsetsniper/godot-fsharp-shim</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <!-- Version will be set by GitVersion in CI: do not hardcode here -->
