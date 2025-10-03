@@ -1,6 +1,22 @@
 # F# with Godot via C# Shims
 
-This repository demonstrates how to drive Godot game logic in F# while generating on-disk C# shims that Godot can consume.
+This repository lets you write gameplay in F# and auto-generate C# shims that Godot can compile and recognize.
+
+## Table of contents
+
+- [Projects](#projects)
+- [Quick start](#quick-start)
+- [Features](#features)
+  - [GlobalClass and Icon](#globalclass-and-icon)
+  - [Tool scripts](#tool-scripts)
+  - [Lifecycle forwarding (EnterTree/ExitTree)](#lifecycle-forwarding-entertreeexittree)
+  - [NodePath auto‑wiring in \_Ready](#nodepath-auto-wiring-in-_ready)
+  - [Editor hints](#editor-hints)
+  - [Signals](#signals)
+  - [Autoconnect](#autoconnect)
+- [Configuration](#configuration)
+- [Local development](#local-development)
+- [Todo](#todo)
 
 ## Projects
 
@@ -15,7 +31,7 @@ This repository demonstrates how to drive Godot game logic in F# while generatin
 - `Scenes`, `Scripts`
   - Your Godot project code.
 
-## Using the packages in your own project
+## Quick start
 
 1. In your F# project:
 
@@ -40,13 +56,13 @@ type FooImpl() =
 - Build. Shims appear under `Scripts/Generated` and are compiled.
 - Shims include headers with SourceFile and SourceHash. The generator relocates outputs on moves/renames and prunes orphans.
 
-## Configuration knobs
+## Configuration
 
 - `FSharpShimsEnabled` (true by default)
 - `FSharpShimsOutDir` (default `Scripts/Generated`)
 - Command-line runner supports `--dry-run` to print planned writes/moves/deletes without changes.
 
-## Local development flow
+## Local development
 
 1. Pack the two NuGet packages locally
 
@@ -98,32 +114,36 @@ dotnet build FsharpWithShim.csproj -v:n
 
 The generator and annotations now support these capabilities out of the box:
 
-- GlobalClass and Icon
+### GlobalClass and Icon
 
-  - Shims are emitted with `[GlobalClass]` automatically so the script shows up in the Godot editor.
-  - Provide an editor icon by setting `Icon` on `GodotScript`.
-  - F#: `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D", Icon = "res://icon.svg")>]`
-  - Notes:
-    - `Icon` should be a Godot resource path (e.g., `res://...` or `uid://...`).
-    - The asset must exist in the project and be imported by Godot for the icon to appear.
-    - `ClassName` controls the name of the generated shim/script visible in the editor; defaults to the F# type name if omitted.
+- Shims are emitted with `[GlobalClass]` automatically so the script shows up in the Godot editor.
+- Provide an editor icon by setting `Icon` on `GodotScript`.
+- F#: `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D", Icon = "res://icon.svg")>]`
+- Notes:
+  - `Icon` should be a Godot resource path (e.g., `res://...` or `uid://...`).
+  - The asset must exist in the project and be imported by Godot for the icon to appear.
+  - `ClassName` controls the name of the generated shim/script visible in the editor; defaults to the F# type name if omitted.
 
-- Tool scripts
+### Tool scripts
 
-  - Enable editor-time behavior by setting `Tool=true` on `GodotScript`.
-  - F#: `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D", Tool = true)>]`
+- Enable editor-time behavior by setting `Tool=true` on `GodotScript`.
+- F#: `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D", Tool = true)>]`
 
-- Lifecycle forwarding (EnterTree/ExitTree)
+### Lifecycle forwarding (EnterTree/ExitTree)
 
-  - Implement `EnterTree()` or `ExitTree()` in your F# type to receive those callbacks.
-  - `_Ready`, `_Process`, `_PhysicsProcess`, `_Input`, `_UnhandledInput`, `_Notification` are also supported when present.
+- Implement `EnterTree()` or `ExitTree()` in your F# type to receive those callbacks.
+- `_Ready`, `_Process`, `_PhysicsProcess`, `_Input`, `_UnhandledInput`, `_Notification` are also supported when present.
 
-- NodePath auto‑wiring in \_Ready
+### NodePath auto‑wiring in \_Ready
 
-  - Decorate fields/properties with `[NodePath]` to auto‑resolve nodes before calling `Ready()`.
-  - Default path is `nameof(Member)`; override with `Path = "Some/Child"`. Use `Required=false` to suppress error when missing.
-  - F# example: - `[<NodePath>]
-member val Player : Godot.Node2D = Unchecked.defaultof<_> with get, set`
+- Decorate fields/properties with `[NodePath]` to auto‑resolve nodes before calling `Ready()`.
+- Default path is `nameof(Member)`; override with `Path = "Some/Child"`. Use `Required=false` to suppress error when missing.
+- F# example:
+
+  ```fsharp
+  [<NodePath>]
+  member val Player : Godot.Node2D = Unchecked.defaultof<_> with get, set
+  ```
 
 ### Editor hints
 
