@@ -555,6 +555,89 @@ public class ShimGenIntegrationTests
     }
 
     [Test]
+    public void Export_Default_Value_Comes_From_Impl()
+    {
+        // Arrange: impl with default initializer
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Def\", BaseTypeName=\"Godot.Node\")]",
+            "  public class DefImpl {",
+            "    public int A { get; set; } = 123;",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "DefImpl");
+
+        // Act: generate and compile shim
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Def.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null, "Def.cs not generated");
+        var src = File.ReadAllText(path!);
+        var shimDll = TestHelpers.CompileCSharp(src, new[] {
+            TestHelpers.RefFromAssembly(stubs),
+            TestHelpers.RefFromPath(annPath),
+            MetadataReference.CreateFromFile(impl)
+        }, asmName: "DefShim");
+
+        // Ensure the impl assembly is resolvable when the shim's constructor runs
+        // by copying it next to the compiled shim (or preload if copy fails on same path).
+        var shimDir = Path.GetDirectoryName(shimDll)!;
+        var targetImplPath = Path.Combine(shimDir, Path.GetFileName(impl));
+        if (!File.Exists(targetImplPath)) File.Copy(impl, targetImplPath, overwrite: true);
+        // Preload the impl assembly to ensure the shim can construct its _impl instance
+        _ = Assembly.LoadFrom(targetImplPath);
+
+        // Assert: instantiating the shim exposes the default value via the exported property
+        var asm = Assembly.LoadFrom(shimDll);
+        var shimType = asm.GetType("Generated.Def");
+        Assert.That(shimType, Is.Not.Null);
+        var o = Activator.CreateInstance(shimType!);
+        var p = shimType!.GetProperty("A");
+        Assert.That(p, Is.Not.Null);
+        var val = (int)p!.GetValue(o!)!;
+        Assert.That(val, Is.EqualTo(123));
+    }
+
+    [Test]
+    public void Export_Category_Subgroup_Tooltip_Are_Emitted()
+    {
+        // Arrange
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Docs\", BaseTypeName=\"Godot.Node\")]",
+            "  public class DocsImpl {",
+            "    [ExportCategory(\"Movement\")]",
+            "    [ExportSubgroup(\"Speed\", Prefix=\"spd_\")]",
+            "    [ExportTooltip(\"Units per second\")]",
+            "    public float Speed { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "DocsImpl");
+
+        // Act
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Docs.cs", SearchOption.AllDirectories).FirstOrDefault();
+
+        // Assert
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        // Attributes should appear before the Export line
+        StringAssert.Contains("[ExportCategory(\"Movement\")]", src);
+        StringAssert.Contains("[ExportSubgroup(\"Speed\", Prefix=\"spd_\")]", src);
+        StringAssert.Contains("[ExportTooltip(\"Units per second\")]", src);
+        StringAssert.Contains("[Export] public System.Single Speed", src);
+    }
+
+    [Test]
     public void Forwards_Lifecycle_Ready_And_Process()
     {
         // Arrange
@@ -660,6 +743,8 @@ public class ShimGenIntegrationTests
 
         // Assert: unchanged
         Assert.That(secondWrite, Is.EqualTo(firstWrite));
+        var afterContent = File.ReadAllText(fooPath);
+        Assert.That(afterContent, Is.EqualTo(initialContent));
     }
 
     [Test]

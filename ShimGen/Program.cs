@@ -356,6 +356,31 @@ internal static class Program
 
         foreach (var p in spec.Exports)
         {
+            // Prepend grouping/tooltip attributes if present on the impl property
+            void EmitPreAttributes()
+            {
+                var cat = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportCategoryAttribute");
+                if (cat is not null)
+                {
+                    var name = cat.ConstructorArguments.Count > 0 ? (cat.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
+                    sb.AppendLine($"    [ExportCategory(\"{name}\")] ");
+                }
+                var sub = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportSubgroupAttribute");
+                if (sub is not null)
+                {
+                    var name = sub.ConstructorArguments.Count > 0 ? (sub.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
+                    var prefix = sub.NamedArguments.FirstOrDefault(na => na.MemberName == "Prefix").TypedValue.Value as string;
+                    if (!string.IsNullOrEmpty(prefix)) sb.AppendLine($"    [ExportSubgroup(\"{name}\", Prefix=\"{prefix}\")] ");
+                    else sb.AppendLine($"    [ExportSubgroup(\"{name}\")] ");
+                }
+                var tip = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportTooltipAttribute");
+                if (tip is not null)
+                {
+                    var text = tip.ConstructorArguments.Count > 0 ? (tip.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
+                    sb.AppendLine($"    [ExportTooltip(\"{text}\")] ");
+                }
+            }
+
             // ExportRange support
             var rangeAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportRangeAttribute");
             if (rangeAttr is not null)
@@ -368,6 +393,7 @@ internal static class Program
                 if (ctorArgs.Count >= 3) step = Convert.ToDouble(ctorArgs[2].Value);
                 if (ctorArgs.Count >= 4 && ctorArgs[3].ArgumentType == typeof(bool)) slider = (bool)ctorArgs[3].Value!;
                 var hintStr = $"{min},{max},{step},{(slider ? 1 : 0)}";
+                EmitPreAttributes();
                 sb.AppendLine($"    [Export(PropertyHint.Range, \"{hintStr}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
                 continue;
             }
@@ -377,12 +403,14 @@ internal static class Program
             if (fileAttr is not null)
             {
                 var filter = fileAttr.ConstructorArguments.Count > 0 ? (fileAttr.ConstructorArguments[0].Value as string ?? string.Empty) : (fileAttr.NamedArguments.FirstOrDefault(na => na.MemberName == "Filter").TypedValue.Value as string ?? string.Empty);
+                EmitPreAttributes();
                 sb.AppendLine($"    [Export(PropertyHint.File, \"{filter}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
                 continue;
             }
             var dirAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportDirAttribute");
             if (dirAttr is not null)
             {
+                EmitPreAttributes();
                 sb.AppendLine($"    [Export(PropertyHint.Dir)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
                 continue;
             }
@@ -390,6 +418,7 @@ internal static class Program
             if (resAttr is not null)
             {
                 var typeName = resAttr.ConstructorArguments.Count > 0 ? (resAttr.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
+                EmitPreAttributes();
                 sb.AppendLine($"    [Export(PropertyHint.ResourceType, \"{typeName}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
                 continue;
             }
@@ -400,6 +429,7 @@ internal static class Program
                 var multiAttr = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportMultilineAttribute");
                 if (multiAttr)
                 {
+                    EmitPreAttributes();
                     sb.AppendLine($"    [Export(PropertyHint.MultilineText)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
                     continue;
                 }
@@ -407,6 +437,7 @@ internal static class Program
                 if (enumListAttr is not null)
                 {
                     var values = enumListAttr.ConstructorArguments.Count > 0 ? (enumListAttr.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
+                    EmitPreAttributes();
                     sb.AppendLine($"    [Export(PropertyHint.Enum, \"{values}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
                     continue;
                 }
@@ -416,6 +447,7 @@ internal static class Program
                 var cna = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportColorNoAlphaAttribute");
                 if (cna)
                 {
+                    EmitPreAttributes();
                     sb.AppendLine($"    [Export(PropertyHint.ColorNoAlpha)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
                     continue;
                 }
@@ -425,6 +457,7 @@ internal static class Program
             var layerMask2D = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportLayerMask2DRenderAttribute");
             if (layerMask2D)
             {
+                EmitPreAttributes();
                 sb.AppendLine($"    [Export(PropertyHint.Layers2DRender)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
                 continue;
             }
@@ -433,11 +466,13 @@ internal static class Program
             if (p.PropertyType.IsEnum && p.PropertyType.GetCustomAttributesData().Any(a => a.AttributeType.FullName == "System.FlagsAttribute"))
             {
                 string hintList = string.Join(',', Enum.GetNames(p.PropertyType));
+                EmitPreAttributes();
                 sb.AppendLine($"    [Export(PropertyHint.Flags, \"{hintList}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
                 continue;
             }
 
             // Default export
+            EmitPreAttributes();
             sb.AppendLine($"    [Export] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
         }
 

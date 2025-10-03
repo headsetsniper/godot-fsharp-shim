@@ -123,7 +123,7 @@ The generator and annotations now support these capabilities out of the box:
   - Decorate fields/properties with `[NodePath]` to auto‑resolve nodes before calling `Ready()`.
   - Default path is `nameof(Member)`; override with `Path = "Some/Child"`. Use `Required=false` to suppress error when missing.
   - F# example: - `[<NodePath>]
-        member val Player : Godot.Node2D = Unchecked.defaultof<_> with get, set`
+member val Player : Godot.Node2D = Unchecked.defaultof<_> with get, set`
 
 ### Editor hints
 
@@ -159,6 +159,13 @@ The generator and annotations now support these capabilities out of the box:
 - Color without alpha: `[<ExportColorNoAlpha>]` on Color.
 
 - Layer masks: `[<ExportLayerMask2DRender>]` for 2D render layers.
+
+- Categories and subgroups:
+  - Group related properties under headers/subheaders in the Inspector.
+  - Category: `[<ExportCategory("Movement")>]`
+  - Subgroup: `[<ExportSubgroup("Speed", Prefix = "spd_")>]` (Prefix is optional)
+  - Tooltip: `[<ExportTooltip("Units per second")>]`
+  - Example: `[<ExportCategory("Movement")>][<ExportSubgroup("Speed", Prefix = "spd_")>][<ExportTooltip("Units per second")>] member val Speed : float32 = 1.0f with get, set`
 
 Notes
 
