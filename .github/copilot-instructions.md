@@ -39,6 +39,8 @@ This repo lets you write Godot gameplay in F# and auto-generate C# shims that Go
 
 ## Conventions and gotchas
 
+- Use dotnet test and not the Test task as copilot seems to struggle with waiting for long tests.
+- No C# support for the library that has the source types. Like `GodotScriptAttribute`. Only F# on that side and C# as generation output!
 - Do not commit files under `Scripts/Generated` (they are build outputs).
 - Godot SDK: projects use `Sdk="Godot.NET.Sdk/4.5.0"` with `net8.0`.
 - You’ll see `[shimgen]` build logs that show tool path candidates and F# ReferencePath discovery.

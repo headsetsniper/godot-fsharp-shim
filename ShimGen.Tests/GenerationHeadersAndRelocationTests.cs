@@ -14,7 +14,7 @@ public class GenerationHeadersAndRelocationTests
     [Test]
     public void Idempotent_Writes_Do_Not_Rewrite()
     {
-        var impl = IntegrationTestUtil.BuildImplAssembly();
+        var impl = IntegrationTestUtil.BuildImplAssemblyFs();
         var outDir = IntegrationTestUtil.RunShimGen(impl);
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
         var firstWrite = File.GetLastWriteTimeUtc(fooPath);
@@ -30,7 +30,7 @@ public class GenerationHeadersAndRelocationTests
     [Test]
     public void HashHeader_Skips_Rewrite_When_Hash_Unchanged()
     {
-        var impl = IntegrationTestUtil.BuildImplAssembly();
+        var impl = IntegrationTestUtil.BuildImplAssemblyFs();
         var (fsDir, fsFile) = IntegrationTestUtil.CreateTempFsSource();
         var outDir = IntegrationTestUtil.RunShimGen(impl, fsDir);
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
@@ -56,7 +56,7 @@ public class GenerationHeadersAndRelocationTests
     [Test]
     public void Header_Contains_ShimGen_Version()
     {
-        var impl = IntegrationTestUtil.BuildImplAssembly();
+        var impl = IntegrationTestUtil.BuildImplAssemblyFs();
         var (fsDir, _) = IntegrationTestUtil.CreateTempFsSource();
         var outDir = IntegrationTestUtil.RunShimGen(impl, fsDir);
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
@@ -67,7 +67,7 @@ public class GenerationHeadersAndRelocationTests
     [Test]
     public void Rewrites_When_Generator_Version_Is_Newer_Even_If_Hash_Matches()
     {
-        var impl = IntegrationTestUtil.BuildImplAssembly();
+        var impl = IntegrationTestUtil.BuildImplAssemblyFs();
         var (fsDir, _) = IntegrationTestUtil.CreateTempFsSource();
         var outDir = IntegrationTestUtil.RunShimGen(impl, fsDir);
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
@@ -97,7 +97,7 @@ public class GenerationHeadersAndRelocationTests
     [Test]
     public void HashHeader_Rewrites_When_Hash_Changes()
     {
-        var impl = IntegrationTestUtil.BuildImplAssembly();
+        var impl = IntegrationTestUtil.BuildImplAssemblyFs();
         var (fsDir, fsFile) = IntegrationTestUtil.CreateTempFsSource();
         var outDir = IntegrationTestUtil.RunShimGen(impl, fsDir);
         var fooPath = Directory.EnumerateFiles(outDir, "Foo.cs", SearchOption.AllDirectories).First();
@@ -131,15 +131,16 @@ public class GenerationHeadersAndRelocationTests
         File.WriteAllText(fsFile, fsContent);
 
         var code = string.Join("\n", new[]{
-            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            "namespace Game.Scripts {",
-            $"  [GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")]",
-            "  public class FooImpl { public void Ready(){} }",
-            "}"
+            "namespace Game.Scripts",
+            "",
+            "open Godot",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            $"[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
+            "type FooImpl() =",
+            "    member _.Ready() = ()"
         });
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var stubs = typeof(Godot.Node2D).Assembly;
-        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameScriptsImpl");
+        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node2D).Assembly), annPath }, asmName: "GameScriptsImpl");
 
         var outDir = IntegrationTestUtil.RunShimGen(impl, root);
 
@@ -169,15 +170,16 @@ public class GenerationHeadersAndRelocationTests
         File.WriteAllText(fsA, fsContent);
 
         var code = string.Join("\n", new[]{
-            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            "namespace Game.Scripts {",
-            $"  [GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")]",
-            "  public class FooImpl { public void Ready(){} }",
-            "}"
+            "namespace Game.Scripts",
+            "",
+            "open Godot",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            $"[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
+            "type FooImpl() =",
+            "    member _.Ready() = ()"
         });
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var stubs = typeof(Godot.Node2D).Assembly;
-        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameScriptsImpl_Move");
+        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node2D).Assembly), annPath }, asmName: "GameScriptsImpl_Move");
         var outDir = IntegrationTestUtil.RunShimGen(impl, root);
 
         var oldGenerated = Path.Combine(outDir, "Game", "Scripts", "Foo.cs");
@@ -211,21 +213,30 @@ public class GenerationHeadersAndRelocationTests
         File.WriteAllText(fs, fsContent);
 
         var codeFoo = string.Join("\n", new[]{
-            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            $"namespace Game {{ [GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")] public class FooImpl {{ public void Ready(){{}} }} }}"
+            "namespace Game",
+            "",
+            "open Godot",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            $"[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
+            "type FooImpl() =",
+            "    member _.Ready() = ()"
         });
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var stubs = typeof(Godot.Node2D).Assembly;
-        var implFoo = TestHelpers.CompileCSharp(codeFoo, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameImpl_Rename");
+        var implFoo = TestHelpers.CompileFSharp(codeFoo, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node2D).Assembly), annPath }, asmName: "GameImpl_Rename");
         var outDir = IntegrationTestUtil.RunShimGen(implFoo, root);
         var fooGen = Path.Combine(outDir, "Game", "Foo.cs");
         Assert.That(File.Exists(fooGen), Is.True);
 
         var codeBar = string.Join("\n", new[]{
-            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            $"namespace Game {{ [GodotScript(ClassName=\"Bar\", BaseTypeName=\"{KnownGodot.Node2D}\")] public class BarImpl {{ public void Ready(){{}} }} }}"
+            "namespace Game",
+            "",
+            "open Godot",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            $"[<GodotScript(ClassName=\"Bar\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
+            "type BarImpl() =",
+            "    member _.Ready() = ()"
         });
-        var implBar = TestHelpers.CompileCSharp(codeBar, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameImpl_Rename2");
+        var implBar = TestHelpers.CompileFSharp(codeBar, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node2D).Assembly), annPath }, asmName: "GameImpl_Rename2");
 
         IntegrationTestUtil.RunShimGen(implBar, root, outDir);
         var barGen = Path.Combine(outDir, "Game", "Bar.cs");
@@ -249,12 +260,16 @@ public class GenerationHeadersAndRelocationTests
         File.WriteAllText(fs, fsContent);
 
         var code = string.Join("\n", new[]{
-            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            $"namespace Game {{ [GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")] public class FooImpl {{ public void Ready(){{}} }} }}"
+            "namespace Game",
+            "",
+            "open Godot",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            $"[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
+            "type FooImpl() =",
+            "    member _.Ready() = ()"
         });
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var stubs = typeof(Godot.Node2D).Assembly;
-        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameImpl_Prune");
+        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node2D).Assembly), annPath }, asmName: "GameImpl_Prune");
         var outDir = IntegrationTestUtil.RunShimGen(impl, root);
         var gen = Path.Combine(outDir, "Game", "Foo.cs");
         Assert.That(File.Exists(gen), Is.True);

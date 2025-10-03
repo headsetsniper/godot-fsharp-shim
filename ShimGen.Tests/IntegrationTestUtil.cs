@@ -31,6 +31,30 @@ internal static class IntegrationTestUtil
         return TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "GameImpl");
     }
 
+    public static string BuildImplAssemblyFs(string className = "FooImpl", string baseType = KnownGodot.Node2D)
+    {
+        var code = string.Join("\n", new[]{
+            "namespace Game",
+            "",
+            "open Godot",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            $"[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{baseType}\")>]",
+            $"type {className}() =",
+            "    member val Speed : int = 220 with get, set",
+            "    member _.Ready() = ()",
+            "    member _.Process(delta: double) = ()"
+        }) + "\n";
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var refs = new[]{
+            TestHelpers.RefPathFromAssembly(typeof(Godot.Node2D).Assembly),
+            annPath
+        };
+        return TestHelpers.CompileFSharp(code, refs, asmName: "GameImplFs");
+    }
+
+    public static string RunShimGenFs(string implPath, string? fsSourceDir = null, string? outDirOverride = null)
+        => RunShimGen(implPath, fsSourceDir, outDirOverride);
+
     public static string RunShimGen(string implPath, string? fsSourceDir = null, string? outDirOverride = null)
     {
         var outDir = outDirOverride ?? TestHelpers.CreateTempDir();

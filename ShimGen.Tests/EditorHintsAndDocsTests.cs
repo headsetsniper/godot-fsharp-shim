@@ -14,18 +14,18 @@ public class EditorHintsAndDocsTests
     public void Export_Range_Hint_Is_Emitted()
     {
         var code = string.Join("\n", new[]{
-            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            "namespace Game {",
-            $"  [GodotScript(ClassName=\"Rangey\", BaseTypeName=\"{KnownGodot.Node}\")]",
-            "  public class RangeyImpl {",
-            "    [ExportRange(0, 10, 0.5, true)] public float Speed { get; set; }",
-            "    public void Ready(){}",
-            "  }",
-            "}"
+            "namespace Game",
+            "",
+            "open Godot",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            $"[<GodotScript(ClassName=\"Rangey\", BaseTypeName=\"{KnownGodot.Node}\")>]",
+            "type RangeyImpl() =",
+            "    [<ExportRange(0.0, 10.0, 0.5, true)>]",
+            "    member val Speed : single = 0.0f with get, set",
+            "    member _.Ready() = ()"
         });
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var stubs = typeof(Godot.Node).Assembly;
-        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "RangeyImpl");
+        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "RangeyImpl");
         var outDir = IntegrationTestUtil.RunShimGen(impl);
         var path = Directory.EnumerateFiles(outDir, "Rangey.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null);
@@ -37,19 +37,20 @@ public class EditorHintsAndDocsTests
     public void Export_File_And_Dir_Hints_Are_Emitted()
     {
         var code = string.Join("\n", new[]{
-            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            "namespace Game {",
-            $"  [GodotScript(ClassName=\"Paths\", BaseTypeName=\"{KnownGodot.Node}\")]",
-            "  public class PathsImpl {",
-            "    [ExportFile(\"*.png,*.jpg\")] public string ImagePath { get; set; }",
-            "    [ExportDir] public string Folder { get; set; }",
-            "    public void Ready(){}",
-            "  }",
-            "}"
+            "namespace Game",
+            "",
+            "open Godot",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            $"[<GodotScript(ClassName=\"Paths\", BaseTypeName=\"{KnownGodot.Node}\")>]",
+            "type PathsImpl() =",
+            "    [<ExportFile(\"*.png,*.jpg\")>]",
+            "    member val ImagePath : string = null with get, set",
+            "    [<ExportDir>]",
+            "    member val Folder : string = null with get, set",
+            "    member _.Ready() = ()"
         });
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var stubs = typeof(Godot.Node).Assembly;
-        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "PathsImpl");
+        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "PathsImpl");
 
         var outDir = IntegrationTestUtil.RunShimGen(impl);
         var path = Directory.EnumerateFiles(outDir, "Paths.cs", SearchOption.AllDirectories).FirstOrDefault();
@@ -63,20 +64,22 @@ public class EditorHintsAndDocsTests
     public void Export_ResourceType_And_EnumList_And_Multiline()
     {
         var code = string.Join("\n", new[]{
-            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            "namespace Game {",
-            $"  [GodotScript(ClassName=\"Hints\", BaseTypeName=\"{KnownGodot.Node}\")]",
-            "  public class HintsImpl {",
-            "    [ExportResourceType(\"Texture2D\")] public string TexturePath { get; set; }",
-            "    [ExportEnumList(\"A,B,C\")] public string Choice { get; set; }",
-            "    [ExportMultiline] public string Description { get; set; }",
-            "    public void Ready(){}",
-            "  }",
-            "}"
+            "namespace Game",
+            "",
+            "open Godot",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            $"[<GodotScript(ClassName=\"Hints\", BaseTypeName=\"{KnownGodot.Node}\")>]",
+            "type HintsImpl() =",
+            "    [<ExportResourceType(\"Texture2D\")>]",
+            "    member val TexturePath : string = null with get, set",
+            "    [<ExportEnumList(\"A,B,C\")>]",
+            "    member val Choice : string = null with get, set",
+            "    [<ExportMultiline>]",
+            "    member val Description : string = null with get, set",
+            "    member _.Ready() = ()"
         });
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var stubs = typeof(Godot.Node).Assembly;
-        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "HintsImpl");
+        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "HintsImpl");
 
         var outDir = IntegrationTestUtil.RunShimGen(impl);
         var path = Directory.EnumerateFiles(outDir, "Hints.cs", SearchOption.AllDirectories).FirstOrDefault();
@@ -91,19 +94,20 @@ public class EditorHintsAndDocsTests
     public void Export_ColorNoAlpha_And_LayerMask2D()
     {
         var code = string.Join("\n", new[]{
-            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            "namespace Game {",
-            $"  [GodotScript(ClassName=\"Visuals\", BaseTypeName=\"{KnownGodot.Node}\")]",
-            "  public class VisualsImpl {",
-            "    [ExportColorNoAlpha] public Color Tint { get; set; }",
-            "    [ExportLayerMask2DRender] public int Layers { get; set; }",
-            "    public void Ready(){}",
-            "  }",
-            "}"
+            "namespace Game",
+            "",
+            "open Godot",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            $"[<GodotScript(ClassName=\"Visuals\", BaseTypeName=\"{KnownGodot.Node}\")>]",
+            "type VisualsImpl() =",
+            "    [<ExportColorNoAlpha>]",
+            "    member val Tint : Color = new Color() with get, set",
+            "    [<ExportLayerMask2DRender>]",
+            "    member val Layers : int = 0 with get, set",
+            "    member _.Ready() = ()"
         });
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var stubs = typeof(Godot.Node).Assembly;
-        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "VisualsImpl");
+        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "VisualsImpl");
 
         var outDir = IntegrationTestUtil.RunShimGen(impl);
         var path = Directory.EnumerateFiles(outDir, "Visuals.cs", SearchOption.AllDirectories).FirstOrDefault();
@@ -117,21 +121,20 @@ public class EditorHintsAndDocsTests
     public void Export_Category_Subgroup_Tooltip_Are_Emitted()
     {
         var code = string.Join("\n", new[]{
-            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
-            "namespace Game {",
-            $"  [GodotScript(ClassName=\"Docs\", BaseTypeName=\"{KnownGodot.Node}\")]",
-            "  public class DocsImpl {",
-            "    [ExportCategory(\"Movement\")]",
-            "    [ExportSubgroup(\"Speed\", Prefix=\"spd_\")]",
-            "    [ExportTooltip(\"Units per second\")]",
-            "    public float Speed { get; set; }",
-            "    public void Ready(){}",
-            "  }",
-            "}"
+            "namespace Game",
+            "",
+            "open Godot",
+            "open Headsetsniper.Godot.FSharp.Annotations",
+            $"[<GodotScript(ClassName=\"Docs\", BaseTypeName=\"{KnownGodot.Node}\")>]",
+            "type DocsImpl() =",
+            "    [<ExportCategory(\"Movement\")>]",
+            "    [<ExportSubgroup(\"Speed\", Prefix=\"spd_\")>]",
+            "    [<ExportTooltip(\"Units per second\")>]",
+            "    member val Speed : single = 0.0f with get, set",
+            "    member _.Ready() = ()"
         });
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var stubs = typeof(Godot.Node).Assembly;
-        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "DocsImpl");
+        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node).Assembly), annPath }, asmName: "DocsImpl");
 
         var outDir = IntegrationTestUtil.RunShimGen(impl);
         var path = Directory.EnumerateFiles(outDir, "Docs.cs", SearchOption.AllDirectories).FirstOrDefault();
