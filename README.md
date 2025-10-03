@@ -123,34 +123,42 @@ The generator and annotations now support these capabilities out of the box:
   - Decorate fields/properties with `[NodePath]` to auto‑resolve nodes before calling `Ready()`.
   - Default path is `nameof(Member)`; override with `Path = "Some/Child"`. Use `Required=false` to suppress error when missing.
   - F# example: - `[<NodePath>]
-member val Player : Godot.Node2D = Unchecked.defaultof<_> with get, set`
+        member val Player : Godot.Node2D = Unchecked.defaultof<_> with get, set`
 
-- Export range hints
+### Editor hints
 
-  - Add `[ExportRange(min, max, step, orSlider)]` to numeric properties to show a range control in the editor.
-  - F# example: - `[<ExportRange(0.0, 10.0, 0.5, true)>]
-member val Speed : float32 = 1.0f with get, set`
+- Exported properties show rich editors in Godot based on their type and optional attributes.
 
-- Enum flags/bitmask
+- Exported types (supported now):
 
-  - Mark your F# enum with `[<System.Flags>]` to get a bitmask editor for exported properties of that enum type.
-  - The shim emits `PropertyHint.Flags` with a comma-separated list of enum names (e.g., `"None,One,Two,Three"`).
-  - F# example:
-    - `[<System.Flags>]`
-      `type MyFlags = | None = 0 | One = 1 <<< 0 | Two = 1 <<< 1 | Three = One ||| Two`
-    - `member val Mask : MyFlags = MyFlags.None with get, set`
+  - Primitives: int, float, double, bool, string
+  - Enums (incl. flags/bitmask)
+  - Arrays: T[] (when T is supported)
+  - Collections: List<'T>, Dictionary<string, 'V> (when element/value types are supported)
+  - Godot structs: Vector2, Vector3, Color, Basis, Rect2, Transform2D, Transform3D
+  - Engine types: NodePath, StringName, RID
+  - Godot resources: any type deriving from Godot.Resource (e.g., Texture2D, PackedScene)
 
-- Exports (types)
+- Range slider: `[<ExportRange(min, max, step, orSlider)>]`
 
-  - Public get/set properties are exported when their type is supported by the generator.
-  - Supported now:
-    - Primitives: int, float, double, bool, string
-    - Enums
-    - Arrays: T[] (when T is supported)
-    - Collections: List<'T>, Dictionary<string, 'V> (when element/value types are supported)
-    - Godot structs: Vector2, Vector3, Color, Basis, Rect2, Transform2D, Transform3D
-    - Engine types: NodePath, StringName, RID
-    - Godot resources: any type deriving from Godot.Resource (e.g., Texture2D, PackedScene)
+  - Example: `[<ExportRange(0.0, 10.0, 0.5, true)>] member val Speed : float32 = 1.0f with get, set`
+
+- Enum flags/bitmask: mark enum with `[<System.Flags>]`
+
+  - The shim emits `PropertyHint.Flags` with a comma-separated list of enum names.
+  - Example: `[<System.Flags>] type MyFlags = | None = 0 | One = 1<<<0 | Two = 1<<<1 | Three = One ||| Two`
+
+- File/Dir pickers: `[<ExportFile("*.png,*.jpg")>]` or `[<ExportDir>]` on string properties.
+
+- Resource type filter: `[<ExportResourceType("Texture2D")>]` to filter resource picker.
+
+- Multiline text: `[<ExportMultiline>]` on string properties.
+
+- String enum list: `[<ExportEnumList("A,B,C")>]` on string properties.
+
+- Color without alpha: `[<ExportColorNoAlpha>]` on Color.
+
+- Layer masks: `[<ExportLayerMask2DRender>]` for 2D render layers.
 
 Notes
 
@@ -170,8 +178,8 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 - Exports (editor parity)
 
   - Types: aim for parity across primitives V, enums (incl. flags/bitmask) V, arrays/lists V, dictionaries V, Godot resources V, math types V, NodePath V, StringName V, RID V.
-  - Hints/UI: Range (min/max/step/slider) V, file/dir/resource path filters, multiline/string hint, color-no-alpha, layer masks, enum lists, flags bitmask, category/group/subgroup, tooltips.
-  - Defaults/categories: respect default values; support category/subgroup grouping.
+  - Hints/UI: Range (min/max/step/slider) V, file/dir/resource path filters V, multiline/string hint V, color-no-alpha V, layer masks V, enum lists V, flags bitmask V.
+  - Defaults/categories: respect default values; support category/subgroup grouping. Support Tooltips.
 
 - Signals
 

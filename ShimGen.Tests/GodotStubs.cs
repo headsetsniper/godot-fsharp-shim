@@ -26,7 +26,19 @@ namespace Godot
         public ExportAttribute(PropertyHint hint, string hintString) { }
     }
     public class SignalAttribute : System.Attribute { }
-    public enum PropertyHint { None = 0, Range = 1, Flags = 2 }
+    public enum PropertyHint
+    {
+        None = 0,
+        Range = 1,
+        Flags = 2,
+        File = 3,
+        Dir = 4,
+        ResourceType = 5,
+        MultilineText = 6,
+        Enum = 7,
+        ColorNoAlpha = 8,
+        Layers2DRender = 9
+    }
     public class NodePath { public NodePath(string s) { } }
     public struct StringName { private readonly string _v; public StringName(string v) { _v = v; } }
     public struct RID { private readonly long _v; public RID(long v) { _v = v; } }

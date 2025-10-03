@@ -463,6 +463,98 @@ public class ShimGenIntegrationTests
     }
 
     [Test]
+    public void Export_File_And_Dir_Hints_Are_Emitted()
+    {
+        // Arrange
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Paths\", BaseTypeName=\"Godot.Node\")]",
+            "  public class PathsImpl {",
+            "    [ExportFile(\"*.png,*.jpg\")] public string ImagePath { get; set; }",
+            "    [ExportDir] public string Folder { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "PathsImpl");
+
+        // Act
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Paths.cs", SearchOption.AllDirectories).FirstOrDefault();
+
+        // Assert
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("[Export(PropertyHint.File, \"*.png,*.jpg\")] public System.String ImagePath", src);
+        StringAssert.Contains("[Export(PropertyHint.Dir)] public System.String Folder", src);
+    }
+
+    [Test]
+    public void Export_ResourceType_And_EnumList_And_Multiline()
+    {
+        // Arrange
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Hints\", BaseTypeName=\"Godot.Node\")]",
+            "  public class HintsImpl {",
+            "    [ExportResourceType(\"Texture2D\")] public string TexturePath { get; set; }",
+            "    [ExportEnumList(\"A,B,C\")] public string Choice { get; set; }",
+            "    [ExportMultiline] public string Description { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "HintsImpl");
+
+        // Act
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Hints.cs", SearchOption.AllDirectories).FirstOrDefault();
+
+        // Assert
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("[Export(PropertyHint.ResourceType, \"Texture2D\")] public System.String TexturePath", src);
+        StringAssert.Contains("[Export(PropertyHint.Enum, \"A,B,C\")] public System.String Choice", src);
+        StringAssert.Contains("[Export(PropertyHint.MultilineText)] public System.String Description", src);
+    }
+
+    [Test]
+    public void Export_ColorNoAlpha_And_LayerMask2D()
+    {
+        // Arrange
+        var code = string.Join("\n", new[]{
+            "using Godot; using Headsetsniper.Godot.FSharp.Annotations;",
+            "namespace Game {",
+            "  [GodotScript(ClassName=\"Visuals\", BaseTypeName=\"Godot.Node\")]",
+            "  public class VisualsImpl {",
+            "    [ExportColorNoAlpha] public Color Tint { get; set; }",
+            "    [ExportLayerMask2DRender] public int Layers { get; set; }",
+            "    public void Ready(){}",
+            "  }",
+            "}"
+        });
+        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
+        var stubs = typeof(Godot.Node).Assembly;
+        var impl = TestHelpers.CompileCSharp(code, new[] { TestHelpers.RefFromAssembly(stubs), TestHelpers.RefFromPath(annPath) }, asmName: "VisualsImpl");
+
+        // Act
+        var outDir = RunShimGen(impl);
+        var path = Directory.EnumerateFiles(outDir, "Visuals.cs", SearchOption.AllDirectories).FirstOrDefault();
+
+        // Assert
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("[Export(PropertyHint.ColorNoAlpha)] public Godot.Color Tint", src);
+        StringAssert.Contains("[Export(PropertyHint.Layers2DRender)] public System.Int32 Layers", src);
+    }
+
+    [Test]
     public void Forwards_Lifecycle_Ready_And_Process()
     {
         // Arrange

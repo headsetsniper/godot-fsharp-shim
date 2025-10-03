@@ -372,6 +372,63 @@ internal static class Program
                 continue;
             }
 
+            // File/Dir/Resource hints
+            var fileAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportFileAttribute");
+            if (fileAttr is not null)
+            {
+                var filter = fileAttr.ConstructorArguments.Count > 0 ? (fileAttr.ConstructorArguments[0].Value as string ?? string.Empty) : (fileAttr.NamedArguments.FirstOrDefault(na => na.MemberName == "Filter").TypedValue.Value as string ?? string.Empty);
+                sb.AppendLine($"    [Export(PropertyHint.File, \"{filter}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                continue;
+            }
+            var dirAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportDirAttribute");
+            if (dirAttr is not null)
+            {
+                sb.AppendLine($"    [Export(PropertyHint.Dir)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                continue;
+            }
+            var resAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportResourceTypeAttribute");
+            if (resAttr is not null)
+            {
+                var typeName = resAttr.ConstructorArguments.Count > 0 ? (resAttr.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
+                sb.AppendLine($"    [Export(PropertyHint.ResourceType, \"{typeName}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                continue;
+            }
+
+            // Multiline and color-no-alpha
+            if (p.PropertyType == typeof(string))
+            {
+                var multiAttr = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportMultilineAttribute");
+                if (multiAttr)
+                {
+                    sb.AppendLine($"    [Export(PropertyHint.MultilineText)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                    continue;
+                }
+                var enumListAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportEnumListAttribute");
+                if (enumListAttr is not null)
+                {
+                    var values = enumListAttr.ConstructorArguments.Count > 0 ? (enumListAttr.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
+                    sb.AppendLine($"    [Export(PropertyHint.Enum, \"{values}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                    continue;
+                }
+            }
+            if (p.PropertyType.FullName == "Godot.Color")
+            {
+                var cna = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportColorNoAlphaAttribute");
+                if (cna)
+                {
+                    sb.AppendLine($"    [Export(PropertyHint.ColorNoAlpha)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                    continue;
+                }
+            }
+
+            // Layer mask (2D render) example
+            var layerMask2D = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == "Headsetsniper.Godot.FSharp.Annotations.ExportLayerMask2DRenderAttribute");
+            if (layerMask2D)
+            {
+                sb.AppendLine($"    [Export(PropertyHint.Layers2DRender)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                continue;
+            }
+
             // Flags enum support: when property type is enum with [Flags], emit PropertyHint.Flags with names
             if (p.PropertyType.IsEnum && p.PropertyType.GetCustomAttributesData().Any(a => a.AttributeType.FullName == "System.FlagsAttribute"))
             {
