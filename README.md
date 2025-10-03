@@ -92,3 +92,83 @@ dotnet build FsharpWithShim.csproj -v:n
 - Pack packages:
   - `dotnet pack Annotations -c Release`
   - `dotnet pack ShimGen -c Release`
+
+## Todo
+
+Planned work to reach comprehensive Godot capability support in F# via shims.
+
+- Script metadata and registration
+
+  - Global class registration: F# attribute to declare name/icon; emit [GlobalClass] on shim.
+  - Tool scripts: F# attribute to mark scripts as editor tools; emit [Tool] on shim.
+  - Class name/base type: ensure shim class name and base type mirror F# type and intended Godot base.
+
+- Exports (editor parity)
+
+  - Types: primitives, enums, flags/bitmask, arrays/lists, dictionaries, Godot resources (Texture2D, PackedScene, etc.), math types (Vector2/3, Color, Basis, Rect2, Transform\*), NodePath, StringName, RID.
+  - Hints/UI: Range (min/max/step/slider), file/dir/resource path filters, multiline/string hint, color-no-alpha, layer masks, enum lists, flags bitmask, category/group/subgroup, tooltips.
+  - Defaults/categories: respect default values; support category/subgroup grouping.
+
+- Signals
+
+  - Declaration: F# attribute for strongly-typed signals (arg names/types); generate [Signal], event, and Emit methods.
+  - Autoconnect: optional attribute to auto-wire child node signals to methods (on \_Ready or explicit).
+
+- Lifecycle and callbacks coverage
+
+  - Node: \_EnterTree, \_Ready, \_ExitTree, \_Process, \_PhysicsProcess, \_Notification (parity ensured).
+  - Input/UI: \_Input, \_UnhandledInput, Control.ShortcutInput, Control.GuiInput, drag/drop (CanDropData/GetDragData/DropData).
+  - Drawing: \_Draw forwarding and helper surface hook if applicable.
+  - Editor: support editor-only callbacks when [Tool] is set.
+
+- RPC / Multiplayer
+
+  - RPC methods: F# attribute covering Godot 4 RPC options (CallLocal, TransferMode, Channel, AnyPeer/Authority, Reliable/Unreliable); emit [Rpc] on shim methods.
+  - Sync variables: attribute to replicate exported properties (MultiplayerSynchronizer or property RPC).
+
+- NodePath auto-wiring / onready
+
+  - Node references: F# [NodePath]/[Node] attributes; resolve/capture typed nodes in \_Ready with validation and friendly errors.
+  - Preload: attribute for preloading PackedScene/Resource fields (editor/runtime-safe).
+
+- Type mapping and marshalling
+
+  - F# types: Option<'T>, Result<'T,'E>, tuples, records, discriminated unions; define export/serialization strategy and runtime invocation mapping.
+  - Collections: smooth interop for F# array/list/map with Godot.Collections.Array/Dictionary where appropriate.
+
+- Resources and custom types
+
+  - Custom Resources: allow F# classes to inherit Resource; support [GlobalClass] and exports within resources.
+  - Script icons/editor meta: allow icon and editor metadata decoration from F#.
+
+- Error handling and diagnostics
+
+  - Shim error messages: include F# type/method context in forwarding errors.
+  - Editor diagnostics: optional verbose logging of wiring/autoconnect/export resolution in editor.
+
+- Editor plugin support (advanced)
+
+  - Authoring EditorPlugin/EditorInspectorPlugin in F# (patterns + shim support), ensure editor loads tools correctly.
+
+- Async/await and coroutines
+
+  - F# async helpers: bridge F# async with Godot Task/ToSignal; cancellation/timer utilities; idiomatic awaiting of signals.
+
+- Build/IDE ergonomics
+
+  - Maintain design-time-friendly targets (avoid heavy Conditions needing runtime metadata) and deterministic includes without duplicates.
+
+- Documentation and samples
+
+  - Cookbook: examples for exports with hints, signals, RPC, NodePath wiring, tool scripts, resources.
+  - Templates: ready-to-use Godot+F# project template using this package.
+
+- Test coverage
+  - Add tests for export hints and types, UI callbacks, RPC attributes/invocation, NodePath wiring, Option/DU/records marshalling, resources/global classes, tool scripts behavior, autoconnect.
+  - Cross-platform: validate generation on Windows/Linux/macOS.
+
+Priorities
+
+- P0: Export hints parity; NodePath auto-wiring; complete lifecycle callbacks; GlobalClass/Tool.
+- P1: RPC attributes and sync vars; custom resources; Option/DU/records marshalling.
+- P2: Autoconnect signals; async helpers; editor plugin patterns; expanded docs/templates.
