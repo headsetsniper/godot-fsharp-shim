@@ -12,9 +12,22 @@ namespace Godot
         public virtual void _Notification(long what) { }
         public virtual void _EnterTree() { }
         public virtual void _ExitTree() { }
+        public virtual void _Draw() { }
     }
     public class Node2D : Node { }
-    public class Control : Node { }
+    public class Control : Node
+    {
+        public virtual void _GuiInput(InputEvent @event) { }
+        public virtual void _ShortcutInput(InputEvent @event) { }
+        public virtual void _UnhandledKeyInput(InputEvent @event) { }
+        public virtual bool _CanDropData(Vector2 atPosition, Variant data) => false;
+        public virtual void _DropData(Vector2 atPosition, Variant data) { }
+        public virtual Variant _GetDragData(Vector2 atPosition) => new Variant();
+        public virtual bool _HasPoint(Vector2 position) => false;
+        public virtual Vector2 _GetMinimumSize() => new Vector2();
+        public virtual Control _MakeCustomTooltip(string forText) => new Control();
+        public virtual string _GetTooltip(Vector2 atPosition) => string.Empty;
+    }
     public class Resource { }
     public class Texture2D : Resource { }
     public class PackedScene : Resource { }
@@ -53,6 +66,7 @@ namespace Godot
     public struct Transform2D { }
     public struct Transform3D { }
     public class InputEvent { }
+    public struct Variant { }
 
     public class Callable
     {

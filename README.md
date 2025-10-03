@@ -1,5 +1,9 @@
 # F# with Godot via C# Shims
 
+[![CI](https://github.com/headsetsniper/godot-fsharp-shim/actions/workflows/pack.yml/badge.svg)](https://github.com/headsetsniper/godot-fsharp-shim/actions/workflows/pack.yml)
+[![NuGet (ShimGen)](https://img.shields.io/nuget/v/Headsetsniper.Godot.FSharp.ShimGen.svg)](https://www.nuget.org/packages/Headsetsniper.Godot.FSharp.ShimGen)
+[![NuGet (Annotations)](https://img.shields.io/nuget/v/Headsetsniper.Godot.FSharp.Annotations.svg)](https://www.nuget.org/packages/Headsetsniper.Godot.FSharp.Annotations)
+
 This repository lets you write gameplay in F# and auto-generate C# shims that Godot can compile and recognize.
 
 ## Table of contents
@@ -110,6 +114,16 @@ dotnet build FsharpWithShim.csproj -v:n
   - `dotnet pack Annotations -c Release`
   - `dotnet pack ShimGen -c Release`
 
+## Try it (example project)
+
+From the repo root, you can build and run the included example Godot project that consumes the F# implementation:
+
+```powershell
+dotnet restore ExampleProject/FsharpWithShim.csproj
+dotnet build ExampleProject/FsharpWithShim.csproj -c Debug
+dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Debug
+```
+
 ## Features
 
 The generator and annotations now support these capabilities out of the box:
@@ -133,6 +147,34 @@ The generator and annotations now support these capabilities out of the box:
 
 - Implement `EnterTree()` or `ExitTree()` in your F# type to receive those callbacks.
 - `_Ready`, `_Process`, `_PhysicsProcess`, `_Input`, `_UnhandledInput`, `_Notification` are also supported when present.
+  - Control-specific callbacks (Godot 4.5): `_GuiInput`, `_ShortcutInput`, `_UnhandledKeyInput`, drag & drop (`_CanDropData`, `_DropData`, `_GetDragData`), hit-testing (`_HasPoint`), sizing (`_GetMinimumSize`), tooltips (`_MakeCustomTooltip`, `_GetTooltip`).
+  - Drawing (CanvasItem family): `_Draw`.
+
+#### Callback matrix
+
+The shim forwards callbacks when your F# implementation exposes matching methods. It also respects base type capabilities (e.g., Control-only methods).
+
+| Base type                   | Godot callback                  | F# method to implement                                   | Shim override emitted                                 | Notes                                                                 |
+| --------------------------- | ------------------------------- | -------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------- |
+| Node                        | \_EnterTree                     | `member _.EnterTree()`                                   | `public override void _EnterTree()`                   |                                                                       |
+| Node                        | \_Ready                         | `member _.Ready()`                                       | `public override void _Ready()`                       | Injects `IGdScript<T>.Node` and runs NodePath wiring before `Ready()` |
+| Node                        | \_ExitTree                      | `member _.ExitTree()`                                    | `public override void _ExitTree()`                    |                                                                       |
+| Node                        | \_Process(double)               | `member _.Process(delta: double)`                        | `public override void _Process(double)`               |                                                                       |
+| Node                        | \_PhysicsProcess(double)        | `member _.PhysicsProcess(delta: double)`                 | `public override void _PhysicsProcess(double)`        |                                                                       |
+| Node                        | \_Input(InputEvent)             | `member _.Input(ev: InputEvent)`                         | `public override void _Input(InputEvent)`             |                                                                       |
+| Node                        | \_UnhandledInput(InputEvent)    | `member _.UnhandledInput(ev: InputEvent)`                | `public override void _UnhandledInput(InputEvent)`    |                                                                       |
+| Node                        | \_Notification(long)            | `member _.Notification(what: int64)`                     | `public override void _Notification(long)`            |                                                                       |
+| CanvasItem (Node2D/Control) | \_Draw                          | `member _.Draw()`                                        | `public override void _Draw()`                        |                                                                       |
+| Control                     | \_GuiInput(InputEvent)          | `member _.GuiInput(ev: InputEvent)`                      | `public override void _GuiInput(InputEvent)`          | Godot 4.5                                                             |
+| Control                     | \_ShortcutInput(InputEvent)     | `member _.ShortcutInput(ev: InputEvent)`                 | `public override void _ShortcutInput(InputEvent)`     | Godot 4.5                                                             |
+| Control                     | \_UnhandledKeyInput(InputEvent) | `member _.UnhandledKeyInput(ev: InputEvent)`             | `public override void _UnhandledKeyInput(InputEvent)` | Godot 4.5                                                             |
+| Control                     | \_CanDropData(Vector2, Variant) | `member _.CanDropData(p: Vector2, data: Variant) : bool` | `public override bool _CanDropData(Vector2, Variant)` | Drag & drop                                                           |
+| Control                     | \_DropData(Vector2, Variant)    | `member _.DropData(p: Vector2, data: Variant)`           | `public override void _DropData(Vector2, Variant)`    | Drag & drop                                                           |
+| Control                     | \_GetDragData(Vector2)          | `member _.GetDragData(p: Vector2) : obj`                 | `public override Variant _GetDragData(Vector2)`       | Shim casts returned object to `Variant`                               |
+| Control                     | \_HasPoint(Vector2)             | `member _.HasPoint(p: Vector2) : bool`                   | `public override bool _HasPoint(Vector2)`             | Hit testing                                                           |
+| Control                     | \_GetMinimumSize()              | `member _.GetMinimumSize() : Vector2`                    | `public override Vector2 _GetMinimumSize()`           | Layout                                                                |
+| Control                     | \_MakeCustomTooltip(string)     | `member _.MakeCustomTooltip(text: string) : Control`     | `public override Control _MakeCustomTooltip(string)`  | Custom tooltip control                                                |
+| Control                     | \_GetTooltip(Vector2)           | `member _.GetTooltip(p: Vector2) : string`               | `public override string _GetTooltip(Vector2)`         | Tooltip text                                                          |
 
 ### NodePath auto‑wiring in \_Ready
 
@@ -281,8 +323,8 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 - Lifecycle and callbacks coverage
 
   - Node: \_EnterTree, \_Ready, \_ExitTree, \_Process, \_PhysicsProcess, \_Notification (parity ensured).
-  - Input/UI: \_Input, \_UnhandledInput, Control.ShortcutInput, Control.GuiInput, drag/drop (CanDropData/GetDragData/DropData).
-  - Drawing: \_Draw forwarding and helper surface hook if applicable.
+  - Input/UI: \_Input, \_UnhandledInput, Control.ShortcutInput, Control.GuiInput, drag/drop (CanDropData/GetDragData/DropData). V
+  - Drawing: \_Draw forwarding and helper surface hook if applicable
   - Editor: support editor-only callbacks when [Tool] is set.
 
 - RPC / Multiplayer
@@ -336,3 +378,14 @@ Priorities
 - P0: Export hints parity; NodePath auto-wiring; complete lifecycle callbacks; GlobalClass/Tool.
 - P1: RPC attributes and sync vars; custom resources; Option/DU/records marshalling.
 - P2: Autoconnect signals; async helpers; editor plugin patterns; expanded docs/templates.
+
+## Troubleshooting
+
+- Icon doesn’t show in the editor
+  - Ensure `Icon` points to a valid Godot resource path (e.g., `res://icon.svg`) and the asset is imported by Godot.
+- Generated files aren’t picked up by the build
+  - The generator runs before `CoreCompile` and includes `Scripts/Generated/**/*.cs` at evaluation. Check build output for `[shimgen]` logs; verify the package is installed in the Godot C# project (not the F# one).
+- Autoconnect didn’t wire my signal
+  - Confirm the `Path` resolves (node exists). The shim uses `GetNodeOrNull` and skips if missing. Ensure your method parameters match the signal’s signature.
+- Tests can’t locate assemblies
+  - If running tests outside the repo, ensure the stub Godot types are used only within the test project; no runtime Godot dependency is required for generation-time tests.

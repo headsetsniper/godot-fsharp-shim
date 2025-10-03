@@ -232,6 +232,45 @@ internal static class Program
         var hasUnhandledInput = HasOneParam("UnhandledInput", "Godot.InputEvent");
         var hasNotification = t.GetMethod("Notification", BindingFlags.Instance | BindingFlags.Public, new[] { typeof(long) }) != null;
 
+        // UI callbacks (Control)
+        var hasGuiInput = HasOneParam("GuiInput", "Godot.InputEvent");
+        var hasShortcutInput = HasOneParam("ShortcutInput", "Godot.InputEvent");
+
+        // Drawing (CanvasItem)
+        var hasDraw = HasNoArgs("Draw");
+
+        // Drag & Drop (Control)
+        bool HasTwoParams(string name, string p1, string p2, Type? returnType = null)
+            => t.GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                 .Any(m => m.Name == name && m.GetParameters().Length == 2 &&
+                           m.GetParameters()[0].ParameterType.FullName == p1 &&
+                           m.GetParameters()[1].ParameterType.FullName == p2 &&
+                           (returnType == null || m.ReturnType == returnType));
+        bool HasReturnAndOneParam(string name, string p1, Type returnType)
+            => t.GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                 .Any(m => m.Name == name && m.GetParameters().Length == 1 &&
+                           m.GetParameters()[0].ParameterType.FullName == p1 &&
+                           m.ReturnType == returnType);
+        bool HasReturnAndNoParam(string name, string returnTypeFullName)
+            => t.GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                 .Any(m => m.Name == name && m.GetParameters().Length == 0 &&
+                           (m.ReturnType.FullName == returnTypeFullName));
+
+        var hasCanDropData = HasTwoParams("CanDropData", "Godot.Vector2", "Godot.Variant", typeof(bool));
+        var hasDropData = HasTwoParams("DropData", "Godot.Vector2", "Godot.Variant", typeof(void));
+        var hasGetDragData = HasReturnAndOneParam("GetDragData", "Godot.Vector2", typeof(object)) || HasReturnAndOneParam("GetDragData", "Godot.Vector2", Type.GetType("Godot.Variant") ?? typeof(object));
+
+        // More Control callbacks
+        var hasUnhandledKeyInput = HasOneParam("UnhandledKeyInput", "Godot.InputEvent");
+        var hasHasPoint = HasReturnAndOneParam("HasPoint", "Godot.Vector2", typeof(bool));
+        var hasGetMinimumSize = HasReturnAndNoParam("GetMinimumSize", "Godot.Vector2");
+        // _MakeCustomTooltip(string) -> Control
+        var hasMakeCustomTooltip = t.GetMethods(BindingFlags.Instance | BindingFlags.Public)
+            .Any(m => m.Name == "MakeCustomTooltip" && m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType == typeof(string) && m.ReturnType.FullName == "Godot.Control");
+        // _GetTooltip(Vector2) -> string
+        var hasGetTooltip = t.GetMethods(BindingFlags.Instance | BindingFlags.Public)
+            .Any(m => m.Name == "GetTooltip" && m.GetParameters().Length == 1 && m.GetParameters()[0].ParameterType.FullName == "Godot.Vector2" && m.ReturnType == typeof(string));
+
         var signals = t.GetMethods(BindingFlags.Instance | BindingFlags.Public)
                        .Where(m => m.Name.StartsWith("Signal_") && m.ReturnType == typeof(void))
                        .Select(m => new { Method = m, Name = m.Name.Substring("Signal_".Length) })
@@ -289,7 +328,12 @@ internal static class Program
             }
         }
 
-        return new ScriptSpec(t, className, baseTypeName, exports, tool, icon, hasReady, hasEnterTree, hasExitTree, hasProcess, hasPhysicsProcess, hasInput, hasUnhandledInput, hasNotification, signals, nodePathMembers.ToArray(), autoConnects.ToArray());
+        return new ScriptSpec(t, className, baseTypeName, exports, tool, icon,
+            hasReady, hasEnterTree, hasExitTree, hasProcess, hasPhysicsProcess,
+            hasInput, hasUnhandledInput, hasNotification,
+            hasGuiInput, hasShortcutInput, hasDraw, hasCanDropData, hasDropData, hasGetDragData,
+            hasUnhandledKeyInput, hasHasPoint, hasGetMinimumSize, hasMakeCustomTooltip, hasGetTooltip,
+            signals, nodePathMembers.ToArray(), autoConnects.ToArray());
     }
 
     private static bool IsExportable(Type t)
@@ -546,6 +590,22 @@ internal static class Program
         if (spec.HasInput) sb.AppendLine("    public override void _Input(Godot.InputEvent @event) => _impl.Input(@event);");
         if (spec.HasUnhandledInput) sb.AppendLine("    public override void _UnhandledInput(Godot.InputEvent @event) => _impl.UnhandledInput(@event);");
         if (spec.HasNotification) sb.AppendLine("    public override void _Notification(long what) => _impl.Notification(what);");
+
+        // Conditional callbacks based on base type support
+        bool IsControl() => spec.BaseTypeName.EndsWith(".Control", StringComparison.Ordinal);
+        bool IsCanvasItem() => spec.BaseTypeName.EndsWith(".CanvasItem", StringComparison.Ordinal) || spec.BaseTypeName.EndsWith(".Node2D", StringComparison.Ordinal) || spec.BaseTypeName.EndsWith(".Control", StringComparison.Ordinal);
+
+        if (IsControl() && spec.HasGuiInput) sb.AppendLine("    public override void _GuiInput(Godot.InputEvent @event) => _impl.GuiInput(@event);");
+        if (IsControl() && spec.HasShortcutInput) sb.AppendLine("    public override void _ShortcutInput(Godot.InputEvent @event) => _impl.ShortcutInput(@event);");
+        if (IsControl() && spec.HasUnhandledKeyInput) sb.AppendLine("    public override void _UnhandledKeyInput(Godot.InputEvent @event) => _impl.UnhandledKeyInput(@event);");
+        if (IsCanvasItem() && spec.HasDraw) sb.AppendLine("    public override void _Draw() => _impl.Draw();");
+        if (IsControl() && spec.HasCanDropData) sb.AppendLine("    public override bool _CanDropData(Godot.Vector2 atPosition, Godot.Variant data) => _impl.CanDropData(atPosition, data);");
+        if (IsControl() && spec.HasDropData) sb.AppendLine("    public override void _DropData(Godot.Vector2 atPosition, Godot.Variant data) => _impl.DropData(atPosition, data);");
+        if (IsControl() && spec.HasGetDragData) sb.AppendLine("    public override Godot.Variant _GetDragData(Godot.Vector2 atPosition) => (Godot.Variant)_impl.GetDragData(atPosition);");
+        if (IsControl() && spec.HasHasPoint) sb.AppendLine("    public override bool _HasPoint(Godot.Vector2 position) => _impl.HasPoint(position);");
+        if (IsControl() && spec.HasGetMinimumSize) sb.AppendLine("    public override Godot.Vector2 _GetMinimumSize() => _impl.GetMinimumSize();");
+        if (IsControl() && spec.HasMakeCustomTooltip) sb.AppendLine("    public override Godot.Control _MakeCustomTooltip(string forText) => _impl.MakeCustomTooltip(forText);");
+        if (IsControl() && spec.HasGetTooltip) sb.AppendLine("    public override string _GetTooltip(Godot.Vector2 atPosition) => _impl.GetTooltip(atPosition);");
 
         foreach (var sig in spec.Signals)
         {
