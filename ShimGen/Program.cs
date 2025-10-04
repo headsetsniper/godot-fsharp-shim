@@ -287,6 +287,7 @@ internal static class Program
         var npAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.NodePathAttribute;
         var optNpAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.OptionalNodePathAttribute;
         var preloadAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.PreloadAttribute;
+        var addedNodePathNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (var p in t.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
         {
             var attrs = p.GetCustomAttributesData();
@@ -295,40 +296,43 @@ internal static class Program
             var onp = attrs.FirstOrDefault(a => a.AttributeType.FullName == optNpAttrFull);
             if (np is not null || onp is not null)
             {
-                string? path = null; Type? memberType = null; bool isProp = false;
-                if (np is not null)
+                string? path = null; Type? memberType = null; bool isProp = false; string? memberName = null;
+                // Pull Path from whichever attribute was applied
+                var pathAttr = np ?? onp;
+                if (pathAttr is not null)
                 {
-                    foreach (var na2 in np.NamedArguments)
+                    foreach (var na2 in pathAttr.NamedArguments)
+                        if (na2.MemberName == "Path") { path = na2.TypedValue.Value as string; break; }
+                }
+
+                // Resolve target: property, field, or property via accessor method
+                if (p is PropertyInfo pi)
+                { memberType = pi.PropertyType; isProp = true; memberName = pi.Name; }
+                else if (p is FieldInfo fi)
+                { memberType = fi.FieldType; isProp = false; memberName = fi.Name; }
+                else if (p is MethodInfo mi)
+                {
+                    string n = mi.Name;
+                    if (n.StartsWith("get_", StringComparison.Ordinal) || n.StartsWith("set_", StringComparison.Ordinal))
                     {
-                        if (na2.MemberName == "Path") path = na2.TypedValue.Value as string;
+                        var pn = n.Substring(4);
+                        var pi2 = t.GetProperty(pn, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                        if (pi2 is not null)
+                        { memberType = pi2.PropertyType; isProp = true; memberName = pi2.Name; }
                     }
                 }
-                if (onp is not null)
-                {
-                    foreach (var na2 in onp.NamedArguments)
-                    {
-                        if (na2.MemberName == "Path") path = na2.TypedValue.Value as string;
-                    }
-                }
-                switch (p)
-                {
-                    case PropertyInfo pi:
-                        memberType = pi.PropertyType; isProp = true; break;
-                    case FieldInfo fi:
-                        memberType = fi.FieldType; isProp = false; break;
-                }
-                if (memberType is not null)
+
+                if (memberType is not null && !string.IsNullOrEmpty(memberName) && !addedNodePathNames.Contains(memberName!))
                 {
                     var (isOpt, optInner) = TryUnwrapFSharpOption(memberType);
                     // Enforce developer intent:
-                    // - NodePathAttribute must not be Option<'T>
-                    // - OptionalNodePathAttribute must be Option<'T>
                     if (np is not null && isOpt)
-                        throw new InvalidOperationException($"[shimgen] {t.FullName}.{p.Name}: NodePathAttribute source type must not be Option<'T>. Use OptionalNodePathAttribute for optional references.");
+                        throw new InvalidOperationException($"[shimgen] {t.FullName}.{memberName}: NodePathAttribute source type must not be Option<'T>. Use OptionalNodePathAttribute for optional references.");
                     if (onp is not null && !isOpt)
-                        throw new InvalidOperationException($"[shimgen] {t.FullName}.{p.Name}: OptionalNodePathAttribute source type must be Option<'T>.");
+                        throw new InvalidOperationException($"[shimgen] {t.FullName}.{memberName}: OptionalNodePathAttribute source type must be Option<'T>.");
 
-                    nodePathMembers.Add(new NodePathMember(p.Name, isOpt ? optInner! : memberType, isProp, path, isOpt));
+                    nodePathMembers.Add(new NodePathMember(memberName!, isOpt ? optInner! : memberType, isProp, path, isOpt));
+                    addedNodePathNames.Add(memberName!);
                 }
             }
 

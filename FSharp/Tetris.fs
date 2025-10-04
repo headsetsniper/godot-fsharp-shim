@@ -17,10 +17,31 @@ type TetrisImpl() =
     member val DropTimer: Timer = Unchecked.defaultof<_> with get, set
 
     member this.Ready() =
-        // NodePath is required; shim wires DropTimer before calling Ready()
-        this.DropTimer.WaitTime <- 0.6
-        this.DropTimer.Autostart <- true
-        this.DropTimer.Start()
+        // Guard in case the node hasn't been wired by the shim (older package or misconfigured scene)
+        if not (obj.ReferenceEquals(this.DropTimer, null)) then
+            this.DropTimer.WaitTime <- 0.6
+            this.DropTimer.Autostart <- true
+            // Fallback connect for older shim packages that don't emit [AutoConnect]
+            if not (obj.ReferenceEquals(this.Board, null)) then
+                try
+                    let handler =
+                        Callable.From(fun () ->
+                            try
+                                let mi =
+                                    this.Board
+                                        .GetType()
+                                        .GetMethod("OnTimeout", BindingFlags.Instance ||| BindingFlags.Public)
+
+                                if not (obj.ReferenceEquals(mi, null)) then
+                                    mi.Invoke(this.Board, [||]) |> ignore
+                            with _ ->
+                                ())
+
+                    this.DropTimer.Connect("timeout", handler) |> ignore
+                with _ ->
+                    ()
+
+            this.DropTimer.Start()
 
     member _.Process(_delta: double) = ()
 
@@ -28,20 +49,22 @@ type TetrisImpl() =
         match ev with
         | :? InputEventKey as key when key.Pressed && not key.Echo ->
             let setInt name (v: int) =
-                try
-                    match this.Board.GetType().GetProperty(name, BindingFlags.Instance ||| BindingFlags.Public) with
-                    | null -> ()
-                    | prop -> prop.SetValue(this.Board, box v)
-                with _ ->
-                    ()
+                if not (obj.ReferenceEquals(this.Board, null)) then
+                    try
+                        match this.Board.GetType().GetProperty(name, BindingFlags.Instance ||| BindingFlags.Public) with
+                        | null -> ()
+                        | prop -> prop.SetValue(this.Board, box v)
+                    with _ ->
+                        ()
 
             let setBool name (v: bool) =
-                try
-                    match this.Board.GetType().GetProperty(name, BindingFlags.Instance ||| BindingFlags.Public) with
-                    | null -> ()
-                    | prop -> prop.SetValue(this.Board, box v)
-                with _ ->
-                    ()
+                if not (obj.ReferenceEquals(this.Board, null)) then
+                    try
+                        match this.Board.GetType().GetProperty(name, BindingFlags.Instance ||| BindingFlags.Public) with
+                        | null -> ()
+                        | prop -> prop.SetValue(this.Board, box v)
+                    with _ ->
+                        ()
 
             match key.Keycode with
             | Key.Left -> setInt "MoveX" -1
