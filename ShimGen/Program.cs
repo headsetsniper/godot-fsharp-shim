@@ -285,19 +285,30 @@ internal static class Program
         var nodePathMembers = new List<NodePathMember>();
         var preloadMembers = new List<PreloadMember>();
         var npAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.NodePathAttribute;
+        var optNpAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.OptionalNodePathAttribute;
         var preloadAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.PreloadAttribute;
         foreach (var p in t.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
         {
             var attrs = p.GetCustomAttributesData();
 
             var np = attrs.FirstOrDefault(a => a.AttributeType.FullName == npAttrFull);
-            if (np is not null)
+            var onp = attrs.FirstOrDefault(a => a.AttributeType.FullName == optNpAttrFull);
+            if (np is not null || onp is not null)
             {
-                string? path = null; bool required = true; Type? memberType = null; bool isProp = false;
-                foreach (var na2 in np.NamedArguments)
+                string? path = null; Type? memberType = null; bool isProp = false;
+                if (np is not null)
                 {
-                    if (na2.MemberName == "Path") path = na2.TypedValue.Value as string;
-                    else if (na2.MemberName == "Required" && na2.TypedValue.Value is bool rb) required = rb;
+                    foreach (var na2 in np.NamedArguments)
+                    {
+                        if (na2.MemberName == "Path") path = na2.TypedValue.Value as string;
+                    }
+                }
+                if (onp is not null)
+                {
+                    foreach (var na2 in onp.NamedArguments)
+                    {
+                        if (na2.MemberName == "Path") path = na2.TypedValue.Value as string;
+                    }
                 }
                 switch (p)
                 {
@@ -309,7 +320,15 @@ internal static class Program
                 if (memberType is not null)
                 {
                     var (isOpt, optInner) = TryUnwrapFSharpOption(memberType);
-                    nodePathMembers.Add(new NodePathMember(p.Name, isOpt ? optInner! : memberType, isProp, path, required, isOpt));
+                    // Enforce developer intent:
+                    // - NodePathAttribute must not be Option<'T>
+                    // - OptionalNodePathAttribute must be Option<'T>
+                    if (np is not null && isOpt)
+                        throw new InvalidOperationException($"[shimgen] {t.FullName}.{p.Name}: NodePathAttribute source type must not be Option<'T>. Use OptionalNodePathAttribute for optional references.");
+                    if (onp is not null && !isOpt)
+                        throw new InvalidOperationException($"[shimgen] {t.FullName}.{p.Name}: OptionalNodePathAttribute source type must be Option<'T>.");
+
+                    nodePathMembers.Add(new NodePathMember(p.Name, isOpt ? optInner! : memberType, isProp, path, isOpt));
                 }
             }
 
@@ -621,14 +640,15 @@ internal static class Program
                     var assignTarget = np.IsProperty ? $"_impl.{np.Name}" : $"_impl.{np.Name}"; // fields/properties same syntax
                     var pathExpr = string.IsNullOrEmpty(np.Path) ? $"nameof({np.Name})" : $"\"{np.Path}\"";
                     sb.AppendLine($"        var __n_{np.Name} = GetNodeOrNull<{GetTypeDisplayName(np.MemberType)}>(new NodePath({pathExpr}));");
-                    if (np.Required)
-                    {
-                        sb.AppendLine($"        if (__n_{np.Name} == null) GD.PushError(\"[shimgen] Missing required NodePath for {np.Name}\");");
-                    }
                     if (np.IsOption)
+                    {
                         sb.AppendLine($"        {assignTarget} = __n_{np.Name} == null ? Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(np.MemberType)}>.None : Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(np.MemberType)}>.Some(__n_{np.Name});");
+                    }
                     else
+                    {
+                        sb.AppendLine($"        if (__n_{np.Name} == null) throw new System.InvalidOperationException(\"[shimgen][{shimDisplayLiteral}] Missing required NodePath for {np.Name} on {implDisplayLiteral}\");");
                         sb.AppendLine($"        {assignTarget} = __n_{np.Name};");
+                    }
                 }
             }
             if (spec.PreloadMembers.Length > 0)

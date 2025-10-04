@@ -29,7 +29,7 @@ type TetrisBoardImpl() =
         and set (v: float32) = cellSize <- v
 
     member val MoveX: int = 0 with get, set
-    member val Rotate: bool = false with get, set
+    member val RotateRequested: bool = false with get, set
     member val HardDrop: bool = false with get, set
 
     member _.Score
@@ -164,13 +164,13 @@ type TetrisBoardImpl() =
 
             this.MoveX <- 0
 
-        if this.Rotate then
+        if this.RotateRequested then
             let rotated = Tetromino.rotateCW curShape
 
             if this.CanPlace(rotated, curX, curY) then
                 curShape <- rotated
 
-            this.Rotate <- false
+            this.RotateRequested <- false
 
         if this.HardDrop then
             while this.CanPlace(curShape, curX, curY + 1) do

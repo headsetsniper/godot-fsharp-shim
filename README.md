@@ -180,13 +180,22 @@ The shim forwards callbacks when your F# implementation exposes matching methods
 ### NodePath auto‑wiring in \_Ready
 
 - Decorate fields/properties with `[NodePath]` to auto‑resolve nodes before calling `Ready()`.
-- Default path is `nameof(Member)`; override with `Path = "Some/Child"`. Use `Required=false` to suppress error when missing.
+- Default path is `nameof(Member)`; override with `Path = "Some/Child"`. For optional references use `OptionalNodePath` on an `Option<'T>` member; `NodePath` is required and will throw if missing.
 - F# example:
 
   ```fsharp
   [<NodePath>]
   member val Player : Godot.Node2D = Unchecked.defaultof<_> with get, set
   ```
+
+- Optional node references with Option<'T>
+  - Use `[<OptionalNodePath>]` on `Option<'TNode>` to capture presence/absence as `Some/None`.
+  - Strong intent checks at generation time:
+    - `[NodePath]` must target a non-Option type, otherwise generation fails with an error.
+    - `[OptionalNodePath]` must target `Option<'T>`, otherwise generation fails with an error.
+  - Runtime wiring semantics:
+    - `[NodePath]` → throws InvalidOperationException at runtime if the node is missing (fail fast), then assigns the resolved node.
+    - `[OptionalNodePath]` → assigns `None` when missing and `Some node` when found.
 
 ### Editor hints
 
@@ -248,7 +257,7 @@ Notes
 - NodePath
 
   - If a NodePath target is `Option<'TNode>`, the shim assigns `Some node` when found, `None` when missing.
-  - `Required=true` still logs an error when missing.
+  - NodePath is required (non-Option) and throws if missing; OptionalNodePath is for `Option<'T>` and sets `None` if missing.
 
 - Preload
   - For `[<Preload(...)]` members whose type is a Godot Resource (e.g., `Texture2D`, `PackedScene`): the shim always attempts to load and will throw `InvalidOperationException` when the resource is missing. This guarantees that F# members for preloadables are initialized with a non-null resource, or the scene fails early.
@@ -262,7 +271,7 @@ Examples
 [<Export>] member val MaybeName : string option = None with get, set
 
 // NodePath Option: captured if present, None otherwise
-[<NodePath(Required=false)>]
+[<OptionalNodePath>]
 member val Camera : Camera2D option = None with get, set
 
 // Preload of resource: throws if missing, F# receives a non-null Texture2D

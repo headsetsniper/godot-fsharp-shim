@@ -39,7 +39,6 @@ internal readonly record struct NodePathMember(
     Type MemberType,
     bool IsProperty,
     string? Path,
-    bool Required,
     bool IsOption
 );
 
