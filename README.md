@@ -326,7 +326,7 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
   - Node: \_EnterTree, \_Ready, \_ExitTree, \_Process, \_PhysicsProcess, \_Notification (parity ensured). V
   - Input/UI: \_Input, \_UnhandledInput, Control.ShortcutInput, Control.GuiInput, drag/drop (CanDropData/GetDragData/DropData). V
   - Drawing: \_Draw forwarding and helper surface hook if applicable V
-  - Editor: support editor-only callbacks when [Tool] is set.
+  - Editor: support editor-only callbacks when [Tool] is set. V
 
 - RPC / Multiplayer
 
