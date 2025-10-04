@@ -23,6 +23,8 @@ internal static class Program
             EnsureDependency(lc, Headsetsniper.Godot.FSharp.Annotations.Known.Assembly.LegacyName); // legacy id support
 
             Assembly? asm = LoadAssembly(lc, asmPath);
+            // Parse regeneration request from environment
+            var (regenAll, regenSet) = ParseRegenerateTargets(Environment.GetEnvironmentVariable("SHIMGEN_REGENERATE_SCRIPTS"));
             IEnumerable<Type?>? types = SafeGetTypes(asm);
 
             int scanned = 0, annotated = 0, written = 0;
@@ -69,10 +71,25 @@ internal static class Program
                             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                     }
                 }
+                // Decide if we should force in-place regeneration (preserve existing path/UIDs)
+                bool shouldRegen = regenAll || regenSet.Contains(spec.Value.ClassName) || regenSet.Contains(spec.Value.ImplType.FullName ?? string.Empty);
+                if (shouldRegen && !string.IsNullOrEmpty(oldPath))
+                {
+                    // Preserve original location to avoid Godot creating a new UID file
+                    path = oldPath!;
+                }
                 var wouldWrite = WouldWrite(path, code);
                 if (dryRun)
                 {
                     if (wouldWrite) plannedWrites.Add(path); else plannedSkips.Add(path);
+                }
+                else if (shouldRegen)
+                {
+                    // Force write even if identical, to satisfy explicit regeneration request
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                    File.WriteAllText(path, code, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                    written++;
+                    Console.WriteLine($"[shimgen] Regenerated (in-place) {path}");
                 }
                 else if (WriteIfChanged(path, code))
                 {
@@ -91,8 +108,12 @@ internal static class Program
                     {
                         if (IsGeneratedFile(oldPath!))
                         {
-                            plannedMoves.Add((oldPath!, path));
-                            if (!dryRun) File.Delete(oldPath!);
+                            // If we forced in-place regeneration to 'oldPath', we do not delete it
+                            if (!shouldRegen)
+                            {
+                                plannedMoves.Add((oldPath!, path));
+                                if (!dryRun) File.Delete(oldPath!);
+                            }
                         }
                     }
                     catch { }
@@ -1067,4 +1088,16 @@ internal static class Program
 
     private static bool NeedsHeaderNormalization(string versionHeader)
         => !string.IsNullOrWhiteSpace(versionHeader) && (versionHeader.Contains('+') || versionHeader.Contains('-'));
+
+    private static (bool all, HashSet<string> list) ParseRegenerateTargets(string? env)
+    {
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(env)) return (false, set);
+        var v = env.Trim();
+        if (string.Equals(v, "all", StringComparison.OrdinalIgnoreCase) || v == "*")
+            return (true, set);
+        foreach (var part in v.Split(new[] { ',', ';', ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries))
+            set.Add(part.Trim());
+        return (false, set);
+    }
 }

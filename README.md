@@ -67,6 +67,18 @@ type FooImpl() =
 - `FSharpShimsVerbose` (false by default): when `true`, the buildTransitive target raises [shimgen] log verbosity and prints the tool's stdout at Normal importance. Useful for troubleshooting generator behavior in consumer builds.
 - Command-line runner supports `--dry-run` to print planned writes/moves/deletes without changes.
 
+### In-place regeneration (preserve Godot UIDs)
+
+Set an environment variable to force the generator to rewrite existing generated scripts in place, preserving their file paths and Godot .uid files:
+
+- `SHIMGEN_REGENERATE_SCRIPTS=all` (or `*`) to regenerate all scripts in-place.
+- `SHIMGEN_REGENERATE_SCRIPTS=Tetris,TetrisBoard` (comma/semicolon/whitespace separated), or use F# full names like `Game.TetrisImpl`.
+
+Notes:
+
+- When regenerating in-place and a prior generated file is found, the generator overwrites that exact path rather than relocating. This keeps the same UID next to the file.
+- If no previous file is found for a script, it falls back to the normal output path under `Scripts/Generated`.
+
 ## Local development
 
 1. Pack the two NuGet packages locally
