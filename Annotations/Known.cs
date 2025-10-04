@@ -23,6 +23,7 @@ public static class Known
         public static readonly string IGdScript = typeof(IGdScript<>).FullName!.Split('`')[0];
 
         public static readonly string NodePathAttribute = typeof(NodePathAttribute).FullName!;
+        public static readonly string OptionalNodePathAttribute = typeof(OptionalNodePathAttribute).FullName!;
         public static readonly string AutoConnectAttribute = typeof(AutoConnectAttribute).FullName!;
 
         public static readonly string ExportCategoryAttribute = typeof(ExportCategoryAttribute).FullName!;
