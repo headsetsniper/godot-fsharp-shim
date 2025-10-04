@@ -7,6 +7,10 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Foo.fs" />
+    <Compile Include="TetrisTypes.fs" />
+    <Compile Include="TetrisBoard.fs" />
+    <Compile Include="TetrisHud.fs" />
+    <Compile Include="Tetris.fs" />
   <ProjectReference Include="..\Annotations\Headsetsniper.Godot.FSharp.Annotations.csproj" />
   </ItemGroup>
 </Project>
