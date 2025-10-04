@@ -2,10 +2,16 @@
   <PropertyGroup>
     <FSharpShimsEnabled Condition="'$(FSharpShimsEnabled)'==''">true</FSharpShimsEnabled>
     <FSharpShimsOutDir Condition="'$(FSharpShimsOutDir)'==''">$(MSBuildProjectDirectory)\Scripts\Generated</FSharpShimsOutDir>
+    <!-- Controls diagnostic verbosity of [shimgen] messages and stdout during build (default: false) -->
+    <FSharpShimsVerbose Condition="'$(FSharpShimsVerbose)'==''">false</FSharpShimsVerbose>
   </PropertyGroup>
 
   <!-- Resolve ShimGen tool from the restored package (robust across CI/local) -->
   <Target Name="ResolveShimGenToolPath" BeforeTargets="RunShimGen" Condition=" '$(FSharpShimsEnabled)' != 'false' ">
+    <PropertyGroup>
+      <_ShimGenLogImportance Condition="'$(FSharpShimsVerbose)'=='true'">High</_ShimGenLogImportance>
+      <_ShimGenLogImportance Condition="'$(_ShimGenLogImportance)'==''">Low</_ShimGenLogImportance>
+    </PropertyGroup>
     <ItemGroup>
       <_ShimGenPkg Include="@(PackageReference)" Condition="'%(PackageReference.Identity)' == 'Headsetsniper.Godot.FSharp.ShimGen'" />
     </ItemGroup>
@@ -27,26 +33,36 @@
       <_ShimGenTool Condition="'$(_ShimGenTool)' == '' and Exists('$(_ShimGenLocalBin)')">$(_ShimGenLocalBin)</_ShimGenTool>
       <_ShimGenTool Condition="'$(_ShimGenTool)' == '' and Exists('$(_ShimGenLibNextToTargets)')">$(_ShimGenLibNextToTargets)</_ShimGenTool>
     </PropertyGroup>
-    <Message Text="[shimgen] Tool candidates: pkg=$(_ShimGenToolFromPkg)[exists=$([System.IO.File]::Exists('$(_ShimGenToolFromPkg)'))] localBin=$(_ShimGenLocalBin)[exists=$([System.IO.File]::Exists('$(_ShimGenLocalBin)'))] libNext=$(_ShimGenLibNextToTargets)[exists=$([System.IO.File]::Exists('$(_ShimGenLibNextToTargets)'))]" Importance="Low" />
+    <Message Text="[shimgen] Tool candidates: pkg=$(_ShimGenToolFromPkg)[exists=$([System.IO.File]::Exists('$(_ShimGenToolFromPkg)'))] localBin=$(_ShimGenLocalBin)[exists=$([System.IO.File]::Exists('$(_ShimGenLocalBin)'))] libNext=$(_ShimGenLibNextToTargets)[exists=$([System.IO.File]::Exists('$(_ShimGenLibNextToTargets)'))]" Importance="$(_ShimGenLogImportance)" />
   </Target>
 
   <!-- Collect F# outputs via ReferencePath (populated by ResolveReferences) -->
   <Target Name="CollectFSharpOutputs" AfterTargets="ResolveReferences" BeforeTargets="RunShimGen" Condition=" '$(FSharpShimsEnabled)' != 'false' ">
+    <PropertyGroup>
+      <_ShimGenLogImportance Condition="'$(FSharpShimsVerbose)'=='true'">High</_ShimGenLogImportance>
+      <_ShimGenLogImportance Condition="'$(_ShimGenLogImportance)'==''">Low</_ShimGenLogImportance>
+    </PropertyGroup>
     <ItemGroup>
       <_FSharpRefs Include="@(ReferencePath)" Condition="$([System.String]::Copy('%(ReferencePath.MSBuildSourceProjectFile)').EndsWith('.fsproj', System.StringComparison.OrdinalIgnoreCase))" />
       <!-- Try to find the Annotations assembly among resolved references -->
       <_AnnRef Include="@(ReferencePath)"
                Condition="$([System.String]::Copy('%(ReferencePath.Identity)').EndsWith('Headsetsniper.Godot.FSharp.Annotations.dll', System.StringComparison.OrdinalIgnoreCase))" />
     </ItemGroup>
-    <Message Text="[shimgen] F# ReferencePath count=@(_FSharpRefs->Count())" Importance="Low" />
-    <Message Text="[shimgen] Annotations ref: @(_AnnRef)" Importance="Low" Condition="'@(_AnnRef)' != ''" />
+    <Message Text="[shimgen] F# ReferencePath count=@(_FSharpRefs->Count())" Importance="$(_ShimGenLogImportance)" />
+    <Message Text="[shimgen] Annotations ref: @(_AnnRef)" Importance="$(_ShimGenLogImportance)" Condition="'@(_AnnRef)' != ''" />
   </Target>
 
   <!-- Run generator and include outputs in same compile -->
   <Target Name="RunShimGen" AfterTargets="ResolveReferences" BeforeTargets="CoreCompile;Compile" Condition=" '$(FSharpShimsEnabled)' != 'false' and '@(_FSharpRefs)' != '' and Exists('$(_ShimGenTool)') ">
     <MakeDir Directories="$(FSharpShimsOutDir)" Condition="!Exists('$(FSharpShimsOutDir)')" />
-  <Message Text="[shimgen] Using tool: $(_ShimGenTool)" Importance="Low" />
-    <Message Text="[shimgen] F# assemblies: @(_FSharpRefs)" Importance="Low" />
+    <PropertyGroup>
+      <_ShimGenLogImportance Condition="'$(FSharpShimsVerbose)'=='true'">High</_ShimGenLogImportance>
+      <_ShimGenLogImportance Condition="'$(_ShimGenLogImportance)'==''">Low</_ShimGenLogImportance>
+      <_ShimGenStdOutImportance Condition="'$(FSharpShimsVerbose)'=='true'">Normal</_ShimGenStdOutImportance>
+      <_ShimGenStdOutImportance Condition="'$(_ShimGenStdOutImportance)'==''">Low</_ShimGenStdOutImportance>
+    </PropertyGroup>
+    <Message Text="[shimgen] Using tool: $(_ShimGenTool)" Importance="$(_ShimGenLogImportance)" />
+    <Message Text="[shimgen] F# assemblies: @(_FSharpRefs)" Importance="$(_ShimGenLogImportance)" />
     <!-- Stage the tool in obj with any required runtime dependencies so 'dotnet' can resolve compile-time references -->
     <PropertyGroup>
       <_ShimGenStageDir>$([System.IO.Path]::Combine('$(IntermediateOutputPath)', 'shimgen_tool_stage', '$(TargetFramework)'))</_ShimGenStageDir>
@@ -72,11 +88,11 @@
     "rollForward": "LatestMajor"
   }
 }' />
-    <Message Text="[shimgen] Staged tool at $(_ShimGenStageDll) (ann=@(_AnnRef->'%(Filename)%(Extension)'))" Importance="Low" />
+    <Message Text="[shimgen] Staged tool at $(_ShimGenStageDll) (ann=@(_AnnRef->'%(Filename)%(Extension)'))" Importance="$(_ShimGenLogImportance)" />
 
     <Exec Command="dotnet &quot;$(_ShimGenStageDll)&quot; &quot;%(_FSharpRefs.Identity)&quot; &quot;$(FSharpShimsOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.MSBuildSourceProjectFile)'))&quot;"
           WorkingDirectory="$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.Identity)'))"
-          StandardOutputImportance="Low" StandardErrorImportance="High" />
+      StandardOutputImportance="$(_ShimGenStdOutImportance)" StandardErrorImportance="High" />
     <ItemGroup>
       <Compile Include="$(FSharpShimsOutDir)\**\*.cs" Visible="false" />
       <FileWrites Include="$(FSharpShimsOutDir)\**\*.cs" />

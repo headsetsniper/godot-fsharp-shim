@@ -64,6 +64,7 @@ type FooImpl() =
 
 - `FSharpShimsEnabled` (true by default)
 - `FSharpShimsOutDir` (default `Scripts/Generated`)
+- `FSharpShimsVerbose` (false by default): when `true`, the buildTransitive target raises [shimgen] log verbosity and prints the tool's stdout at Normal importance. Useful for troubleshooting generator behavior in consumer builds.
 - Command-line runner supports `--dry-run` to print planned writes/moves/deletes without changes.
 
 ## Local development
