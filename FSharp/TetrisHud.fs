@@ -6,22 +6,19 @@ open Headsetsniper.Godot.FSharp.Annotations
 
 [<GodotScript(ClassName = "TetrisHud", BaseTypeName = "Godot.Control")>]
 type TetrisHudImpl() =
-    let tryRef (x: obj) =
-        if obj.ReferenceEquals(x, null) then None else Some x
-
     [<NodePath(Path = "ScoreLabel", Required = true)>]
-    member val ScoreLabel: Label = Unchecked.defaultof<_> with get, set
+    member val ScoreLabel: Label option = None with get, set
 
     [<NodePath(Path = "StatusLabel", Required = true)>]
-    member val StatusLabel: Label = Unchecked.defaultof<_> with get, set
+    member val StatusLabel: Label option = None with get, set
 
     [<NodePath(Path = "../Board", Required = false)>]
-    member val Board: Node2D = Unchecked.defaultof<_> with get, set
+    member val Board: Node2D option = None with get, set
 
     member _.Ready() = ()
 
     member this.Process(_delta: double) =
-        match tryRef this.Board, tryRef this.ScoreLabel with
+        match this.Board, this.ScoreLabel with
         | Some board, Some scoreLabel ->
             try
                 let v = board.Get(new StringName("Score"))

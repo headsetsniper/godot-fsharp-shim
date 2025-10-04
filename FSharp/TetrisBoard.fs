@@ -37,7 +37,7 @@ type TetrisBoardImpl() =
         and set (_: int) = ()
 
     [<Preload("res://icon.svg", Required = false)>]
-    member val TileTexture: Texture2D = null with get, set
+    member val TileTexture: Texture2D option = None with get, set
 
     member _.Clear() = grid <- Array2D.zeroCreate rows cols
 
@@ -102,14 +102,10 @@ type TetrisBoardImpl() =
                     let px = float32 (ox + x) * cellSize
                     let py = float32 (oy + y) * cellSize
 
-                    if isNull this.TileTexture then
-                        node.DrawRect(Rect2(Vector2(px, py), Vector2(cellSize, cellSize)), color, true)
-                    else
-                        node.DrawTextureRect(
-                            this.TileTexture,
-                            Rect2(Vector2(px, py), Vector2(cellSize, cellSize)),
-                            tile = true
-                        )
+                    match this.TileTexture with
+                    | None -> node.DrawRect(Rect2(Vector2(px, py), Vector2(cellSize, cellSize)), color, true)
+                    | Some tex ->
+                        node.DrawTextureRect(tex, Rect2(Vector2(px, py), Vector2(cellSize, cellSize)), tile = true)
 
     member this.DrawBoard() =
         for y in 0 .. rows - 1 do
@@ -118,14 +114,11 @@ type TetrisBoardImpl() =
                     let px = float32 x * cellSize
                     let py = float32 y * cellSize
 
-                    if isNull this.TileTexture then
+                    match this.TileTexture with
+                    | None ->
                         node.DrawRect(Rect2(Vector2(px, py), Vector2(cellSize, cellSize)), Colors.LightSkyBlue, true)
-                    else
-                        node.DrawTextureRect(
-                            this.TileTexture,
-                            Rect2(Vector2(px, py), Vector2(cellSize, cellSize)),
-                            tile = true
-                        )
+                    | Some tex ->
+                        node.DrawTextureRect(tex, Rect2(Vector2(px, py), Vector2(cellSize, cellSize)), tile = true)
 
     member this.GetPixelSize() =
         Vector2(float32 cols * cellSize, float32 rows * cellSize)

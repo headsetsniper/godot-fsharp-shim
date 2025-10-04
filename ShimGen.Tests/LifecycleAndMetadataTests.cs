@@ -88,10 +88,10 @@ type PreloaderImpl() =
         Assert.That(path, Is.Not.Null);
         var src = File.ReadAllText(path!);
         StringAssert.Contains("var __p_Scene = ResourceLoader.Load<Godot.PackedScene>(\"res://things/foo.tscn\");", src);
-        StringAssert.Contains("if (__p_Scene == null) GD.PushError(\"[shimgen][Preloader] Missing preload resource \\\"res://things/foo.tscn\\\" for property \\\"Scene\\\" on Game.PreloaderImpl\");", src);
+        StringAssert.Contains("if (__p_Scene == null) throw new System.InvalidOperationException(\"[shimgen][Preloader] Missing preload resource \\\"res://things/foo.tscn\\\" for property \\\"Scene\\\" on Game.PreloaderImpl\");", src);
         StringAssert.Contains("_impl.Scene = __p_Scene;", src);
         StringAssert.Contains("var __p_Optional = ResourceLoader.Load<Godot.Resource>(\"res://assets/optional.tres\");", src);
-        StringAssert.DoesNotContain("[shimgen][Preloader] Missing preload resource \\\"res://assets/optional.tres\\\" for property \\\"Optional\\\" on Game.PreloaderImpl", src);
+        StringAssert.Contains("if (__p_Optional == null) throw new System.InvalidOperationException(\"[shimgen][Preloader] Missing preload resource \\\"res://assets/optional.tres\\\" for property \\\"Optional\\\" on Game.PreloaderImpl\");", src);
         StringAssert.Contains("_impl.Optional = __p_Optional;", src);
     }
 

@@ -235,6 +235,41 @@ Notes
 - The shim sets `IGdScript<TNode>.Node = this` inside `_Ready()` before invoking your `Ready()`.
 - NodePath wiring also runs inside `_Ready()` prior to `Ready()`.
 
+### F# Option<'T> and Preload semantics
+
+- Why: Godot/C# uses nullable reference types, while F# favors non-null. To bridge this, the shim understands `Option<'T>`.
+
+- Exports
+
+  - If an F# export is `Option<'T>`, the generated C# shim property is of type `T`.
+  - Getter returns the inner value or `default(T)` if `None`.
+  - Setter wraps the assigned value into `Some value` on the F# side.
+
+- NodePath
+
+  - If a NodePath target is `Option<'TNode>`, the shim assigns `Some node` when found, `None` when missing.
+  - `Required=true` still logs an error when missing.
+
+- Preload
+  - For `[<Preload(...)]` members whose type is a Godot Resource (e.g., `Texture2D`, `PackedScene`): the shim always attempts to load and will throw `InvalidOperationException` when the resource is missing. This guarantees that F# members for preloadables are initialized with a non-null resource, or the scene fails early.
+  - If the F# type is `Option<'T>` where `'T :> Resource`, the shim still assigns `Some resource`. Missing resources will throw before assignment, so your F# code never sees `None` for preloadables. Prefer using plain non-Option types for preloads to reflect this guarantee.
+  - For non-preloadable references (e.g., NodePath, arbitrary references not covered by Preload), keep using `Option<'T>` when the reference may be absent.
+
+Examples
+
+```fsharp
+// Export Option: shows up in the inspector as T, Option wrapping in F#
+[<Export>] member val MaybeName : string option = None with get, set
+
+// NodePath Option: captured if present, None otherwise
+[<NodePath(Required=false)>]
+member val Camera : Camera2D option = None with get, set
+
+// Preload of resource: throws if missing, F# receives a non-null Texture2D
+[<Preload("res://icon.svg")>]
+member val Icon : Texture2D = Unchecked.defaultof<_> with get, set
+```
+
 ### Signals
 
 - Convention-based signals with strong typing are supported.

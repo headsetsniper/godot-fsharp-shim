@@ -39,7 +39,8 @@ internal readonly record struct NodePathMember(
     Type MemberType,
     bool IsProperty,
     string? Path,
-    bool Required
+    bool Required,
+    bool IsOption
 );
 
 internal readonly record struct PreloadMember(
@@ -47,7 +48,8 @@ internal readonly record struct PreloadMember(
     Type MemberType,
     bool IsProperty,
     string Path,
-    bool Required
+    bool Required,
+    bool IsOption
 );
 
 internal readonly record struct SignalSpec(

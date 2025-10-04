@@ -307,7 +307,10 @@ internal static class Program
                         memberType = fi.FieldType; isProp = false; break;
                 }
                 if (memberType is not null)
-                    nodePathMembers.Add(new NodePathMember(p.Name, memberType, isProp, path, required));
+                {
+                    var (isOpt, optInner) = TryUnwrapFSharpOption(memberType);
+                    nodePathMembers.Add(new NodePathMember(p.Name, isOpt ? optInner! : memberType, isProp, path, required, isOpt));
+                }
             }
 
             var pl = attrs.FirstOrDefault(a => a.AttributeType.FullName == preloadAttrFull);
@@ -330,8 +333,13 @@ internal static class Program
                     case FieldInfo fi:
                         preloadMemberType = fi.FieldType; preloadIsProperty = false; break;
                 }
-                if (preloadMemberType is not null && IsSubclassOfByName(preloadMemberType, KnownGodot.Resource))
-                    preloadMembers.Add(new PreloadMember(p.Name, preloadMemberType, preloadIsProperty, path, preloadRequired));
+                if (preloadMemberType is not null)
+                {
+                    var (isOpt, optInner) = TryUnwrapFSharpOption(preloadMemberType);
+                    var targetType = isOpt ? optInner! : preloadMemberType;
+                    if (IsSubclassOfByName(targetType, KnownGodot.Resource))
+                        preloadMembers.Add(new PreloadMember(p.Name, targetType, preloadIsProperty, path, preloadRequired, isOpt));
+                }
             }
         }
 
@@ -424,6 +432,21 @@ internal static class Program
         return false;
     }
 
+    private static (bool isOption, Type? inner) TryUnwrapFSharpOption(Type t)
+    {
+        try
+        {
+            if (t.IsGenericType && t.GetGenericTypeDefinition().FullName is string gdef &&
+                (gdef == "Microsoft.FSharp.Core.FSharpOption`1" || gdef == "FSharpOption`1"))
+            {
+                var ga = t.GetGenericArguments();
+                if (ga.Length == 1) return (true, ga[0]);
+            }
+        }
+        catch { }
+        return (false, null);
+    }
+
     private static string GenerateCode(ScriptSpec spec, string? fsSourceDir)
     {
         var ns = "Generated";
@@ -460,6 +483,9 @@ internal static class Program
 
         foreach (var p in spec.Exports)
         {
+            // If the F# impl property type is FSharpOption<T>, expose the shim export as the inner T
+            var (isOpt, optInner) = TryUnwrapFSharpOption(p.PropertyType);
+            string exportTypeName = GetTypeDisplayName(isOpt ? optInner! : p.PropertyType);
             // Prepend grouping/tooltip attributes if present on the impl property
             void EmitPreAttributes()
             {
@@ -498,7 +524,7 @@ internal static class Program
                 if (ctorArgs.Count >= 4 && ctorArgs[3].ArgumentType == typeof(bool)) slider = (bool)ctorArgs[3].Value!;
                 var hintStr = $"{min},{max},{step},{(slider ? 1 : 0)}";
                 EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.Range, \"{hintStr}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                sb.AppendLine($"    [Export(PropertyHint.Range, \"{hintStr}\")] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                 continue;
             }
 
@@ -508,14 +534,14 @@ internal static class Program
             {
                 var filter = fileAttr.ConstructorArguments.Count > 0 ? (fileAttr.ConstructorArguments[0].Value as string ?? string.Empty) : (fileAttr.NamedArguments.FirstOrDefault(na => na.MemberName == "Filter").TypedValue.Value as string ?? string.Empty);
                 EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.File, \"{filter}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                sb.AppendLine($"    [Export(PropertyHint.File, \"{filter}\")] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                 continue;
             }
             var dirAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportDirAttribute);
             if (dirAttr is not null)
             {
                 EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.Dir)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                sb.AppendLine($"    [Export(PropertyHint.Dir)] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                 continue;
             }
             var resAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportResourceTypeAttribute);
@@ -523,7 +549,7 @@ internal static class Program
             {
                 var typeName = resAttr.ConstructorArguments.Count > 0 ? (resAttr.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
                 EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.ResourceType, \"{typeName}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                sb.AppendLine($"    [Export(PropertyHint.ResourceType, \"{typeName}\")] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                 continue;
             }
 
@@ -534,7 +560,7 @@ internal static class Program
                 if (multiAttr)
                 {
                     EmitPreAttributes();
-                    sb.AppendLine($"    [Export(PropertyHint.MultilineText)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                    sb.AppendLine($"    [Export(PropertyHint.MultilineText)] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                     continue;
                 }
                 var enumListAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportEnumListAttribute);
@@ -542,7 +568,7 @@ internal static class Program
                 {
                     var values = enumListAttr.ConstructorArguments.Count > 0 ? (enumListAttr.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
                     EmitPreAttributes();
-                    sb.AppendLine($"    [Export(PropertyHint.Enum, \"{values}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                    sb.AppendLine($"    [Export(PropertyHint.Enum, \"{values}\")] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                     continue;
                 }
             }
@@ -552,7 +578,7 @@ internal static class Program
                 if (cna)
                 {
                     EmitPreAttributes();
-                    sb.AppendLine($"    [Export(PropertyHint.ColorNoAlpha)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                    sb.AppendLine($"    [Export(PropertyHint.ColorNoAlpha)] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                     continue;
                 }
             }
@@ -562,7 +588,7 @@ internal static class Program
             if (layerMask2D)
             {
                 EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.Layers2DRender)] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                sb.AppendLine($"    [Export(PropertyHint.Layers2DRender)] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                 continue;
             }
 
@@ -571,13 +597,13 @@ internal static class Program
             {
                 string hintList = string.Join(',', Enum.GetNames(p.PropertyType));
                 EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.Flags, \"{hintList}\")] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+                sb.AppendLine($"    [Export(PropertyHint.Flags, \"{hintList}\")] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                 continue;
             }
 
             // Default export
             EmitPreAttributes();
-            sb.AppendLine($"    [Export] public {GetTypeDisplayName(p.PropertyType)} {p.Name} {{ get => _impl.{p.Name}; set => _impl.{p.Name} = value; }}");
+            sb.AppendLine($"    [Export] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
         }
 
         if (spec.HasEnterTree) sb.AppendLine("    public override void _EnterTree() => _impl.EnterTree();");
@@ -599,7 +625,10 @@ internal static class Program
                     {
                         sb.AppendLine($"        if (__n_{np.Name} == null) GD.PushError(\"[shimgen] Missing required NodePath for {np.Name}\");");
                     }
-                    sb.AppendLine($"        {assignTarget} = __n_{np.Name};");
+                    if (np.IsOption)
+                        sb.AppendLine($"        {assignTarget} = __n_{np.Name} == null ? Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(np.MemberType)}>.None : Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(np.MemberType)}>.Some(__n_{np.Name});");
+                    else
+                        sb.AppendLine($"        {assignTarget} = __n_{np.Name};");
                 }
             }
             if (spec.PreloadMembers.Length > 0)
@@ -612,11 +641,11 @@ internal static class Program
                     var memberKind = pl.IsProperty ? "property" : "field";
                     var loadVar = $"__p_{pl.Name}";
                     sb.AppendLine($"        var {loadVar} = ResourceLoader.Load<{GetTypeDisplayName(pl.MemberType)}>(\"{sanitizedPath}\");");
-                    if (pl.Required)
-                    {
-                        sb.AppendLine($"        if ({loadVar} == null) GD.PushError(\"[shimgen][{shimDisplayLiteral}] Missing preload resource \\\"{sanitizedPath}\\\" for {memberKind} \\\"{memberNameLiteral}\\\" on {implDisplayLiteral}\");");
-                    }
-                    sb.AppendLine($"        {assignTarget} = {loadVar};");
+                    sb.AppendLine($"        if ({loadVar} == null) throw new System.InvalidOperationException(\"[shimgen][{shimDisplayLiteral}] Missing preload resource \\\"{sanitizedPath}\\\" for {memberKind} \\\"{memberNameLiteral}\\\" on {implDisplayLiteral}\");");
+                    if (pl.IsOption)
+                        sb.AppendLine($"        {assignTarget} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(pl.MemberType)}>.Some({loadVar});");
+                    else
+                        sb.AppendLine($"        {assignTarget} = {loadVar};");
                 }
             }
             // Autoconnect signals to impl methods
