@@ -4,7 +4,7 @@
 // ShimGenVersion: 0.5.7
 // Source F# type: Game.TetrisHudImpl
 // SourceFile: TetrisHud.fs
-// SourceHash: 3e87ec04e2da5f46bed45b50ffd4d645c43d2a2595ddb1ac0bc2677654795e36
+// SourceHash: 43ba75ff8334cad6a2561c6c511775cf168aa1496bc9262f4a2ab1868e94abde
 // </auto-generated>
 
 using Godot;

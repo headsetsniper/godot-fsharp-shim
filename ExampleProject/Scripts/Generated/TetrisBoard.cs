@@ -4,7 +4,7 @@
 // ShimGenVersion: 0.5.7
 // Source F# type: Game.TetrisBoardImpl
 // SourceFile: TetrisBoard.fs
-// SourceHash: d4ba383d693a9321bd6c082579158419e3c4e07415650d03f11c693923e58adc
+// SourceHash: a002e9d1177a21afb699dfd6aed3fb9ebb9eb19ac5e6dbd9d181a0cd87ea7ac0
 // </auto-generated>
 
 using Godot;
@@ -16,7 +16,7 @@ public partial class TetrisBoard : Godot.Node2D
     private readonly Game.TetrisBoardImpl _impl = new Game.TetrisBoardImpl();
     [Export] public System.Single CellSize { get => _impl.CellSize; set => _impl.CellSize = value; }
     [Export] public System.Int32 MoveX { get => _impl.MoveX; set => _impl.MoveX = value; }
-    [Export] public System.Boolean Rotate { get => _impl.Rotate; set => _impl.Rotate = value; }
+    [Export] public System.Boolean RotateRequested { get => _impl.RotateRequested; set => _impl.RotateRequested = value; }
     [Export] public System.Boolean HardDrop { get => _impl.HardDrop; set => _impl.HardDrop = value; }
     [Export] public System.Int32 Score { get => _impl.Score; set => _impl.Score = value; }
     public override void _Ready()
