@@ -34,8 +34,12 @@
   <Target Name="CollectFSharpOutputs" AfterTargets="ResolveReferences" BeforeTargets="RunShimGen" Condition=" '$(FSharpShimsEnabled)' != 'false' ">
     <ItemGroup>
       <_FSharpRefs Include="@(ReferencePath)" Condition="$([System.String]::Copy('%(ReferencePath.MSBuildSourceProjectFile)').EndsWith('.fsproj', System.StringComparison.OrdinalIgnoreCase))" />
+      <!-- Try to find the Annotations assembly among resolved references -->
+      <_AnnRef Include="@(ReferencePath)"
+               Condition="$([System.String]::Copy('%(ReferencePath.Identity)').EndsWith('Headsetsniper.Godot.FSharp.Annotations.dll', System.StringComparison.OrdinalIgnoreCase))" />
     </ItemGroup>
     <Message Text="[shimgen] F# ReferencePath count=@(_FSharpRefs->Count())" Importance="Low" />
+    <Message Text="[shimgen] Annotations ref: @(_AnnRef)" Importance="Low" Condition="'@(_AnnRef)' != ''" />
   </Target>
 
   <!-- Run generator and include outputs in same compile -->
@@ -43,7 +47,34 @@
     <MakeDir Directories="$(FSharpShimsOutDir)" Condition="!Exists('$(FSharpShimsOutDir)')" />
     <Message Text="[shimgen] Using tool: $(_ShimGenTool)" Importance="High" />
     <Message Text="[shimgen] F# assemblies: @(_FSharpRefs)" Importance="Low" />
-    <Exec Command="dotnet &quot;$(_ShimGenTool)&quot; &quot;%(_FSharpRefs.Identity)&quot; &quot;$(FSharpShimsOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.MSBuildSourceProjectFile)'))&quot;"
+    <!-- Stage the tool in obj with any required runtime dependencies so 'dotnet' can resolve compile-time references -->
+    <PropertyGroup>
+      <_ShimGenStageDir>$([System.IO.Path]::Combine('$(IntermediateOutputPath)', 'shimgen_tool_stage', '$(TargetFramework)'))</_ShimGenStageDir>
+      <_ShimGenStageDll>$([System.IO.Path]::Combine('$(_ShimGenStageDir)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenStageDll>
+      <_ShimGenStageRuntimeConfig>$([System.IO.Path]::Combine('$(_ShimGenStageDir)', 'Headsetsniper.Godot.FSharp.ShimGen.runtimeconfig.json'))</_ShimGenStageRuntimeConfig>
+    </PropertyGroup>
+    <MakeDir Directories="$(_ShimGenStageDir)" Condition="!Exists('$(_ShimGenStageDir)')" />
+    <Copy SourceFiles="$(_ShimGenTool)" DestinationFiles="$(_ShimGenStageDll)" SkipUnchangedFiles="true" />
+    <!-- Co-locate the Annotations DLL if we can find it in ReferencePath -->
+    <Copy SourceFiles="@(_AnnRef)" DestinationFolder="$(_ShimGenStageDir)" SkipUnchangedFiles="true" Condition="'@(_AnnRef)' != ''" />
+    <!-- Ensure a minimal runtimeconfig is present so 'dotnet' treats the staged DLL as framework-dependent -->
+    <WriteLinesToFile
+        File="$(_ShimGenStageRuntimeConfig)"
+        Overwrite="false"
+        Condition="!Exists('$(_ShimGenStageRuntimeConfig)')"
+        Lines='{
+  "runtimeOptions": {
+    "tfm": "net8.0",
+    "framework": {
+      "name": "Microsoft.NETCore.App",
+      "version": "8.0.0"
+    },
+    "rollForward": "LatestMajor"
+  }
+}' />
+    <Message Text="[shimgen] Staged tool at $(_ShimGenStageDll) (ann=@(_AnnRef->'%(Filename)%(Extension)'))" Importance="Low" />
+
+    <Exec Command="dotnet &quot;$(_ShimGenStageDll)&quot; &quot;%(_FSharpRefs.Identity)&quot; &quot;$(FSharpShimsOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.MSBuildSourceProjectFile)'))&quot;"
           WorkingDirectory="$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.Identity)'))"
           StandardOutputImportance="Low" StandardErrorImportance="High" />
     <ItemGroup>

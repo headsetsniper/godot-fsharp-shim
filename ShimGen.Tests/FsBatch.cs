@@ -233,16 +233,31 @@ public static class FsBatchComponent
 
     private static string FindOutputAssembly(string workingDir)
     {
-        var outDll = Path.Combine(workingDir, "bin", "Debug", "net8.0", Path.GetFileName(workingDir) + ".dll");
-        if (!File.Exists(outDll))
+        // The generated temp project is named "Fixture.fsproj", so the assembly name is "Fixture.dll"
+        var expected = Path.Combine(workingDir, "bin", "Debug", "net8.0", "Fixture.dll");
+        if (File.Exists(expected)) return expected;
+
+        var binDir = Path.Combine(workingDir, "bin", "Debug", "net8.0");
+        if (!Directory.Exists(binDir))
+            throw new DirectoryNotFoundException($"Build output directory missing: {binDir}");
+
+        // Prefer a DLL whose file name is exactly Fixture.dll; otherwise, fail with a clear message
+        var fixtureCandidate = Directory.EnumerateFiles(binDir, "Fixture.dll", SearchOption.TopDirectoryOnly).FirstOrDefault();
+        if (!string.IsNullOrEmpty(fixtureCandidate)) return fixtureCandidate!;
+
+        // As a last resort, pick the only .dll that contains FSharp.Core reference (indicates the compiled F# impl)
+        var dlls = Directory.EnumerateFiles(binDir, "*.dll", SearchOption.TopDirectoryOnly).ToArray();
+        foreach (var dll in dlls)
         {
-            var binDir = Path.Combine(workingDir, "bin", "Debug", "net8.0");
-            var candidate = Directory.EnumerateFiles(binDir, "*.dll", SearchOption.TopDirectoryOnly).FirstOrDefault();
-            if (candidate == null)
-                throw new FileNotFoundException("F# build succeeded but output DLL not found", outDll);
-            outDll = candidate;
+            try
+            {
+                var an = AssemblyName.GetAssemblyName(dll);
+                if (an?.Name?.Equals("Fixture", StringComparison.OrdinalIgnoreCase) == true)
+                    return dll;
+            }
+            catch { /* skip non-.NET dlls */ }
         }
-        return outDll;
+        throw new FileNotFoundException($"F# build succeeded but Fixture.dll not found in {binDir}");
     }
 
     private static void TryDeleteDir(string? dir)

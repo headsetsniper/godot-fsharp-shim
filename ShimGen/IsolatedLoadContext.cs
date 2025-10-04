@@ -19,6 +19,40 @@ internal sealed class IsolatedLoadContext : AssemblyLoadContext
             var candidate = Path.Combine(dir, fileName);
             if (File.Exists(candidate)) return LoadFromAssemblyPath(candidate);
         }
+        // NuGet global packages probing (approach 3): try to locate requested assembly in the global cache
+        // This is especially important for Headsetsniper.Godot.FSharp.Annotations when ShimGen runs from a NuGet lib folder.
+        try
+        {
+            var nugetRoot = Environment.GetEnvironmentVariable("NUGET_PACKAGES");
+            if (string.IsNullOrWhiteSpace(nugetRoot))
+            {
+                var home = Environment.GetEnvironmentVariable("HOME");
+                var userProfile = Environment.GetEnvironmentVariable("USERPROFILE");
+                var baseDir = !string.IsNullOrEmpty(home) ? home : userProfile;
+                if (!string.IsNullOrEmpty(baseDir)) nugetRoot = Path.Combine(baseDir, ".nuget", "packages");
+            }
+            if (!string.IsNullOrWhiteSpace(nugetRoot) && Directory.Exists(nugetRoot))
+            {
+                // Typical NuGet structure: <root>/<packageId>/<version>/lib/<tfm>/<assembly>.dll
+                // Package ID is lowercased in global packages folder.
+                var pkgId = assemblyName.Name!.ToLowerInvariant();
+                // Prefer exact package id; also try legacy id for annotations
+                foreach (var id in new[] { pkgId, "godot.fsharp.annotations" })
+                {
+                    var pkgDir = Path.Combine(nugetRoot, id);
+                    if (!Directory.Exists(pkgDir)) continue;
+                    // Find all candidate dlls matching fileName under lib/*
+                    var candidates = Directory.EnumerateFiles(pkgDir, fileName, SearchOption.AllDirectories)
+                                              .Where(p => p.Contains(Path.DirectorySeparatorChar + "lib" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                                              .ToArray();
+                    // Prefer net8.0, then higher TFM alphabetically as a fallback
+                    string? pick = candidates.FirstOrDefault(p => p.Contains(Path.DirectorySeparatorChar + "net8.0" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                                    ?? candidates.OrderByDescending(p => p).FirstOrDefault();
+                    if (!string.IsNullOrEmpty(pick)) return LoadFromAssemblyPath(pick!);
+                }
+            }
+        }
+        catch { /* ignore probing failures */ }
         return null!;
     }
     protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
