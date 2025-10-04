@@ -323,9 +323,9 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 
 - Lifecycle and callbacks coverage
 
-  - Node: \_EnterTree, \_Ready, \_ExitTree, \_Process, \_PhysicsProcess, \_Notification (parity ensured).
+  - Node: \_EnterTree, \_Ready, \_ExitTree, \_Process, \_PhysicsProcess, \_Notification (parity ensured). V
   - Input/UI: \_Input, \_UnhandledInput, Control.ShortcutInput, Control.GuiInput, drag/drop (CanDropData/GetDragData/DropData). V
-  - Drawing: \_Draw forwarding and helper surface hook if applicable
+  - Drawing: \_Draw forwarding and helper surface hook if applicable V
   - Editor: support editor-only callbacks when [Tool] is set.
 
 - RPC / Multiplayer
@@ -335,7 +335,7 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 
 - NodePath auto-wiring / onready
 
-  - Node references: F# [NodePath]/[Node] attributes; resolve/capture typed nodes in \_Ready with validation and friendly errors.
+  - Node references: F# [NodePath]/[Node] attributes; resolve/capture typed nodes in \_Ready with validation and friendly errors. V
   - Preload: attribute for preloading PackedScene/Resource fields (editor/runtime-safe).
 
 - Type mapping and marshalling
