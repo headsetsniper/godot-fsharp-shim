@@ -36,5 +36,6 @@ public static class Known
         public static readonly string ExportEnumListAttribute = typeof(ExportEnumListAttribute).FullName!;
         public static readonly string ExportColorNoAlphaAttribute = typeof(ExportColorNoAlphaAttribute).FullName!;
         public static readonly string ExportLayerMask2DRenderAttribute = typeof(ExportLayerMask2DRenderAttribute).FullName!;
+        public static readonly string PreloadAttribute = typeof(PreloadAttribute).FullName!;
     }
 }

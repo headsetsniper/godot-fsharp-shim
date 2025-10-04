@@ -30,6 +30,7 @@ internal readonly record struct ScriptSpec(
     bool HasGetTooltip,
     SignalSpec[] Signals,
     NodePathMember[] NodePathMembers,
+    PreloadMember[] PreloadMembers,
     AutoConnectSpec[] AutoConnects
 );
 
@@ -38,6 +39,14 @@ internal readonly record struct NodePathMember(
     Type MemberType,
     bool IsProperty,
     string? Path,
+    bool Required
+);
+
+internal readonly record struct PreloadMember(
+    string Name,
+    Type MemberType,
+    bool IsProperty,
+    string Path,
     bool Required
 );
 

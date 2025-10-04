@@ -336,7 +336,7 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 - NodePath auto-wiring / onready
 
   - Node references: F# [NodePath]/[Node] attributes; resolve/capture typed nodes in \_Ready with validation and friendly errors. V
-  - Preload: attribute for preloading PackedScene/Resource fields (editor/runtime-safe).
+  - Preload: attribute for preloading PackedScene/Resource fields (editor/runtime-safe). V
 
 - Type mapping and marshalling
 

@@ -68,6 +68,34 @@ type WireImpl() =
     }
 
     [Test]
+    [FsCase("Preloader", """
+namespace Game
+
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotScript(ClassName="Preloader", BaseTypeName="Godot.Node")>]
+type PreloaderImpl() =
+    [<Preload("res://things/foo.tscn", Required=true)>]
+    member val Scene : PackedScene = null with get, set
+    [<Preload("res://assets/optional.tres")>]
+    member val Optional : Resource = null with get, set
+    member _.Ready() = ()
+""")]
+    public void Preload_Resources_Are_Loaded_Before_Ready()
+    {
+        var outDir = FsBatch.GetOutDir<LifecycleAndMetadataTests>();
+        var path = Directory.EnumerateFiles(outDir!, "Preloader.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null);
+        var src = File.ReadAllText(path!);
+        StringAssert.Contains("var __p_Scene = ResourceLoader.Load<Godot.PackedScene>(\"res://things/foo.tscn\");", src);
+        StringAssert.Contains("if (__p_Scene == null) GD.PushError(\"[shimgen][Preloader] Missing preload resource \\\"res://things/foo.tscn\\\" for property \\\"Scene\\\" on Game.PreloaderImpl\");", src);
+        StringAssert.Contains("_impl.Scene = __p_Scene;", src);
+        StringAssert.Contains("var __p_Optional = ResourceLoader.Load<Godot.Resource>(\"res://assets/optional.tres\");", src);
+        StringAssert.DoesNotContain("[shimgen][Preloader] Missing preload resource \\\"res://assets/optional.tres\\\" for property \\\"Optional\\\" on Game.PreloaderImpl", src);
+        StringAssert.Contains("_impl.Optional = __p_Optional;", src);
+    }
+
+    [Test]
     [FsCase("Iconed", """
 namespace Game
 

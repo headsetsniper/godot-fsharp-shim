@@ -281,29 +281,58 @@ internal static class Program
                        ))
                        .ToArray();
 
-        // Discover NodePath members (properties/fields) annotated with NodePathAttribute
+        // Discover NodePath members (properties/fields) annotated with NodePathAttribute and preload targets
         var nodePathMembers = new List<NodePathMember>();
+        var preloadMembers = new List<PreloadMember>();
         var npAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.NodePathAttribute;
+        var preloadAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.PreloadAttribute;
         foreach (var p in t.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
         {
             var attrs = p.GetCustomAttributesData();
+
             var np = attrs.FirstOrDefault(a => a.AttributeType.FullName == npAttrFull);
-            if (np is null) continue;
-            string? path = null; bool required = true; Type? memberType = null; bool isProp = false;
-            foreach (var na2 in np.NamedArguments)
+            if (np is not null)
             {
-                if (na2.MemberName == "Path") path = na2.TypedValue.Value as string;
-                else if (na2.MemberName == "Required" && na2.TypedValue.Value is bool rb) required = rb;
+                string? path = null; bool required = true; Type? memberType = null; bool isProp = false;
+                foreach (var na2 in np.NamedArguments)
+                {
+                    if (na2.MemberName == "Path") path = na2.TypedValue.Value as string;
+                    else if (na2.MemberName == "Required" && na2.TypedValue.Value is bool rb) required = rb;
+                }
+                switch (p)
+                {
+                    case PropertyInfo pi:
+                        memberType = pi.PropertyType; isProp = true; break;
+                    case FieldInfo fi:
+                        memberType = fi.FieldType; isProp = false; break;
+                }
+                if (memberType is not null)
+                    nodePathMembers.Add(new NodePathMember(p.Name, memberType, isProp, path, required));
             }
-            switch (p)
+
+            var pl = attrs.FirstOrDefault(a => a.AttributeType.FullName == preloadAttrFull);
+            if (pl is not null)
             {
-                case PropertyInfo pi:
-                    memberType = pi.PropertyType; isProp = true; break;
-                case FieldInfo fi:
-                    memberType = fi.FieldType; isProp = false; break;
+                string path = string.Empty; bool preloadRequired = false; Type? preloadMemberType = null; bool preloadIsProperty = false;
+                foreach (var na2 in pl.NamedArguments)
+                {
+                    if (na2.MemberName == "Path") path = na2.TypedValue.Value as string ?? string.Empty;
+                    else if (na2.MemberName == nameof(Headsetsniper.Godot.FSharp.Annotations.PreloadAttribute.Required) && na2.TypedValue.Value is bool rb)
+                        preloadRequired = rb;
+                }
+                if (string.IsNullOrEmpty(path) && pl.ConstructorArguments.Count > 0)
+                    path = pl.ConstructorArguments[0].Value as string ?? string.Empty;
+
+                switch (p)
+                {
+                    case PropertyInfo pi:
+                        preloadMemberType = pi.PropertyType; preloadIsProperty = true; break;
+                    case FieldInfo fi:
+                        preloadMemberType = fi.FieldType; preloadIsProperty = false; break;
+                }
+                if (preloadMemberType is not null && IsSubclassOfByName(preloadMemberType, KnownGodot.Resource))
+                    preloadMembers.Add(new PreloadMember(p.Name, preloadMemberType, preloadIsProperty, path, preloadRequired));
             }
-            if (memberType is not null)
-                nodePathMembers.Add(new NodePathMember(p.Name, memberType, isProp, path, required));
         }
 
         // Discover [AutoConnect(Path, Signal)] on public methods
@@ -333,7 +362,7 @@ internal static class Program
             hasInput, hasUnhandledInput, hasNotification,
             hasGuiInput, hasShortcutInput, hasDraw, hasCanDropData, hasDropData, hasGetDragData,
             hasUnhandledKeyInput, hasHasPoint, hasGetMinimumSize, hasMakeCustomTooltip, hasGetTooltip,
-            signals, nodePathMembers.ToArray(), autoConnects.ToArray());
+            signals, nodePathMembers.ToArray(), preloadMembers.ToArray(), autoConnects.ToArray());
     }
 
     private static bool IsExportable(Type t)
@@ -398,6 +427,10 @@ internal static class Program
     private static string GenerateCode(ScriptSpec spec, string? fsSourceDir)
     {
         var ns = "Generated";
+        var shimDisplayName = !string.IsNullOrWhiteSpace(spec.ClassName) ? spec.ClassName : (spec.ImplType.Name ?? "GeneratedShim");
+        var shimDisplayLiteral = EscapeStringLiteral(shimDisplayName);
+        var implDisplayName = spec.ImplType.FullName ?? spec.ImplType.Name ?? shimDisplayName;
+        var implDisplayLiteral = EscapeStringLiteral(implDisplayName);
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated>");
         sb.AppendLine("// This file was generated by Headsetsniper.Godot.FSharp.ShimGen.");
@@ -569,6 +602,23 @@ internal static class Program
                     sb.AppendLine($"        {assignTarget} = __n_{np.Name};");
                 }
             }
+            if (spec.PreloadMembers.Length > 0)
+            {
+                foreach (var pl in spec.PreloadMembers)
+                {
+                    var assignTarget = pl.IsProperty ? $"_impl.{pl.Name}" : $"_impl.{pl.Name}";
+                    var sanitizedPath = EscapeStringLiteral(pl.Path ?? string.Empty);
+                    var memberNameLiteral = EscapeStringLiteral(pl.Name);
+                    var memberKind = pl.IsProperty ? "property" : "field";
+                    var loadVar = $"__p_{pl.Name}";
+                    sb.AppendLine($"        var {loadVar} = ResourceLoader.Load<{GetTypeDisplayName(pl.MemberType)}>(\"{sanitizedPath}\");");
+                    if (pl.Required)
+                    {
+                        sb.AppendLine($"        if ({loadVar} == null) GD.PushError(\"[shimgen][{shimDisplayLiteral}] Missing preload resource \\\"{sanitizedPath}\\\" for {memberKind} \\\"{memberNameLiteral}\\\" on {implDisplayLiteral}\");");
+                    }
+                    sb.AppendLine($"        {assignTarget} = {loadVar};");
+                }
+            }
             // Autoconnect signals to impl methods
             if (spec.AutoConnects.Length > 0)
             {
@@ -627,6 +677,13 @@ internal static class Program
 
         sb.AppendLine("}");
         return sb.ToString();
+    }
+
+    private static string EscapeStringLiteral(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 
     private static string GetGeneratorVersionMajorMinorPatch()
