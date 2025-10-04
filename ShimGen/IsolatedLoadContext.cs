@@ -19,7 +19,7 @@ internal sealed class IsolatedLoadContext : AssemblyLoadContext
             var candidate = Path.Combine(dir, fileName);
             if (File.Exists(candidate)) return LoadFromAssemblyPath(candidate);
         }
-    // Probe NuGet global cache for assemblies (helps when tool runs from a NuGet lib folder)
+        // Probe NuGet global cache for assemblies (helps when tool runs from a NuGet lib folder)
         try
         {
             var nugetRoot = Environment.GetEnvironmentVariable("NUGET_PACKAGES");
