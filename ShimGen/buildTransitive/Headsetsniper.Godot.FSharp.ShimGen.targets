@@ -45,7 +45,7 @@
   <!-- Run generator and include outputs in same compile -->
   <Target Name="RunShimGen" AfterTargets="ResolveReferences" BeforeTargets="CoreCompile;Compile" Condition=" '$(FSharpShimsEnabled)' != 'false' and '@(_FSharpRefs)' != '' and Exists('$(_ShimGenTool)') ">
     <MakeDir Directories="$(FSharpShimsOutDir)" Condition="!Exists('$(FSharpShimsOutDir)')" />
-    <Message Text="[shimgen] Using tool: $(_ShimGenTool)" Importance="High" />
+  <Message Text="[shimgen] Using tool: $(_ShimGenTool)" Importance="Low" />
     <Message Text="[shimgen] F# assemblies: @(_FSharpRefs)" Importance="Low" />
     <!-- Stage the tool in obj with any required runtime dependencies so 'dotnet' can resolve compile-time references -->
     <PropertyGroup>

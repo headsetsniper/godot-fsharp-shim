@@ -19,8 +19,7 @@ internal sealed class IsolatedLoadContext : AssemblyLoadContext
             var candidate = Path.Combine(dir, fileName);
             if (File.Exists(candidate)) return LoadFromAssemblyPath(candidate);
         }
-        // NuGet global packages probing (approach 3): try to locate requested assembly in the global cache
-        // This is especially important for Headsetsniper.Godot.FSharp.Annotations when ShimGen runs from a NuGet lib folder.
+    // Probe NuGet global cache for assemblies (helps when tool runs from a NuGet lib folder)
         try
         {
             var nugetRoot = Environment.GetEnvironmentVariable("NUGET_PACKAGES");

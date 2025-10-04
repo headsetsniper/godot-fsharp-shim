@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
-using Microsoft.CodeAnalysis;
 using Headsetsniper.Godot.FSharp.Annotations;
 using Headsetsniper.Godot.FSharp.ShimGen;
 
@@ -31,7 +30,7 @@ internal static class IntegrationTestUtil
         Assert.That(exe, Is.Not.Null.And.Not.Empty, $"ShimGen not built; looked in {outDirShim}");
         Assert.That(File.Exists(exe!), Is.True, $"ShimGen not built at {exe}");
 
-        // Ensure the attribute assembly is next to the impl assembly to help resolution
+    // Ensure the attribute assembly is next to the impl assembly to help resolution in test runs
         var implDir = Path.GetDirectoryName(implPath)!;
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
         var targetAnn = Path.Combine(implDir, Path.GetFileName(annPath));
