@@ -21,7 +21,7 @@ type TetrisUiBoardImpl() =
     let mutable timeoutCount = 0
     let mutable gridReady = false
 
-    let debug (msg: string) = GD.Print($"[TetrisUiBoard] {msg}")
+    let debug (msg: string) = GD.Print $"[TetrisUiBoard] {msg}"
 
     interface IGdScript<Control> with
         member _.Node
@@ -43,13 +43,13 @@ type TetrisUiBoardImpl() =
         if obj.ReferenceEquals(node, null) then
             ()
         else
-            let existing = node.GetNodeOrNull<GridContainer>(new NodePath("Grid"))
+            let existing = node.GetNodeOrNull<GridContainer>(new NodePath "Grid")
 
             let gridContainer =
                 if isNull existing then
                     debug ("Creating GridContainer (editor=" + string (Engine.IsEditorHint()) + ")")
                     let g = new GridContainer()
-                    g.Name <- new StringName("Grid")
+                    g.Name <- new StringName "Grid"
                     g.Columns <- cols
                     g.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
                     g.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
@@ -85,7 +85,7 @@ type TetrisUiBoardImpl() =
 
                 if not printedBuilt then
                     printedBuilt <- true
-                    debug ($"Initialized grid {cols}x{rows} at path {node.GetPath()} with CellSize={this.CellSize}")
+                    debug $"Initialized grid {cols}x{rows} at path {node.GetPath()} with CellSize={this.CellSize}"
 
                 gridReady <- true
             else
@@ -119,7 +119,7 @@ type TetrisUiBoardImpl() =
                             c.CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
                 // Keep grid minimum in sync as well
                 if not (obj.ReferenceEquals(node, null)) then
-                    match node.GetNodeOrNull<GridContainer>(new NodePath("Grid")) with
+                    match node.GetNodeOrNull<GridContainer>(new NodePath "Grid") with
                     | null -> ()
                     | gc -> gc.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
 
@@ -221,7 +221,7 @@ type TetrisUiBoardImpl() =
         if Engine.IsEditorHint() then
             // Ensure _Process runs in the editor
             node.ProcessMode <- Node.ProcessModeEnum.Always
-            node.SetProcess(true)
+            node.SetProcess true
             node.QueueRedraw()
 
         this.EnsureGrid()
@@ -245,7 +245,7 @@ type TetrisUiBoardImpl() =
             timeoutCount <- timeoutCount + 1
 
             if timeoutCount <= 3 then
-                debug ($"OnTimeout #{timeoutCount}")
+                debug $"OnTimeout #{timeoutCount}"
 
             if this.CanPlace(curShape, curX, curY + 1) then
                 curY <- curY + 1
@@ -264,7 +264,7 @@ type TetrisUiBoardImpl() =
         if obj.ReferenceEquals(node, null) then
             ()
         else
-            if (not printedProcessOnce) && Engine.IsEditorHint() then
+            if not printedProcessOnce && Engine.IsEditorHint() then
                 printedProcessOnce <- true
                 debug "Process() (editor)"
 

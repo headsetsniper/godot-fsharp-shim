@@ -2,7 +2,7 @@ namespace Game
 
 open System
 
-[<System.Flags>]
+[<Flags>]
 type CellFlags =
     | Empty = 0
     | Filled = 1
@@ -17,17 +17,17 @@ module Tetromino =
         | J
         | L
 
-    let all = [| Kind.I; Kind.O; Kind.T; Kind.S; Kind.Z; Kind.J; Kind.L |]
+    let all = [| I; O; T; S; Z; J; L |]
 
     let shape (k: Kind) : bool[,] =
         match k with
-        | Kind.O -> array2D [ [ true; true ]; [ true; true ] ]
-        | Kind.I -> array2D [ [ true; true; true; true ] ]
-        | Kind.T -> array2D [ [ true; true; true ]; [ false; true; false ] ]
-        | Kind.S -> array2D [ [ false; true; true ]; [ true; true; false ] ]
-        | Kind.Z -> array2D [ [ true; true; false ]; [ false; true; true ] ]
-        | Kind.J -> array2D [ [ true; false; false ]; [ true; true; true ] ]
-        | Kind.L -> array2D [ [ false; false; true ]; [ true; true; true ] ]
+        | O -> array2D [ [ true; true ]; [ true; true ] ]
+        | I -> array2D [ [ true; true; true; true ] ]
+        | T -> array2D [ [ true; true; true ]; [ false; true; false ] ]
+        | S -> array2D [ [ false; true; true ]; [ true; true; false ] ]
+        | Z -> array2D [ [ true; true; false ]; [ false; true; true ] ]
+        | J -> array2D [ [ true; false; false ]; [ true; true; true ] ]
+        | L -> array2D [ [ false; false; true ]; [ true; true; true ] ]
 
     let rotateCW (s: bool[,]) : bool[,] =
         let h = s.GetLength 0

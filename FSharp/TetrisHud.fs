@@ -1,6 +1,5 @@
 namespace Game
 
-open System.Reflection
 open Godot
 open Headsetsniper.Godot.FSharp.Annotations
 
@@ -19,7 +18,7 @@ type TetrisHudImpl() =
 
     member this.Process(_delta: double) =
         try
-            let v = this.Board.Get(new StringName("Score"))
+            let v = this.Board.Get(new StringName "Score")
 
             if v.VariantType = Godot.Variant.Type.Int then
                 this.ScoreLabel.Text <- $"Score: {v.AsInt32()}"

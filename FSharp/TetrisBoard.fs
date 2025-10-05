@@ -124,7 +124,7 @@ type TetrisBoardImpl() =
         Vector2(float32 cols * cellSize, float32 rows * cellSize)
 
     member this.SpawnNewPiece() =
-        curShape <- Tetromino.shape (Tetromino.all.[rng.Next(Tetromino.all.Length)])
+        curShape <- Tetromino.shape Tetromino.all.[rng.Next(Tetromino.all.Length)]
         curX <- (cols / 2) - 1
         curY <- 0
 
