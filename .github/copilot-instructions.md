@@ -50,6 +50,18 @@ This repo lets you write Godot gameplay in F# and auto-generate C# shims that Go
 - Always make another pass over generated Tests to ensure they are readable, dry and maintainable.
 - Tests should read like different features of this repo.
 
+## Gotchas and lessons learned
+
+- Use the local generator during repo development. The Example project now conditionally imports the local buildTransitive targets; this avoids NuGet/package drift (e.g., missing [Tool] emission) while iterating.
+- Regeneration without breaking UIDs: set SHIMGEN_REGENERATE_SCRIPTS=all or a comma-separated list to force in-place rewrites; close the Godot editor first to avoid Windows file locks on Scripts/Generated.
+- Tests on Windows: normalize generator output to LF. Idempotent writes must not rewrite when SourceHash is unchanged, and should preserve user-append-only edits (e.g., trailing comments). Prune/relocate only when the F# source root (fsDir) is known. Clear SHIMGEN_REGENERATE_SCRIPTS in test runs to avoid interference.
+- NodePath/Optional semantics: Required vs optional is controlled by attribute + Option type (NodePath for non-Option, OptionalNodePath for Option<'T>). The generator throws on missing required nodes. Preload is fail-fast (throws when missing) and assigns Some when the target is an Option resource type.
+- Editor Tool scripts: don’t rely on EnterTree for injected Node; use Ready/Process. For Control-based grids, anchor containers to FullRect and zero offsets to fill their parent. Give the board a faint background and paint empty cells light grey to make the grid visible in-editor.
+- Avoid reflection in gameplay. Prefer typed APIs or Node.Set with Variant implicit conversions when you need by-name property sets. Keep reflective fallbacks out of runtime logic.
+- Prefer pipeline/IOSP style for update loops. Model a small state record, compose pure steps (applyMove/applyRotate/applyHardDrop), then write back. Keep methods at the same level of abstraction; split drawing into small, purpose-named helpers (e.g., SyncCellSizes, PaintBase, PaintOverlay).
+- Rely on generator-enforced wiring. With strict NodePath/Preload checks, you can remove defensive null checks in normal flows; missing wiring will fail-fast with clear errors.
+- Signal wiring: annotate handlers with [AutoConnect(path, "signal")] and let the shim connect in \_Ready. Avoid manual Connect in your gameplay code.
+
 ## Key files/directories
 
 - `Annotations/GodotScriptAttribute.cs`, `Annotations/IGdScript.cs`
