@@ -14,7 +14,7 @@ internal static class ProcessUtil
         public string Stderr { get; init; } = string.Empty;
     }
 
-    public static Result Run(string fileName, string arguments, string? workingDirectory = null, bool echoToProgress = false)
+    public static Result Run(string fileName, string arguments, string? workingDirectory = null, bool echoToProgress = false, System.Collections.Generic.IDictionary<string, string?>? env = null)
     {
         if (echoToProgress)
         {
@@ -30,6 +30,21 @@ internal static class ProcessUtil
             RedirectStandardError = true,
             UseShellExecute = false,
         };
+
+        if (env != null)
+        {
+            foreach (var kv in env)
+            {
+                if (kv.Value is null)
+                {
+                    if (psi.Environment.ContainsKey(kv.Key)) psi.Environment.Remove(kv.Key);
+                }
+                else
+                {
+                    psi.Environment[kv.Key] = kv.Value;
+                }
+            }
+        }
 
         var stdout = new StringBuilder();
         var stderr = new StringBuilder();

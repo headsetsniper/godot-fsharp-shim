@@ -39,7 +39,12 @@ internal static class IntegrationTestUtil
             ? $"\"{exe}\" \"{implPath}\" \"{outDir}\""
             : $"\"{exe}\" \"{implPath}\" \"{outDir}\" \"{fsSourceDir}\"";
 
-        var res = ProcessUtil.Run("dotnet", args);
+        // Ensure regeneration env var doesn't interfere with idempotence/relocation tests
+        var env = new System.Collections.Generic.Dictionary<string, string?>
+        {
+            ["SHIMGEN_REGENERATE_SCRIPTS"] = null
+        };
+        var res = ProcessUtil.Run("dotnet", args, env: env);
         Assert.That(res.ExitCode, Is.EqualTo(0), $"ShimGen failed. Stdout:\n{res.Stdout}\nStderr:\n{res.Stderr}");
         return outDir;
     }

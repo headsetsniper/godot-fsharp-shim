@@ -119,7 +119,7 @@ internal static class Program
                     catch { }
                 }
             }
-            // Prune orphans: generated files whose SourceFile no longer exists or whose type is no longer present
+            // Prune orphans/relocate only when fsDir is known (we can resolve source paths reliably)
             if (!string.IsNullOrEmpty(fsDir))
             {
                 PruneOrphans(outDir, fsDir!, seenTypeFullNames, dryRun, plannedDeletes);
@@ -231,6 +231,29 @@ internal static class Program
             else if (na.MemberName == nameof(Annotations.GodotScriptAttribute.Icon))
                 icon = na.TypedValue.Value as string;
         }
+        // Fallback: construct attribute instance and read properties (helps when compilers omit NamedArguments metadata)
+        try
+        {
+            var attrInstance = t.GetCustomAttributes(false).FirstOrDefault(a => a.GetType().FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.GodotScriptAttribute);
+            if (attrInstance is not null)
+            {
+                string? ReadString(string name)
+                    => attrInstance.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase)?.GetValue(attrInstance) as string;
+                bool? ReadBool(string name)
+                {
+                    var pi = attrInstance.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+                    if (pi is null) return null;
+                    var v = pi.GetValue(attrInstance);
+                    return v is bool bb ? bb : null;
+                }
+                classNameArg ??= ReadString(nameof(Annotations.GodotScriptAttribute.ClassName));
+                baseTypeNameArg ??= ReadString(nameof(Annotations.GodotScriptAttribute.BaseTypeName));
+                icon ??= ReadString(nameof(Annotations.GodotScriptAttribute.Icon));
+                var tb = ReadBool(nameof(Annotations.GodotScriptAttribute.Tool));
+                if (tb.HasValue) tool = tb.Value;
+            }
+        }
+        catch { }
         var className = string.IsNullOrWhiteSpace(classNameArg) ? t.Name : classNameArg!;
         var baseTypeName = string.IsNullOrWhiteSpace(baseTypeNameArg) ? "Godot.Node" : baseTypeNameArg!;
 
@@ -750,7 +773,10 @@ internal static class Program
         }
 
         sb.AppendLine("}");
-        return sb.ToString();
+        var text = sb.ToString();
+        // Normalize line endings to LF for deterministic outputs across platforms
+        text = text.Replace("\r\n", "\n");
+        return text;
     }
 
     private static string EscapeStringLiteral(string value)
@@ -1051,34 +1077,47 @@ internal static class Program
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var existing = File.Exists(path) ? File.ReadAllText(path) : null;
+        string Normalize(string s) => s.Replace("\r\n", "\n");
+        content = Normalize(content);
         if (existing is not null)
         {
-            if (existing == content) return false;
-            var oldHash = ExtractHash(existing);
+            var existingNorm = Normalize(existing);
+            if (existingNorm == content) return false;
+            // Preserve user edits appended after generated content when hash matches
+            if (existingNorm.Length > content.Length && existingNorm.StartsWith(content, StringComparison.Ordinal))
+            {
+                // Keep the trailing appendix (e.g., comments) and avoid rewrite
+                return false;
+            }
+            var oldHash = ExtractHash(existingNorm);
             var newHash = ExtractHash(content);
             if (!string.IsNullOrEmpty(oldHash) && oldHash == newHash)
             {
                 // If SourceHash matches but the generator is newer (or version missing), force rewrite
-                var oldVer = ExtractShimGenVersion(existing);
+                var oldVer = ExtractShimGenVersion(existingNorm);
                 var curVer = GetGeneratorVersionMajorMinorPatch();
                 // If the previous header included pre-release/build metadata, normalize it to Major.Minor.Patch
                 if (NeedsHeaderNormalization(oldVer)) return true;
                 if (!IsOlderVersion(oldVer, curVer)) return false;
             }
         }
+        // Always write with LF newlines for determinism
         File.WriteAllText(path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         return true;
     }
     private static bool WouldWrite(string path, string content)
     {
         var existing = File.Exists(path) ? File.ReadAllText(path) : null;
+        string Normalize(string s) => s.Replace("\r\n", "\n");
+        content = Normalize(content);
         if (existing is null) return true;
-        if (existing == content) return false;
-        var oldHash = ExtractHash(existing);
+        var existingNorm = Normalize(existing);
+        if (existingNorm == content) return false;
+        var oldHash = ExtractHash(existingNorm);
         var newHash = ExtractHash(content);
         if (!string.IsNullOrEmpty(oldHash) && oldHash == newHash)
         {
-            var oldVer = ExtractShimGenVersion(existing);
+            var oldVer = ExtractShimGenVersion(existingNorm);
             var curVer = GetGeneratorVersionMajorMinorPatch();
             if (NeedsHeaderNormalization(oldVer)) return true;
             if (!IsOlderVersion(oldVer, curVer)) return false;
