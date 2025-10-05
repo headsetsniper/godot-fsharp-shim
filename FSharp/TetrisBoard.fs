@@ -4,6 +4,49 @@ open System
 open Godot
 open Headsetsniper.Godot.FSharp.Annotations
 
+[<AutoOpen>]
+module internal TetrisBoardPipeline =
+    type BoardState =
+        { Shape: bool[,]
+          X: int
+          Y: int
+          MoveX: int
+          Rotate: bool
+          HardDrop: bool }
+
+    let applyMove (canPlace: bool[,] -> int -> int -> bool) (s: BoardState) =
+        if s.MoveX = 0 then
+            s
+        else
+            let nx = s.X + s.MoveX
+
+            if canPlace s.Shape nx s.Y then
+                { s with X = nx; MoveX = 0 }
+            else
+                { s with MoveX = 0 }
+
+    let applyRotate (canPlace: bool[,] -> int -> int -> bool) (s: BoardState) =
+        if not s.Rotate then
+            s
+        else
+            let r = Tetromino.rotateCW s.Shape
+
+            if canPlace r s.X s.Y then
+                { s with Shape = r; Rotate = false }
+            else
+                { s with Rotate = false }
+
+    let applyHardDrop (canPlace: bool[,] -> int -> int -> bool) (s: BoardState) =
+        if not s.HardDrop then
+            s
+        else
+            let mutable y = s.Y
+
+            while canPlace s.Shape s.X (y + 1) do
+                y <- y + 1
+
+            { s with Y = y; HardDrop = false }
+
 [<GodotScript(ClassName = "TetrisBoard", BaseTypeName = "Godot.Node2D", Tool = true)>]
 type TetrisBoardImpl() =
     let mutable node: Node2D = Unchecked.defaultof<_>
@@ -155,27 +198,30 @@ type TetrisBoardImpl() =
 
         node.QueueRedraw()
 
+    // Pipeline-friendly state get/set at the same level of abstraction
+    member private this.GetState() : BoardState =
+        { Shape = curShape
+          X = curX
+          Y = curY
+          MoveX = this.MoveX
+          Rotate = this.RotateRequested
+          HardDrop = this.HardDrop }
+
+    member private this.SetState(s: BoardState) =
+        curShape <- s.Shape
+        curX <- s.X
+        curY <- s.Y
+        this.MoveX <- 0
+        this.RotateRequested <- false
+        this.HardDrop <- false
+
     member this.Process(_delta: double) =
-        if this.MoveX <> 0 then
-            let dx = this.MoveX
+        let canPlace shape x y = this.CanPlace(shape, x, y)
 
-            if this.CanPlace(curShape, curX + dx, curY) then
-                curX <- curX + dx
-
-            this.MoveX <- 0
-
-        if this.RotateRequested then
-            let rotated = Tetromino.rotateCW curShape
-
-            if this.CanPlace(rotated, curX, curY) then
-                curShape <- rotated
-
-            this.RotateRequested <- false
-
-        if this.HardDrop then
-            while this.CanPlace(curShape, curX, curY + 1) do
-                curY <- curY + 1
-
-            this.HardDrop <- false
+        this.GetState()
+        |> applyMove canPlace
+        |> applyRotate canPlace
+        |> applyHardDrop canPlace
+        |> this.SetState
 
         node.QueueRedraw()
