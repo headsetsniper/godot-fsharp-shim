@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisUiBoardImpl
 // SourceFile: TetrisUiBoard.fs
-// SourceHash: 65a2e0551c1a8752684d8cbd7e6b2b1b6d7294e14f2d6c9545c3b1ac3883988e
+// SourceHash: 3def84ee3ecdcf751631e03cf32bcf4fa658a0e1b232cb25b650ecbabda2beac
 // </auto-generated>
 
 using Godot;
@@ -17,8 +17,6 @@ public partial class TetrisUiBoard : Godot.Control
     private readonly Game.TetrisUiBoardImpl _impl = new Game.TetrisUiBoardImpl();
     [Export(PropertyHint.Range, "8,64,1,1")] public System.Single CellSize { get => _impl.CellSize; set => _impl.CellSize = value; }
     [Export] public System.Int32 MoveX { get => _impl.MoveX; set => _impl.MoveX = value; }
-    [Export] public System.Boolean RotateRequested { get => _impl.RotateRequested; set => _impl.RotateRequested = value; }
-    [Export] public System.Boolean HardDrop { get => _impl.HardDrop; set => _impl.HardDrop = value; }
     [Export] public System.Int32 Score { get => _impl.Score; set => _impl.Score = value; }
     public override void _EnterTree() => _impl.EnterTree();
     public override void _Ready()

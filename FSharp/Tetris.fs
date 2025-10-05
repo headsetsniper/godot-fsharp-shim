@@ -25,8 +25,8 @@ type TetrisImpl() =
         let setInt (name: string) (v: int) =
             this.Board.Set(new StringName(name), Godot.Variant.op_Implicit v)
 
-        let setBool (name: string) (v: bool) =
-            this.Board.Set(new StringName(name), Godot.Variant.op_Implicit v)
+        let emit (name: string) : unit =
+            this.Board.EmitSignal(new StringName(name)) |> ignore
 
         match ev with
         | :? InputEventKey as key when key.Pressed && not key.Echo ->
@@ -37,7 +37,7 @@ type TetrisImpl() =
             | Key.D -> setInt "MoveX" 1
             | Key.Down -> ()
             | Key.Up
-            | Key.W -> setBool "RotateRequested" true
-            | Key.Space -> setBool "HardDrop" true
+            | Key.W -> emit "RequestRotate"
+            | Key.Space -> emit "RequestHardDrop"
             | _ -> ()
         | _ -> ()
