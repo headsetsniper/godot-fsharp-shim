@@ -19,6 +19,7 @@ type TetrisUiBoardImpl() =
     let mutable printedDrawOnce = false
     let mutable printedProcessOnce = false
     let mutable timeoutCount = 0
+    let mutable gridReady = false
 
     let debug (msg: string) = GD.Print($"[TetrisUiBoard] {msg}")
 
@@ -39,80 +40,117 @@ type TetrisUiBoardImpl() =
         and set (_: int) = ()
 
     member private this.EnsureGrid() =
-        let existing = node.GetNodeOrNull<GridContainer>(new NodePath("Grid"))
-
-        let gridContainer =
-            if isNull existing then
-                debug ("Creating GridContainer (editor=" + string (Engine.IsEditorHint()) + ")")
-                let g = new GridContainer()
-                g.Name <- new StringName("Grid")
-                g.Columns <- cols
-                g.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                g.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                g.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
-                node.AddChild(g)
-                g
-            else
-                existing
-
-        // Clear and rebuild children once on first init or mismatch
-        if gridContainer.GetChildCount() <> cols * rows then
-            while gridContainer.GetChildCount() > 0 do
-                let ch = gridContainer.GetChild(0)
-                gridContainer.RemoveChild(ch)
-                ch.QueueFree()
-
-            for y in 0 .. rows - 1 do
-                for x in 0 .. cols - 1 do
-                    let cr = new ColorRect()
-                    cr.CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
-                    cr.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                    cr.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                    cr.Color <- Colors.Transparent
-                    gridContainer.AddChild(cr)
-                    cells[y, x] <- cr
-
-            if not printedBuilt then
-                printedBuilt <- true
-                debug ($"Initialized grid {cols}x{rows} at path {node.GetPath()} with CellSize={this.CellSize}")
+        if obj.ReferenceEquals(node, null) then
+            ()
         else
-            // Map existing children in row-major order
-            for i in 0 .. gridContainer.GetChildCount() - 1 do
-                let y = i / cols
-                let x = i % cols
-                cells[y, x] <- gridContainer.GetChild(i) :?> ColorRect
+            let existing = node.GetNodeOrNull<GridContainer>(new NodePath("Grid"))
+
+            let gridContainer =
+                if isNull existing then
+                    debug ("Creating GridContainer (editor=" + string (Engine.IsEditorHint()) + ")")
+                    let g = new GridContainer()
+                    g.Name <- new StringName("Grid")
+                    g.Columns <- cols
+                    g.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                    g.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                    g.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
+                    node.AddChild(g)
+                    g
+                else
+                    existing
+
+            // Ensure the grid container fills the Board area
+            gridContainer.SetAnchorsPreset(Control.LayoutPreset.FullRect)
+            gridContainer.OffsetLeft <- 0f
+            gridContainer.OffsetTop <- 0f
+            gridContainer.OffsetRight <- 0f
+            gridContainer.OffsetBottom <- 0f
+
+            // Clear and rebuild children once on first init or mismatch
+            if gridContainer.GetChildCount() <> cols * rows then
+                while gridContainer.GetChildCount() > 0 do
+                    let ch = gridContainer.GetChild(0)
+                    gridContainer.RemoveChild(ch)
+                    ch.QueueFree()
+
+                for y in 0 .. rows - 1 do
+                    for x in 0 .. cols - 1 do
+                        let cr = new ColorRect()
+                        cr.CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
+                        cr.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                        cr.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                        cr.Color <- Colors.Transparent
+                        gridContainer.AddChild(cr)
+                        cells[y, x] <- cr
+
+                if not printedBuilt then
+                    printedBuilt <- true
+                    debug ($"Initialized grid {cols}x{rows} at path {node.GetPath()} with CellSize={this.CellSize}")
+
+                gridReady <- true
+            else
+                // Map existing children in row-major order
+                for i in 0 .. gridContainer.GetChildCount() - 1 do
+                    let y = i / cols
+                    let x = i % cols
+                    cells[y, x] <- gridContainer.GetChild(i) :?> ColorRect
+
+                gridReady <- true
 
     member private this.DrawUi() =
-        if not printedDrawOnce then
-            printedDrawOnce <- true
-            debug "DrawUi() invoked"
-        // Ensure cell sizes reflect current CellSize
-        for y in 0 .. rows - 1 do
-            for x in 0 .. cols - 1 do
-                cells[y, x].CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
-        // Keep grid minimum in sync as well
-        match node.GetNodeOrNull<GridContainer>(new NodePath("Grid")) with
-        | null -> ()
-        | gc -> gc.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
+        if obj.ReferenceEquals(node, null) then
+            ()
+        else
+            if not gridReady then
+                this.EnsureGrid()
 
-        // Base grid
-        for y in 0 .. rows - 1 do
-            for x in 0 .. cols - 1 do
-                let filled = grid[y, x] <> CellFlags.Empty
-                cells[y, x].Color <- if filled then Colors.LightSkyBlue else Colors.Transparent
+            if not gridReady then
+                ()
+            else
+                if not printedDrawOnce then
+                    printedDrawOnce <- true
+                    debug "DrawUi() invoked"
+                // Ensure cell sizes reflect current CellSize
+                for y in 0 .. rows - 1 do
+                    for x in 0 .. cols - 1 do
+                        let c = cells[y, x]
 
-        // Current falling piece overlay
-        let h = curShape.GetLength 0
-        let w = curShape.GetLength 1
+                        if not (obj.ReferenceEquals(c, null)) then
+                            c.CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
+                // Keep grid minimum in sync as well
+                if not (obj.ReferenceEquals(node, null)) then
+                    match node.GetNodeOrNull<GridContainer>(new NodePath("Grid")) with
+                    | null -> ()
+                    | gc -> gc.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
 
-        for y in 0 .. h - 1 do
-            for x in 0 .. w - 1 do
-                if curShape[y, x] then
-                    let gx = curX + x
-                    let gy = curY + y
+                // Base grid
+                for y in 0 .. rows - 1 do
+                    for x in 0 .. cols - 1 do
+                        let filled = grid[y, x] <> CellFlags.Empty
+                        let c = cells[y, x]
 
-                    if gx >= 0 && gx < cols && gy >= 0 && gy < rows then
-                        cells[gy, gx].Color <- Color(1.0f, 0.4f, 0.2f)
+                        if not (obj.ReferenceEquals(c, null)) then
+                            c.Color <-
+                                if filled then
+                                    Colors.LightSkyBlue
+                                else
+                                    Color(0.25f, 0.25f, 0.25f, 0.25f)
+
+                // Current falling piece overlay
+                let h = curShape.GetLength 0
+                let w = curShape.GetLength 1
+
+                for y in 0 .. h - 1 do
+                    for x in 0 .. w - 1 do
+                        if curShape[y, x] then
+                            let gx = curX + x
+                            let gy = curY + y
+
+                            if gx >= 0 && gx < cols && gy >= 0 && gy < rows then
+                                let c = cells[gy, gx]
+
+                                if not (obj.ReferenceEquals(c, null)) then
+                                    c.Color <- Color(1.0f, 0.4f, 0.2f)
 
     member _.Clear() = grid <- Array2D.zeroCreate rows cols
 
@@ -187,69 +225,75 @@ type TetrisUiBoardImpl() =
             node.QueueRedraw()
 
         this.EnsureGrid()
+        // Set a subtle background so the board bounds are visible
+        if not (obj.ReferenceEquals(node, null)) then
+            node.Modulate <- Color(0.1f, 0.1f, 0.1f, 1.0f)
+
         this.Clear()
         this.SpawnNewPiece()
         this.DrawUi()
 
     member this.EnterTree() =
+        // Node is injected in _Ready; avoid touching 'node' here
         debug ("EnterTree() (editor=" + string (Engine.IsEditorHint()) + ")")
-
-        if Engine.IsEditorHint() then
-            node.ProcessMode <- Node.ProcessModeEnum.Always
-            node.SetProcess(true)
-            node.QueueRedraw()
 
     [<AutoConnect("../DropTimer", "timeout")>]
     member this.OnTimeout() =
-        timeoutCount <- timeoutCount + 1
-
-        if timeoutCount <= 3 then
-            debug ($"OnTimeout #{timeoutCount}")
-
-        if this.CanPlace(curShape, curX, curY + 1) then
-            curY <- curY + 1
+        if obj.ReferenceEquals(node, null) then
+            ()
         else
-            this.Lock(curShape, curX, curY)
-            let cleared = this.ClearLines()
+            timeoutCount <- timeoutCount + 1
 
-            if cleared > 0 then
-                score <- score + (cleared * 100)
+            if timeoutCount <= 3 then
+                debug ($"OnTimeout #{timeoutCount}")
 
-            this.SpawnNewPiece()
+            if this.CanPlace(curShape, curX, curY + 1) then
+                curY <- curY + 1
+            else
+                this.Lock(curShape, curX, curY)
+                let cleared = this.ClearLines()
 
-        this.DrawUi()
+                if cleared > 0 then
+                    score <- score + (cleared * 100)
+
+                this.SpawnNewPiece()
+
+            this.DrawUi()
 
     member this.Process(_delta: double) =
-        if (not printedProcessOnce) && Engine.IsEditorHint() then
-            printedProcessOnce <- true
-            debug "Process() (editor)"
+        if obj.ReferenceEquals(node, null) then
+            ()
+        else
+            if (not printedProcessOnce) && Engine.IsEditorHint() then
+                printedProcessOnce <- true
+                debug "Process() (editor)"
 
-        if this.MoveX <> 0 then
-            let dx = this.MoveX
+            if this.MoveX <> 0 then
+                let dx = this.MoveX
 
-            if this.CanPlace(curShape, curX + dx, curY) then
-                curX <- curX + dx
+                if this.CanPlace(curShape, curX + dx, curY) then
+                    curX <- curX + dx
 
-            this.MoveX <- 0
+                this.MoveX <- 0
 
-        if this.RotateRequested then
-            let rotated = Tetromino.rotateCW curShape
+            if this.RotateRequested then
+                let rotated = Tetromino.rotateCW curShape
 
-            if this.CanPlace(rotated, curX, curY) then
-                curShape <- rotated
+                if this.CanPlace(rotated, curX, curY) then
+                    curShape <- rotated
 
-            this.RotateRequested <- false
+                this.RotateRequested <- false
 
-        if this.HardDrop then
-            while this.CanPlace(curShape, curX, curY + 1) do
-                curY <- curY + 1
+            if this.HardDrop then
+                while this.CanPlace(curShape, curX, curY + 1) do
+                    curY <- curY + 1
 
-            this.HardDrop <- false
+                this.HardDrop <- false
 
-        this.DrawUi()
+            this.DrawUi()
 
-        if Engine.IsEditorHint() then
-            node.QueueRedraw()
+            if Engine.IsEditorHint() then
+                node.QueueRedraw()
 
     member this.Draw() =
         if Engine.IsEditorHint() then
