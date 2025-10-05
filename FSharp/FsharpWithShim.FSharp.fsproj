@@ -8,7 +8,6 @@
   <ItemGroup>
     <Compile Include="Foo.fs" />
     <Compile Include="TetrisTypes.fs" />
-    <Compile Include="TetrisBoard.fs" />
     <Compile Include="TetrisUiBoard.fs" />
     <Compile Include="TetrisHud.fs" />
     <Compile Include="Tetris.fs" />

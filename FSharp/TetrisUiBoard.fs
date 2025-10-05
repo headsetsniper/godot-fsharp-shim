@@ -4,6 +4,49 @@ open System
 open Godot
 open Headsetsniper.Godot.FSharp.Annotations
 
+[<AutoOpen>]
+module internal TetrisUiPipeline =
+    type UiState =
+        { Shape: bool[,]
+          X: int
+          Y: int
+          MoveX: int
+          Rotate: bool
+          HardDrop: bool }
+
+    let applyMove (canPlace: bool[,] -> int -> int -> bool) (s: UiState) =
+        if s.MoveX = 0 then
+            s
+        else
+            let nx = s.X + s.MoveX
+
+            if canPlace s.Shape nx s.Y then
+                { s with X = nx; MoveX = 0 }
+            else
+                { s with MoveX = 0 }
+
+    let applyRotate (canPlace: bool[,] -> int -> int -> bool) (s: UiState) =
+        if not s.Rotate then
+            s
+        else
+            let r = Tetromino.rotateCW s.Shape
+
+            if canPlace r s.X s.Y then
+                { s with Shape = r; Rotate = false }
+            else
+                { s with Rotate = false }
+
+    let applyHardDrop (canPlace: bool[,] -> int -> int -> bool) (s: UiState) =
+        if not s.HardDrop then
+            s
+        else
+            let mutable y = s.Y
+
+            while canPlace s.Shape s.X (y + 1) do
+                y <- y + 1
+
+            { s with Y = y; HardDrop = false }
+
 [<GodotScript(ClassName = "TetrisUiBoard", BaseTypeName = "Godot.Control", Tool = true)>]
 type TetrisUiBoardImpl() =
     let mutable node: Control = Unchecked.defaultof<_>
@@ -59,8 +102,7 @@ type TetrisUiBoardImpl() =
                 else
                     existing
 
-            // Ensure the grid container fills the Board area
-            gridContainer.SetAnchorsPreset(Control.LayoutPreset.FullRect)
+            gridContainer.SetAnchorsPreset Control.LayoutPreset.FullRect
             gridContainer.OffsetLeft <- 0f
             gridContainer.OffsetTop <- 0f
             gridContainer.OffsetRight <- 0f
@@ -97,6 +139,47 @@ type TetrisUiBoardImpl() =
 
                 gridReady <- true
 
+    member private this.SyncCellSizes() =
+        for y in 0 .. rows - 1 do
+            for x in 0 .. cols - 1 do
+                let c = cells[y, x]
+
+                if not (obj.ReferenceEquals(c, null)) then
+                    c.CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
+
+        match node.GetNodeOrNull<GridContainer>(new NodePath "Grid") with
+        | null -> ()
+        | gc -> gc.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
+
+    member private _.PaintBase() =
+        for y in 0 .. rows - 1 do
+            for x in 0 .. cols - 1 do
+                let filled = grid[y, x] <> CellFlags.Empty
+                let c = cells[y, x]
+
+                if not (obj.ReferenceEquals(c, null)) then
+                    c.Color <-
+                        if filled then
+                            Colors.LightSkyBlue
+                        else
+                            Color(0.25f, 0.25f, 0.25f, 0.25f)
+
+    member private _.PaintOverlay() =
+        let h = curShape.GetLength 0
+        let w = curShape.GetLength 1
+
+        for y in 0 .. h - 1 do
+            for x in 0 .. w - 1 do
+                if curShape[y, x] then
+                    let gx = curX + x
+                    let gy = curY + y
+
+                    if gx >= 0 && gx < cols && gy >= 0 && gy < rows then
+                        let c = cells[gy, gx]
+
+                        if not (obj.ReferenceEquals(c, null)) then
+                            c.Color <- Color(1.0f, 0.4f, 0.2f)
+
     member private this.DrawUi() =
         if obj.ReferenceEquals(node, null) then
             ()
@@ -110,47 +193,10 @@ type TetrisUiBoardImpl() =
                 if not printedDrawOnce then
                     printedDrawOnce <- true
                     debug "DrawUi() invoked"
-                // Ensure cell sizes reflect current CellSize
-                for y in 0 .. rows - 1 do
-                    for x in 0 .. cols - 1 do
-                        let c = cells[y, x]
 
-                        if not (obj.ReferenceEquals(c, null)) then
-                            c.CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
-                // Keep grid minimum in sync as well
-                if not (obj.ReferenceEquals(node, null)) then
-                    match node.GetNodeOrNull<GridContainer>(new NodePath "Grid") with
-                    | null -> ()
-                    | gc -> gc.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
-
-                // Base grid
-                for y in 0 .. rows - 1 do
-                    for x in 0 .. cols - 1 do
-                        let filled = grid[y, x] <> CellFlags.Empty
-                        let c = cells[y, x]
-
-                        if not (obj.ReferenceEquals(c, null)) then
-                            c.Color <-
-                                if filled then
-                                    Colors.LightSkyBlue
-                                else
-                                    Color(0.25f, 0.25f, 0.25f, 0.25f)
-
-                // Current falling piece overlay
-                let h = curShape.GetLength 0
-                let w = curShape.GetLength 1
-
-                for y in 0 .. h - 1 do
-                    for x in 0 .. w - 1 do
-                        if curShape[y, x] then
-                            let gx = curX + x
-                            let gy = curY + y
-
-                            if gx >= 0 && gx < cols && gy >= 0 && gy < rows then
-                                let c = cells[gy, gx]
-
-                                if not (obj.ReferenceEquals(c, null)) then
-                                    c.Color <- Color(1.0f, 0.4f, 0.2f)
+                this.SyncCellSizes()
+                this.PaintBase()
+                this.PaintOverlay()
 
     member _.Clear() = grid <- Array2D.zeroCreate rows cols
 
@@ -268,27 +314,25 @@ type TetrisUiBoardImpl() =
                 printedProcessOnce <- true
                 debug "Process() (editor)"
 
-            if this.MoveX <> 0 then
-                let dx = this.MoveX
+            let canPlace shape x y = this.CanPlace(shape, x, y)
 
-                if this.CanPlace(curShape, curX + dx, curY) then
-                    curX <- curX + dx
+            let state: UiState =
+                { Shape = curShape
+                  X = curX
+                  Y = curY
+                  MoveX = this.MoveX
+                  Rotate = this.RotateRequested
+                  HardDrop = this.HardDrop }
 
-                this.MoveX <- 0
+            let updated =
+                state |> applyMove canPlace |> applyRotate canPlace |> applyHardDrop canPlace
 
-            if this.RotateRequested then
-                let rotated = Tetromino.rotateCW curShape
-
-                if this.CanPlace(rotated, curX, curY) then
-                    curShape <- rotated
-
-                this.RotateRequested <- false
-
-            if this.HardDrop then
-                while this.CanPlace(curShape, curX, curY + 1) do
-                    curY <- curY + 1
-
-                this.HardDrop <- false
+            curShape <- updated.Shape
+            curX <- updated.X
+            curY <- updated.Y
+            this.MoveX <- 0
+            this.RotateRequested <- false
+            this.HardDrop <- false
 
             this.DrawUi()
 

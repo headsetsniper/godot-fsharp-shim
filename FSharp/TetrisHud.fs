@@ -17,10 +17,19 @@ type TetrisHudImpl() =
     member _.Ready() = ()
 
     member this.Process(_delta: double) =
-        try
-            let v = this.Board.Get(new StringName "Score")
+        let tryGetScore () =
+            try
+                let v = this.Board.Get(new StringName "Score")
 
-            if v.VariantType = Godot.Variant.Type.Int then
-                this.ScoreLabel.Text <- $"Score: {v.AsInt32()}"
-        with _ ->
-            ()
+                if v.VariantType = Godot.Variant.Type.Int then
+                    Some(v.AsInt32())
+                else
+                    None
+            with _ ->
+                None
+
+        let renderScore s = this.ScoreLabel.Text <- $"Score: {s}"
+
+        match tryGetScore () with
+        | Some s -> renderScore s
+        | None -> ()

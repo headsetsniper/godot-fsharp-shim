@@ -1,7 +1,5 @@
 namespace Game
 
-open System
-open System.Reflection
 open Godot
 open Headsetsniper.Godot.FSharp.Annotations
 
@@ -17,67 +15,29 @@ type TetrisImpl() =
     member val DropTimer: Timer = Unchecked.defaultof<_> with get, set
 
     member this.Ready() =
-        // Guard in case the node hasn't been wired by the shim (older package or misconfigured scene)
-        if not (obj.ReferenceEquals(this.DropTimer, null)) then
-            this.DropTimer.WaitTime <- 0.6
-            this.DropTimer.Autostart <- true
-            // Fallback connect for older shim packages that don't emit [AutoConnect]
-            if not (obj.ReferenceEquals(this.Board, null)) then
-                try
-                    let handler =
-                        Callable.From(fun () ->
-                            try
-                                let mi =
-                                    this.Board
-                                        .GetType()
-                                        .GetMethod("OnTimeout", BindingFlags.Instance ||| BindingFlags.Public)
-                                    |> Option.ofObj
-
-                                match mi with
-                                | Some m -> m.Invoke(this.Board, [||]) |> ignore
-                                | None -> ()
-                            with _ ->
-                                ())
-
-                    this.DropTimer.Connect("timeout", handler) |> ignore
-                with _ ->
-                    ()
-
-            this.DropTimer.Start()
+        this.DropTimer.WaitTime <- 0.6
+        this.DropTimer.Autostart <- true
+        this.DropTimer.Start()
 
     member _.Process(_delta: double) = ()
 
     member this.Input(ev: InputEvent) =
+        let setInt (name: string) (v: int) =
+            this.Board.Set(new StringName(name), Godot.Variant.op_Implicit v)
+
+        let setBool (name: string) (v: bool) =
+            this.Board.Set(new StringName(name), Godot.Variant.op_Implicit v)
+
         match ev with
         | :? InputEventKey as key when key.Pressed && not key.Echo ->
-            let setInt name (v: int) =
-                if not (obj.ReferenceEquals(this.Board, null)) then
-                    try
-                        match this.Board.GetType().GetProperty(name, BindingFlags.Instance ||| BindingFlags.Public) with
-                        | null -> ()
-                        | prop -> prop.SetValue(this.Board, box v)
-                    with _ ->
-                        ()
-
-            let setBool name (v: bool) =
-                if not (obj.ReferenceEquals(this.Board, null)) then
-                    try
-                        match this.Board.GetType().GetProperty(name, BindingFlags.Instance ||| BindingFlags.Public) with
-                        | null -> ()
-                        | prop -> prop.SetValue(this.Board, box v)
-                    with _ ->
-                        ()
-
             match key.Keycode with
-            | Key.Left -> setInt "MoveX" -1
-            | Key.Right -> setInt "MoveX" 1
+            | Key.Left
             | Key.A -> setInt "MoveX" -1
+            | Key.Right
             | Key.D -> setInt "MoveX" 1
-            | Key.Down -> () // timer handles regular drop
-            | Key.Up -> setBool "RotateRequested" true
+            | Key.Down -> ()
+            | Key.Up
             | Key.W -> setBool "RotateRequested" true
             | Key.Space -> setBool "HardDrop" true
             | _ -> ()
         | _ -> ()
-
-// No extra wiring node needed; Board autoconnects directly to Tetris via NodePath("..")
