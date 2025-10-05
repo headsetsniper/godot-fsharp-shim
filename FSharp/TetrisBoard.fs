@@ -4,7 +4,7 @@ open System
 open Godot
 open Headsetsniper.Godot.FSharp.Annotations
 
-[<GodotScript(ClassName = "TetrisBoard", BaseTypeName = "Godot.Node2D")>]
+[<GodotScript(ClassName = "TetrisBoard", BaseTypeName = "Godot.Node2D", Tool = true)>]
 type TetrisBoardImpl() =
     let mutable node: Node2D = Unchecked.defaultof<_>
     let cols, rows = 10, 20

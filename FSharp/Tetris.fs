@@ -7,13 +7,13 @@ open Headsetsniper.Godot.FSharp.Annotations
 
 [<GodotScript(ClassName = "Tetris", BaseTypeName = "Godot.Node2D", Icon = "res://icon.svg", Tool = false)>]
 type TetrisImpl() =
-    [<NodePath(Path = "Board")>]
-    member val Board: Node2D = Unchecked.defaultof<_> with get, set
+    [<NodePath(Path = "UIRoot/Board")>]
+    member val Board: Node = Unchecked.defaultof<_> with get, set
 
-    [<NodePath(Path = "HUD")>]
+    [<NodePath(Path = "UIRoot/HUD")>]
     member val Hud: Control = Unchecked.defaultof<_> with get, set
 
-    [<NodePath(Path = "DropTimer")>]
+    [<NodePath(Path = "UIRoot/DropTimer")>]
     member val DropTimer: Timer = Unchecked.defaultof<_> with get, set
 
     member this.Ready() =
@@ -31,9 +31,11 @@ type TetrisImpl() =
                                     this.Board
                                         .GetType()
                                         .GetMethod("OnTimeout", BindingFlags.Instance ||| BindingFlags.Public)
+                                    |> Option.ofObj
 
-                                if not (obj.ReferenceEquals(mi, null)) then
-                                    mi.Invoke(this.Board, [||]) |> ignore
+                                match mi with
+                                | Some m -> m.Invoke(this.Board, [||]) |> ignore
+                                | None -> ()
                             with _ ->
                                 ())
 
@@ -69,8 +71,11 @@ type TetrisImpl() =
             match key.Keycode with
             | Key.Left -> setInt "MoveX" -1
             | Key.Right -> setInt "MoveX" 1
+            | Key.A -> setInt "MoveX" -1
+            | Key.D -> setInt "MoveX" 1
             | Key.Down -> () // timer handles regular drop
             | Key.Up -> setBool "RotateRequested" true
+            | Key.W -> setBool "RotateRequested" true
             | Key.Space -> setBool "HardDrop" true
             | _ -> ()
         | _ -> ()

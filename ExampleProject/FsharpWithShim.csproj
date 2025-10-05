@@ -6,6 +6,8 @@
     <EnableDefaultItems>false</EnableDefaultItems>
   <!-- Local dev fallback: if CI doesn't pass ShimGenPackageVersion, use a floating version to get the latest 0.x.y -->
   <ShimGenPackageVersion Condition="'$(ShimGenPackageVersion)'==''">0.*</ShimGenPackageVersion>
+  <!-- Prefer local ShimGen targets during repo development when present -->
+  <UseLocalShimGen Condition="Exists('..\ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets')">true</UseLocalShimGen>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,13 +17,17 @@
     </ProjectReference>
   </ItemGroup>
 
-  <ItemGroup>
-  <PackageReference Include="Headsetsniper.Godot.FSharp.ShimGen" Version="$(ShimGenPackageVersion)">
+  <ItemGroup Condition="'$(UseLocalShimGen)'!='true'">
+    <PackageReference Include="Headsetsniper.Godot.FSharp.ShimGen" Version="$(ShimGenPackageVersion)">
       <!-- Prevent any assemblies/resources from flowing into compile/runtime/output -->
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>build;buildTransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
+
+  <!-- When developing inside this repo, import the local targets to use the latest generator behavior -->
+  <Import Project="..\ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets"
+          Condition="'$(UseLocalShimGen)'=='true'" />
 
   <ItemGroup>
     <Compile Include="Scenes\**\*.cs" />

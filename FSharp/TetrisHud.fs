@@ -13,7 +13,7 @@ type TetrisHudImpl() =
     member val StatusLabel: Label = Unchecked.defaultof<_> with get, set
 
     [<NodePath(Path = "../Board")>]
-    member val Board: Node2D = Unchecked.defaultof<_> with get, set
+    member val Board: Node = Unchecked.defaultof<_> with get, set
 
     member _.Ready() = ()
 
