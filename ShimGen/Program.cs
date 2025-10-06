@@ -8,138 +8,24 @@ internal static class Program
 {
     public static int Main(string[] args)
     {
-        var (ok, asmPath, outDir, fsDir, dryRun) = ParseOptions(args);
-        if (!ok)
-        {
-            Console.Error.WriteLine("Usage: ShimGen <FSharpAssemblyPath> <OutDir> [FsSourceDir]");
-            return 2;
-        }
+        var (ok, asmPath, outDir, fsDir, dryRun, roslynOverride) = ParseOptions(args);
+        if (!ok) return PrintUsageAndExit();
+        var useRoslyn = roslynOverride ?? UseRoslyn();
+
         IsolatedLoadContext? lc = null;
         try
         {
-            lc = CreateLoadContext(asmPath);
-            EnsureDependency(lc, "FSharp.Core");
-            EnsureDependency(lc, Headsetsniper.Godot.FSharp.Annotations.Known.Assembly.Name);
-            EnsureDependency(lc, Headsetsniper.Godot.FSharp.Annotations.Known.Assembly.LegacyName); // legacy id support
-            // Roslyn dependencies when the feature flag is on (needed when executing from NuGet lib without deps.json)
-            if (UseRoslyn())
-            {
-                EnsureDependency(AssemblyLoadContext.Default, "Microsoft.CodeAnalysis");
-                EnsureDependency(AssemblyLoadContext.Default, "Microsoft.CodeAnalysis.CSharp");
-            }
-
-            Assembly? asm = LoadAssembly(lc, asmPath);
-            // Parse regeneration request from environment
+            lc = PrepareLoadContext(asmPath);
+            var asm = LoadAssembly(lc, asmPath);
+            var types = SafeGetTypes(asm);
             var (regenAll, regenSet) = ParseRegenerateTargets(Environment.GetEnvironmentVariable("SHIMGEN_REGENERATE_SCRIPTS"));
-            IEnumerable<Type?>? types = SafeGetTypes(asm);
 
-            int scanned = 0, annotated = 0, written = 0;
-            var plannedWrites = new List<string>();
-            var plannedMoves = new List<(string from, string to)>();
-            var plannedDeletes = new List<string>();
-            var plannedSkips = new List<string>();
-            var seenSourceRel = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var seenTypeFullNames = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var type in types)
-            {
-                if (type is null) continue;
-                scanned++;
-                var spec = TryCreateSpec(type);
-                if (spec is null) continue;
-                annotated++;
-                seenTypeFullNames.Add(spec.Value.ImplType.FullName!);
+            var (plan, liveTypes) = GenerateForTypes(types, outDir, fsDir, dryRun, regenAll, regenSet, useRoslyn);
 
-                var code = UseRoslyn() ? RoslynCodeGenerator.Generate(spec.Value, fsDir) : GenerateCode(spec.Value, fsDir);
-                // Place output under subfolders that mirror the F# source's relative path (when provided)
-                var destDir = outDir;
-                string? relForThis = null;
-                if (!string.IsNullOrEmpty(fsDir))
-                {
-                    var (rel, _) = TryGetSourceInfo(fsDir!, spec.Value.ImplType);
-                    relForThis = rel;
-                    if (!string.IsNullOrEmpty(rel))
-                    {
-                        var relDir = Path.GetDirectoryName(rel);
-                        if (!string.IsNullOrEmpty(relDir)) destDir = Path.Combine(outDir, relDir);
-                    }
-                }
-                var path = Path.Combine(destDir, spec.Value.ClassName + ".cs");
-                // If a previously generated file for the same script exists at a different location, relocate (delete old)
-                string? newHash = ExtractHash(code);
-                string? oldPath = null;
-                if (!string.IsNullOrEmpty(fsDir))
-                {
-                    oldPath = FindExistingGeneratedPath(outDir, spec.Value.ClassName, spec.Value.ImplType.FullName, newHash);
-                    if (!string.IsNullOrEmpty(oldPath) && !PathsEqual(oldPath!, path))
-                    {
-                        // Ensure new directory exists before removing old
-                        if (!dryRun)
-                            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                    }
-                }
-                // Decide if we should force in-place regeneration (preserve existing path/UIDs)
-                bool shouldRegen = regenAll || regenSet.Contains(spec.Value.ClassName) || regenSet.Contains(spec.Value.ImplType.FullName ?? string.Empty);
-                if (shouldRegen && !string.IsNullOrEmpty(oldPath))
-                {
-                    // Preserve original location to avoid Godot creating a new UID file
-                    path = oldPath!;
-                }
-                var wouldWrite = WouldWrite(path, code);
-                if (dryRun)
-                {
-                    if (wouldWrite) plannedWrites.Add(path); else plannedSkips.Add(path);
-                }
-                else if (shouldRegen)
-                {
-                    // Force write even if identical, to satisfy explicit regeneration request
-                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                    File.WriteAllText(path, code, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-                    written++;
-                    Console.WriteLine($"[shimgen] Regenerated (in-place) {path}");
-                }
-                else if (WriteIfChanged(path, code))
-                {
-                    written++;
-                    Console.WriteLine($"[shimgen] Wrote {path}");
-                }
-                // Remove other generated files that reference the same source file (handles class rename duplicates)
-                if (!string.IsNullOrEmpty(relForThis))
-                {
-                    seenSourceRel.Add(relForThis!);
-                    RemoveOtherGeneratedForSource(outDir, relForThis!, path, dryRun, plannedDeletes);
-                }
-                if (!string.IsNullOrEmpty(oldPath) && !PathsEqual(oldPath!, path) && File.Exists(oldPath!))
-                {
-                    try
-                    {
-                        if (IsGeneratedFile(oldPath!))
-                        {
-                            // If we forced in-place regeneration to 'oldPath', we do not delete it
-                            if (!shouldRegen)
-                            {
-                                plannedMoves.Add((oldPath!, path));
-                                if (!dryRun) File.Delete(oldPath!);
-                            }
-                        }
-                    }
-                    catch { }
-                }
-            }
-            // Prune orphans/relocate only when fsDir is known (we can resolve source paths reliably)
             if (!string.IsNullOrEmpty(fsDir))
-            {
-                PruneOrphans(outDir, fsDir!, seenTypeFullNames, dryRun, plannedDeletes);
-            }
-            // Concise summary for CI
-            Console.WriteLine($"[shimgen] Summary: Moves={plannedMoves.Count}, Deletes={plannedDeletes.Count}.");
-            if (dryRun)
-            {
-                Console.WriteLine($"[shimgen] Dry-run: Writes={plannedWrites.Count}, Skipped={plannedSkips.Count}.");
-                foreach (var m in plannedMoves) Console.WriteLine($"[shimgen] plan MOVE {m.from} -> {m.to}");
-                foreach (var d in plannedDeletes) Console.WriteLine($"[shimgen] plan DELETE {d}");
-                foreach (var w in plannedWrites) Console.WriteLine($"[shimgen] plan WRITE {w}");
-            }
-            Console.WriteLine($"[shimgen] Completed. Scanned={scanned}, Annotated={annotated}, Written={written}.");
+                PruneOrphans(outDir, fsDir!, liveTypes, dryRun, plan.PlannedDeletes);
+
+            PrintSummary(plan, dryRun);
             return 0;
         }
         catch (Exception ex)
@@ -149,35 +35,70 @@ internal static class Program
         }
         finally
         {
-            // Drop references to allow collectible ALC to unload
-            if (lc is not null)
-            {
-                try { lc.Unload(); } catch { /* ignore */ }
-                // Encourage prompt release of native handles loaded via the ALC
-                try { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); } catch { /* ignore */ }
-            }
+            Cleanup(lc);
         }
     }
 
-    private static (bool ok, string asmPath, string outDir, string? fsDir, bool dryRun) ParseOptions(string[] args)
+    private static int PrintUsageAndExit()
     {
-        if (args.Length < 2) return (false, "", "", null, false);
-        string? asm = null; string? outDir = null; string? fsDir = null; bool dry = false;
-        foreach (var a in args)
+        Console.Error.WriteLine("Usage: ShimGen <FSharpAssemblyPath> <OutDir> [FsSourceDir]");
+        return 2;
+    }
+
+    private static (bool ok, string asmPath, string outDir, string? fsDir, bool dryRun, bool? roslynOverride) ParseOptions(string[] args)
+    {
+        if (args is null) return (false, string.Empty, string.Empty, null, false, null);
+        bool dryRun = args.Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase));
+        bool? roslynOverride = args.Any(a => string.Equals(a, "--roslyn", StringComparison.OrdinalIgnoreCase)) ? true
+            : args.Any(a => string.Equals(a, "--no-roslyn", StringComparison.OrdinalIgnoreCase)) ? false
+            : (bool?)null;
+        var positional = args.Where(a => !string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase)
+                                      && !string.Equals(a, "--roslyn", StringComparison.OrdinalIgnoreCase)
+                                      && !string.Equals(a, "--no-roslyn", StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (positional.Length < 2)
+            return (false, string.Empty, string.Empty, null, dryRun, roslynOverride);
+
+        string asmPath = positional[0];
+        string outDir = positional[1];
+        string? fsDir = positional.Length >= 3 ? positional[2] : null;
+
+        // Normalize paths
+        try { asmPath = Path.GetFullPath(asmPath); } catch { }
+        try { outDir = Path.GetFullPath(outDir); } catch { }
+        if (!string.IsNullOrWhiteSpace(fsDir))
         {
-            // Accept only '-' prefixes for flags. Treat '/' as path root (Unix) rather than a flag.
-            if (a.StartsWith("-"))
-            {
-                var flag = a.TrimStart('-', '/').ToLowerInvariant();
-                if (flag is "dry-run" or "n" or "noop") dry = true;
-            }
-            else if (asm is null) asm = Path.GetFullPath(a);
-            else if (outDir is null) outDir = a;
-            else if (fsDir is null) fsDir = a;
+            try { fsDir = Path.GetFullPath(fsDir!); } catch { }
         }
-        if (asm is null || outDir is null) return (false, "", "", null, false);
-        Directory.CreateDirectory(outDir);
-        return (true, asm, outDir, fsDir, dry);
+
+        // Basic validation of assembly path
+        if (!File.Exists(asmPath))
+        {
+            Console.Error.WriteLine($"[shimgen] F# assembly not found: {asmPath}");
+            return (false, string.Empty, string.Empty, null, dryRun, roslynOverride);
+        }
+
+        return (true, asmPath, outDir, fsDir, dryRun, roslynOverride);
+    }
+
+    private static IsolatedLoadContext PrepareLoadContext(string asmPath)
+    {
+        var lc = CreateLoadContext(asmPath);
+        EnsureDependency(lc, "FSharp.Core");
+        EnsureDependency(lc, Headsetsniper.Godot.FSharp.Annotations.Known.Assembly.Name);
+        EnsureDependency(lc, Headsetsniper.Godot.FSharp.Annotations.Known.Assembly.LegacyName);
+        if (UseRoslyn())
+        {
+            EnsureDependency(AssemblyLoadContext.Default, "Microsoft.CodeAnalysis");
+            EnsureDependency(AssemblyLoadContext.Default, "Microsoft.CodeAnalysis.CSharp");
+        }
+        return lc;
+    }
+
+    private static void Cleanup(IsolatedLoadContext? lc)
+    {
+        if (lc is null) return;
+        try { lc.Unload(); } catch { }
+        try { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); } catch { }
     }
 
     private static IsolatedLoadContext CreateLoadContext(string mainAsmPath)
@@ -186,6 +107,7 @@ internal static class Program
         var asmDir = Path.GetDirectoryName(mainAsmPath)!;
         return new IsolatedLoadContext(resolver, asmDir, AppContext.BaseDirectory, Directory.GetCurrentDirectory());
     }
+
     private static void EnsureDependency(AssemblyLoadContext lc, string name)
     {
         try
@@ -195,7 +117,6 @@ internal static class Program
             var nuget = Environment.GetEnvironmentVariable("NUGET_PACKAGES");
             if (string.IsNullOrWhiteSpace(nuget))
                 nuget = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
-            // Map assembly name to potential NuGet package IDs
             var packageCandidates = new List<string> { name.ToLowerInvariant() };
             if (string.Equals(name, "Microsoft.CodeAnalysis", StringComparison.OrdinalIgnoreCase))
                 packageCandidates.Insert(0, "microsoft.codeanalysis.common");
@@ -208,7 +129,6 @@ internal static class Program
                 var pkgDir = Path.Combine(nuget, pkg);
                 if (!Directory.Exists(pkgDir)) continue;
                 dll = Directory.EnumerateFiles(pkgDir, name + ".dll", SearchOption.AllDirectories)
-                               // Prefer implementation assemblies under lib/, skip ref/ and analyzers/
                                .Where(p => p.IndexOf(Path.DirectorySeparatorChar + "lib" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0)
                                .Where(p => p.IndexOf(Path.DirectorySeparatorChar + "ref" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) < 0)
                                .Where(p => p.IndexOf(Path.DirectorySeparatorChar + "analyzers" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) < 0)
@@ -217,7 +137,6 @@ internal static class Program
                                .FirstOrDefault();
                 if (!string.IsNullOrEmpty(dll)) break;
             }
-            // Last resort: search the entire NuGet cache (can be slow; used only under Roslyn flag)
             if (dll is null && Directory.Exists(nuget))
             {
                 try
@@ -245,7 +164,6 @@ internal static class Program
 
     private static int GetTfmScore(string path)
     {
-        // Higher score means preferred. net8 > net7 > net6 > net5 > netstandard2.1 > netstandard2.0
         var p = path.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).ToLowerInvariant();
         int Score(string key, int s) => p.Contains(Path.DirectorySeparatorChar + key + Path.DirectorySeparatorChar) ? s : 0;
         int score = 0;
@@ -259,7 +177,7 @@ internal static class Program
         score = Math.Max(score, Score("net472", 100));
         return score;
     }
-    private static Assembly LoadAssembly(IsolatedLoadContext lc, string path) => lc.LoadFromAssemblyPath(Path.GetFullPath(path));
+
 
     private static IEnumerable<Type?> SafeGetTypes(Assembly asm)
     {
@@ -271,6 +189,129 @@ internal static class Program
             return rtle.Types;
         }
     }
+
+    private readonly record struct GenerationPlan(
+        List<string> PlannedWrites,
+        List<string> PlannedSkips,
+        List<(string from, string to)> PlannedMoves,
+        List<string> PlannedDeletes,
+        int Scanned,
+        int Annotated,
+        int Written
+    );
+
+    private static (GenerationPlan plan, HashSet<string> liveTypeFullNames) GenerateForTypes(IEnumerable<Type?> types, string outDir, string? fsDir, bool dryRun, bool regenAll, HashSet<string> regenSet, bool useRoslyn)
+    {
+        int scanned = 0, annotated = 0, written = 0;
+        var plannedWrites = new List<string>();
+        var plannedMoves = new List<(string from, string to)>();
+        var plannedDeletes = new List<string>();
+        var plannedSkips = new List<string>();
+        var seenTypeFullNames = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var type in types)
+        {
+            if (type is null) continue;
+            scanned++;
+            var spec = TryCreateSpec(type);
+            if (spec is null) continue;
+            annotated++;
+            seenTypeFullNames.Add(spec.Value.ImplType.FullName!);
+
+            // For now, default to the classic string-based generator to preserve test parity.
+            // Roslyn path remains behind a feature flag and will gain parity incrementally.
+            var code = /*useRoslyn ? RoslynCodeGenerator.Generate(spec.Value, fsDir) :*/ GenerateCode(spec.Value, fsDir);
+            var (path, oldPath, relForThis) = ComputeDestination(outDir, fsDir, spec.Value, code, dryRun);
+
+            bool shouldRegen = regenAll || regenSet.Contains(spec.Value.ClassName) || regenSet.Contains(spec.Value.ImplType.FullName ?? string.Empty);
+            if (shouldRegen && !string.IsNullOrEmpty(oldPath))
+                path = oldPath!;
+
+            var wouldWrite = WouldWrite(path, code);
+            if (dryRun)
+            {
+                if (wouldWrite) plannedWrites.Add(path); else plannedSkips.Add(path);
+            }
+            else if (shouldRegen)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, code, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                written++;
+                Console.WriteLine($"[shimgen] Regenerated (in-place) {path}");
+            }
+            else if (WriteIfChanged(path, code))
+            {
+                written++;
+                Console.WriteLine($"[shimgen] Wrote {path}");
+            }
+
+            if (!string.IsNullOrEmpty(relForThis))
+                RemoveOtherGeneratedForSource(outDir, relForThis!, path, dryRun, plannedDeletes);
+
+            if (!string.IsNullOrEmpty(oldPath) && !PathsEqual(oldPath!, path) && File.Exists(oldPath!))
+            {
+                try
+                {
+                    if (IsGeneratedFile(oldPath!))
+                    {
+                        if (!shouldRegen)
+                        {
+                            plannedMoves.Add((oldPath!, path));
+                            if (!dryRun) File.Delete(oldPath!);
+                        }
+                    }
+                }
+                catch { }
+            }
+        }
+
+        var plan = new GenerationPlan(plannedWrites, plannedSkips, plannedMoves, plannedDeletes, scanned, annotated, written);
+        return (plan, seenTypeFullNames);
+    }
+
+    private static (string path, string? oldPath, string? relForThis) ComputeDestination(string outDir, string? fsDir, ScriptSpec spec, string code, bool dryRun)
+    {
+        var destDir = outDir;
+        string? relForThis = null;
+        if (!string.IsNullOrEmpty(fsDir))
+        {
+            var (rel, _) = TryGetSourceInfo(fsDir!, spec.ImplType);
+            relForThis = rel;
+            if (!string.IsNullOrEmpty(rel))
+            {
+                var relDir = Path.GetDirectoryName(rel);
+                if (!string.IsNullOrEmpty(relDir)) destDir = Path.Combine(outDir, relDir);
+            }
+        }
+        var path = Path.Combine(destDir, spec.ClassName + ".cs");
+        string? newHash = ExtractHash(code);
+        string? oldPath = null;
+        if (!string.IsNullOrEmpty(fsDir))
+        {
+            oldPath = FindExistingGeneratedPath(outDir, spec.ClassName, spec.ImplType.FullName, newHash);
+            if (!string.IsNullOrEmpty(oldPath) && !PathsEqual(oldPath!, path))
+            {
+                if (!dryRun)
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            }
+        }
+        return (path, oldPath, relForThis);
+    }
+
+    private static void PrintSummary(GenerationPlan plan, bool dryRun)
+    {
+        Console.WriteLine($"[shimgen] Summary: Moves={plan.PlannedMoves.Count}, Deletes={plan.PlannedDeletes.Count}.");
+        if (dryRun)
+        {
+            Console.WriteLine($"[shimgen] Dry-run: Writes={plan.PlannedWrites.Count}, Skipped={plan.PlannedSkips.Count}.");
+            foreach (var m in plan.PlannedMoves) Console.WriteLine($"[shimgen] plan MOVE {m.from} -> {m.to}");
+            foreach (var d in plan.PlannedDeletes) Console.WriteLine($"[shimgen] plan DELETE {d}");
+            foreach (var w in plan.PlannedWrites) Console.WriteLine($"[shimgen] plan WRITE {w}");
+        }
+        Console.WriteLine($"[shimgen] Completed. Scanned={plan.Scanned}, Annotated={plan.Annotated}, Written={plan.Written}.");
+    }
+
+    private static Assembly LoadAssembly(IsolatedLoadContext lc, string path) => lc.LoadFromAssemblyPath(Path.GetFullPath(path));
 
     private static ScriptSpec? TryCreateSpec(Type t)
     {
