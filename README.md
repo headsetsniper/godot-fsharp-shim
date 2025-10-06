@@ -446,3 +446,14 @@ Priorities
   - Confirm the `Path` resolves (node exists). The shim uses `GetNodeOrNull` and skips if missing. Ensure your method parameters match the signal’s signature.
 - Tests can’t locate assemblies
   - If running tests outside the repo, ensure the stub Godot types are used only within the test project; no runtime Godot dependency is required for generation-time tests.
+
+## Roslyn generator (experimental)
+
+ShimGen includes an experimental Roslyn-based generator alongside the classic string-based one. The classic path remains the default to preserve deterministic outputs while Roslyn reaches full parity.
+
+- Force a mode when invoking the console runner:
+  - `--roslyn` to force Roslyn
+  - `--no-roslyn` to force classic
+- Or set the environment variable: `SHIMGEN_USE_ROSLYN=1` to prefer Roslyn. CLI switches override the env var.
+
+When using the MSBuild buildTransitive path, the Example project can resolve Roslyn’s assemblies (deps.json is staged). If you force regeneration with `SHIMGEN_REGENERATE_SCRIPTS`, close the Godot editor first to avoid Windows file locks under `Scripts/Generated`.

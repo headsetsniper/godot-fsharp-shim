@@ -218,9 +218,7 @@ internal static class Program
             annotated++;
             seenTypeFullNames.Add(spec.Value.ImplType.FullName!);
 
-            // For now, default to the classic string-based generator to preserve test parity.
-            // Roslyn path remains behind a feature flag and will gain parity incrementally.
-            var code = /*useRoslyn ? RoslynCodeGenerator.Generate(spec.Value, fsDir) :*/ GenerateCode(spec.Value, fsDir);
+            var code = useRoslyn ? RoslynCodeGenerator.Generate(spec.Value, fsDir) : GenerateCode(spec.Value, fsDir);
             var (path, oldPath, relForThis) = ComputeDestination(outDir, fsDir, spec.Value, code, dryRun);
 
             bool shouldRegen = regenAll || regenSet.Contains(spec.Value.ClassName) || regenSet.Contains(spec.Value.ImplType.FullName ?? string.Empty);

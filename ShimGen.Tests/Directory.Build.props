@@ -1,0 +1,6 @@
+<Project>
+  <!-- Default detailed console logger for dotnet test (escape ';' as %3B for MSBuild) -->
+  <PropertyGroup>
+    <VSTestLogger>console%3Bverbosity=detailed</VSTestLogger>
+  </PropertyGroup>
+</Project>
