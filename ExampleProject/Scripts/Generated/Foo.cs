@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.FooImpl
 // SourceFile: Foo.fs
-// SourceHash: 335bb606f2927044cdb64b5036c49aa592c24e3fb5294f21cca471f3108a8cca
+// SourceHash: c07c83fea31e3ce7f0f8404d5a0183ffd2693b0436e8f4ad1878d650526638ef
 // </auto-generated>
 
 using Godot;

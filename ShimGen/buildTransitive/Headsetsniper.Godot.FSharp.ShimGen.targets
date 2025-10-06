@@ -32,6 +32,10 @@
       <_ShimGenTool Condition="Exists('$(_ShimGenToolFromPkg)')">$(_ShimGenToolFromPkg)</_ShimGenTool>
       <_ShimGenTool Condition="'$(_ShimGenTool)' == '' and Exists('$(_ShimGenLocalBin)')">$(_ShimGenLocalBin)</_ShimGenTool>
       <_ShimGenTool Condition="'$(_ShimGenTool)' == '' and Exists('$(_ShimGenLibNextToTargets)')">$(_ShimGenLibNextToTargets)</_ShimGenTool>
+      <!-- If Roslyn mode is requested, prefer the local bin so we can stage deps.json and resolve packages -->
+      <_PreferLocalRoslyn>$([System.Environment]::GetEnvironmentVariable('SHIMGEN_USE_ROSLYN'))</_PreferLocalRoslyn>
+      <_PreferLocalRoslyn Condition="'$(_PreferLocalRoslyn)' != ''">true</_PreferLocalRoslyn>
+      <_ShimGenTool Condition="'$(_PreferLocalRoslyn)' == 'true' and Exists('$(_ShimGenLocalBin)')">$(_ShimGenLocalBin)</_ShimGenTool>
     </PropertyGroup>
     <Message Text="[shimgen] Tool candidates: pkg=$(_ShimGenToolFromPkg)[exists=$([System.IO.File]::Exists('$(_ShimGenToolFromPkg)'))] localBin=$(_ShimGenLocalBin)[exists=$([System.IO.File]::Exists('$(_ShimGenLocalBin)'))] libNext=$(_ShimGenLibNextToTargets)[exists=$([System.IO.File]::Exists('$(_ShimGenLibNextToTargets)'))]" Importance="$(_ShimGenLogImportance)" />
   </Target>
@@ -68,9 +72,14 @@
       <_ShimGenStageDir>$([System.IO.Path]::Combine('$(IntermediateOutputPath)', 'shimgen_tool_stage', '$(TargetFramework)'))</_ShimGenStageDir>
       <_ShimGenStageDll>$([System.IO.Path]::Combine('$(_ShimGenStageDir)', 'Headsetsniper.Godot.FSharp.ShimGen.dll'))</_ShimGenStageDll>
       <_ShimGenStageRuntimeConfig>$([System.IO.Path]::Combine('$(_ShimGenStageDir)', 'Headsetsniper.Godot.FSharp.ShimGen.runtimeconfig.json'))</_ShimGenStageRuntimeConfig>
+      <_ShimGenToolDir>$([System.IO.Path]::GetDirectoryName('$(_ShimGenTool)'))</_ShimGenToolDir>
+      <_ShimGenToolDeps>$([System.IO.Path]::Combine('$(_ShimGenToolDir)', 'Headsetsniper.Godot.FSharp.ShimGen.deps.json'))</_ShimGenToolDeps>
+      <_ShimGenStageDeps>$([System.IO.Path]::Combine('$(_ShimGenStageDir)', 'Headsetsniper.Godot.FSharp.ShimGen.deps.json'))</_ShimGenStageDeps>
     </PropertyGroup>
     <MakeDir Directories="$(_ShimGenStageDir)" Condition="!Exists('$(_ShimGenStageDir)')" />
     <Copy SourceFiles="$(_ShimGenTool)" DestinationFiles="$(_ShimGenStageDll)" SkipUnchangedFiles="true" />
+    <!-- If available (local build), copy deps.json so dotnet can resolve PackageReferences (Roslyn) from the global package cache -->
+    <Copy SourceFiles="$(_ShimGenToolDeps)" DestinationFiles="$(_ShimGenStageDeps)" SkipUnchangedFiles="true" Condition="Exists('$(_ShimGenToolDeps)')" />
     <!-- Co-locate the Annotations DLL if we can find it in ReferencePath -->
     <Copy SourceFiles="@(_AnnRef)" DestinationFolder="$(_ShimGenStageDir)" SkipUnchangedFiles="true" Condition="'@(_AnnRef)' != ''" />
     <!-- Ensure a minimal runtimeconfig is present so 'dotnet' treats the staged DLL as framework-dependent -->

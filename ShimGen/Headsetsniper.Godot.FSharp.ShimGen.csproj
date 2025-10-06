@@ -24,6 +24,9 @@
     <ProjectReference Include="..\Annotations\Headsetsniper.Godot.FSharp.Annotations.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.10.0" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
     <None Include="buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets" Pack="true" PackagePath="buildTransitive/" />
   </ItemGroup>

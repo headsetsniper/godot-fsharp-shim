@@ -21,6 +21,12 @@ internal static class Program
             EnsureDependency(lc, "FSharp.Core");
             EnsureDependency(lc, Headsetsniper.Godot.FSharp.Annotations.Known.Assembly.Name);
             EnsureDependency(lc, Headsetsniper.Godot.FSharp.Annotations.Known.Assembly.LegacyName); // legacy id support
+            // Roslyn dependencies when the feature flag is on (needed when executing from NuGet lib without deps.json)
+            if (UseRoslyn())
+            {
+                EnsureDependency(AssemblyLoadContext.Default, "Microsoft.CodeAnalysis");
+                EnsureDependency(AssemblyLoadContext.Default, "Microsoft.CodeAnalysis.CSharp");
+            }
 
             Assembly? asm = LoadAssembly(lc, asmPath);
             // Parse regeneration request from environment
@@ -43,7 +49,7 @@ internal static class Program
                 annotated++;
                 seenTypeFullNames.Add(spec.Value.ImplType.FullName!);
 
-                var code = GenerateCode(spec.Value, fsDir);
+                var code = UseRoslyn() ? RoslynCodeGenerator.Generate(spec.Value, fsDir) : GenerateCode(spec.Value, fsDir);
                 // Place output under subfolders that mirror the F# source's relative path (when provided)
                 var destDir = outDir;
                 string? relForThis = null;
@@ -189,13 +195,69 @@ internal static class Program
             var nuget = Environment.GetEnvironmentVariable("NUGET_PACKAGES");
             if (string.IsNullOrWhiteSpace(nuget))
                 nuget = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
-            var pkgDir = Path.Combine(nuget, name.ToLowerInvariant());
-            if (!Directory.Exists(pkgDir)) return;
-            var dll = Directory.EnumerateFiles(pkgDir, name + ".dll", SearchOption.AllDirectories)
-                               .OrderByDescending(p => p).FirstOrDefault();
-            if (dll != null) ((IsolatedLoadContext)lc).LoadFromAssemblyPath(dll);
+            // Map assembly name to potential NuGet package IDs
+            var packageCandidates = new List<string> { name.ToLowerInvariant() };
+            if (string.Equals(name, "Microsoft.CodeAnalysis", StringComparison.OrdinalIgnoreCase))
+                packageCandidates.Insert(0, "microsoft.codeanalysis.common");
+            else if (string.Equals(name, "Microsoft.CodeAnalysis.CSharp", StringComparison.OrdinalIgnoreCase))
+                packageCandidates.Insert(0, "microsoft.codeanalysis.csharp");
+
+            string? dll = null;
+            foreach (var pkg in packageCandidates.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var pkgDir = Path.Combine(nuget, pkg);
+                if (!Directory.Exists(pkgDir)) continue;
+                dll = Directory.EnumerateFiles(pkgDir, name + ".dll", SearchOption.AllDirectories)
+                               // Prefer implementation assemblies under lib/, skip ref/ and analyzers/
+                               .Where(p => p.IndexOf(Path.DirectorySeparatorChar + "lib" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0)
+                               .Where(p => p.IndexOf(Path.DirectorySeparatorChar + "ref" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) < 0)
+                               .Where(p => p.IndexOf(Path.DirectorySeparatorChar + "analyzers" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) < 0)
+                               .OrderByDescending(GetTfmScore)
+                               .ThenByDescending(p => p)
+                               .FirstOrDefault();
+                if (!string.IsNullOrEmpty(dll)) break;
+            }
+            // Last resort: search the entire NuGet cache (can be slow; used only under Roslyn flag)
+            if (dll is null && Directory.Exists(nuget))
+            {
+                try
+                {
+                    dll = Directory.EnumerateFiles(nuget, name + ".dll", SearchOption.AllDirectories)
+                                    .OrderByDescending(p => p)
+                                    .FirstOrDefault();
+                }
+                catch { }
+            }
+            if (dll != null)
+            {
+                try
+                {
+                    if (lc is IsolatedLoadContext ilc)
+                        ilc.LoadFromAssemblyPath(dll);
+                    else
+                        Assembly.LoadFrom(dll);
+                }
+                catch { }
+            }
         }
         catch { }
+    }
+
+    private static int GetTfmScore(string path)
+    {
+        // Higher score means preferred. net8 > net7 > net6 > net5 > netstandard2.1 > netstandard2.0
+        var p = path.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).ToLowerInvariant();
+        int Score(string key, int s) => p.Contains(Path.DirectorySeparatorChar + key + Path.DirectorySeparatorChar) ? s : 0;
+        int score = 0;
+        score = Math.Max(score, Score("net8.0", 600));
+        score = Math.Max(score, Score("net7.0", 500));
+        score = Math.Max(score, Score("net6.0", 400));
+        score = Math.Max(score, Score("net5.0", 350));
+        score = Math.Max(score, Score("netcoreapp3.1", 300));
+        score = Math.Max(score, Score("netstandard2.1", 250));
+        score = Math.Max(score, Score("netstandard2.0", 200));
+        score = Math.Max(score, Score("net472", 100));
+        return score;
     }
     private static Assembly LoadAssembly(IsolatedLoadContext lc, string path) => lc.LoadFromAssemblyPath(Path.GetFullPath(path));
 
@@ -784,6 +846,18 @@ internal static class Program
         if (string.IsNullOrEmpty(value))
             return string.Empty;
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    }
+
+    private static bool UseRoslyn()
+    {
+        try
+        {
+            var v = Environment.GetEnvironmentVariable("SHIMGEN_USE_ROSLYN");
+            if (string.IsNullOrWhiteSpace(v)) return false;
+            v = v.Trim();
+            return v == "1" || v.Equals("true", StringComparison.OrdinalIgnoreCase) || v.Equals("yes", StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
     }
 
     private static string GetGeneratorVersionMajorMinorPatch()
