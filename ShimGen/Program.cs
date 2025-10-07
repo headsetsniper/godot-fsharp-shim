@@ -84,8 +84,8 @@ internal static class Program
     {
         var lc = CreateLoadContext(asmPath);
         EnsureDependency(lc, "FSharp.Core");
-        EnsureDependency(lc, Headsetsniper.Godot.FSharp.Annotations.Known.Assembly.Name);
-        EnsureDependency(lc, Headsetsniper.Godot.FSharp.Annotations.Known.Assembly.LegacyName);
+        EnsureDependency(lc, Annotations.Known.Assembly.Name);
+        EnsureDependency(lc, Annotations.Known.Assembly.LegacyName);
         if (UseRoslyn())
         {
             EnsureDependency(AssemblyLoadContext.Default, "Microsoft.CodeAnalysis");
@@ -314,7 +314,7 @@ internal static class Program
     private static ScriptSpec? TryCreateSpec(Type t)
     {
         var attr = t.GetCustomAttributesData()
-             .FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.GodotScriptAttribute);
+             .FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.GodotScriptAttribute);
         if (attr is null) return null;
 
         string? classNameArg = null;
@@ -335,7 +335,7 @@ internal static class Program
         // Fallback: construct attribute instance and read properties (helps when compilers omit NamedArguments metadata)
         try
         {
-            var attrInstance = t.GetCustomAttributes(false).FirstOrDefault(a => a.GetType().FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.GodotScriptAttribute);
+            var attrInstance = t.GetCustomAttributes(false).FirstOrDefault(a => a.GetType().FullName == Annotations.Known.Types.GodotScriptAttribute);
             if (attrInstance is not null)
             {
                 string? ReadString(string name)
@@ -429,9 +429,9 @@ internal static class Program
         // Discover NodePath members (properties/fields) annotated with NodePathAttribute and preload targets
         var nodePathMembers = new List<NodePathMember>();
         var preloadMembers = new List<PreloadMember>();
-        var npAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.NodePathAttribute;
-        var optNpAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.OptionalNodePathAttribute;
-        var preloadAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.PreloadAttribute;
+        var npAttrFull = Annotations.Known.Types.NodePathAttribute;
+        var optNpAttrFull = Annotations.Known.Types.OptionalNodePathAttribute;
+        var preloadAttrFull = Annotations.Known.Types.PreloadAttribute;
         var addedNodePathNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (var p in t.GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
         {
@@ -488,7 +488,7 @@ internal static class Program
                 foreach (var na2 in pl.NamedArguments)
                 {
                     if (na2.MemberName == "Path") path = na2.TypedValue.Value as string ?? string.Empty;
-                    else if (na2.MemberName == nameof(Headsetsniper.Godot.FSharp.Annotations.PreloadAttribute.Required) && na2.TypedValue.Value is bool rb)
+                    else if (na2.MemberName == nameof(Annotations.PreloadAttribute.Required) && na2.TypedValue.Value is bool rb)
                         preloadRequired = rb;
                 }
                 if (string.IsNullOrEmpty(path) && pl.ConstructorArguments.Count > 0)
@@ -513,7 +513,7 @@ internal static class Program
 
         // Discover [AutoConnect(Path, Signal)] on public methods
         var autoConnects = new List<AutoConnectSpec>();
-        var acAttrFull = Headsetsniper.Godot.FSharp.Annotations.Known.Types.AutoConnectAttribute;
+        var acAttrFull = Annotations.Known.Types.AutoConnectAttribute;
         foreach (var m in t.GetMethods(BindingFlags.Instance | BindingFlags.Public))
         {
             foreach (var ad in m.GetCustomAttributesData())
@@ -657,13 +657,13 @@ internal static class Program
             // Prepend grouping/tooltip attributes if present on the impl property
             void EmitPreAttributes()
             {
-                var cat = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportCategoryAttribute);
+                var cat = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportCategoryAttribute);
                 if (cat is not null)
                 {
                     var name = cat.ConstructorArguments.Count > 0 ? (cat.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
                     sb.AppendLine($"    [ExportCategory(\"{name}\")] ");
                 }
-                var sub = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportSubgroupAttribute);
+                var sub = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportSubgroupAttribute);
                 if (sub is not null)
                 {
                     var name = sub.ConstructorArguments.Count > 0 ? (sub.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
@@ -671,7 +671,7 @@ internal static class Program
                     if (!string.IsNullOrEmpty(prefix)) sb.AppendLine($"    [ExportSubgroup(\"{name}\", Prefix=\"{prefix}\")] ");
                     else sb.AppendLine($"    [ExportSubgroup(\"{name}\")] ");
                 }
-                var tip = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportTooltipAttribute);
+                var tip = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportTooltipAttribute);
                 if (tip is not null)
                 {
                     var text = tip.ConstructorArguments.Count > 0 ? (tip.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
@@ -680,7 +680,7 @@ internal static class Program
             }
 
             // ExportRange support
-            var rangeAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportRangeAttribute);
+            var rangeAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportRangeAttribute);
             if (rangeAttr is not null)
             {
                 // Emit [Export(PropertyHint.Range, "min,max,step,slider")] when range is defined
@@ -697,7 +697,7 @@ internal static class Program
             }
 
             // File/Dir/Resource hints
-            var fileAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportFileAttribute);
+            var fileAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportFileAttribute);
             if (fileAttr is not null)
             {
                 var filter = fileAttr.ConstructorArguments.Count > 0 ? (fileAttr.ConstructorArguments[0].Value as string ?? string.Empty) : (fileAttr.NamedArguments.FirstOrDefault(na => na.MemberName == "Filter").TypedValue.Value as string ?? string.Empty);
@@ -705,14 +705,14 @@ internal static class Program
                 sb.AppendLine($"    [Export(PropertyHint.File, \"{filter}\")] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                 continue;
             }
-            var dirAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportDirAttribute);
+            var dirAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportDirAttribute);
             if (dirAttr is not null)
             {
                 EmitPreAttributes();
                 sb.AppendLine($"    [Export(PropertyHint.Dir)] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                 continue;
             }
-            var resAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportResourceTypeAttribute);
+            var resAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportResourceTypeAttribute);
             if (resAttr is not null)
             {
                 var typeName = resAttr.ConstructorArguments.Count > 0 ? (resAttr.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
@@ -724,14 +724,14 @@ internal static class Program
             // Multiline and color-no-alpha
             if (p.PropertyType == typeof(string))
             {
-                var multiAttr = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportMultilineAttribute);
+                var multiAttr = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == Annotations.Known.Types.ExportMultilineAttribute);
                 if (multiAttr)
                 {
                     EmitPreAttributes();
                     sb.AppendLine($"    [Export(PropertyHint.MultilineText)] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
                     continue;
                 }
-                var enumListAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportEnumListAttribute);
+                var enumListAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportEnumListAttribute);
                 if (enumListAttr is not null)
                 {
                     var values = enumListAttr.ConstructorArguments.Count > 0 ? (enumListAttr.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
@@ -740,9 +740,9 @@ internal static class Program
                     continue;
                 }
             }
-            if (p.PropertyType.FullName == ShimGen.KnownGodot.Color)
+            if (p.PropertyType.FullName == KnownGodot.Color)
             {
-                var cna = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportColorNoAlphaAttribute);
+                var cna = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == Annotations.Known.Types.ExportColorNoAlphaAttribute);
                 if (cna)
                 {
                     EmitPreAttributes();
@@ -752,7 +752,7 @@ internal static class Program
             }
 
             // Layer mask (2D render) example
-            var layerMask2D = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportLayerMask2DRenderAttribute);
+            var layerMask2D = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == Annotations.Known.Types.ExportLayerMask2DRenderAttribute);
             if (layerMask2D)
             {
                 EmitPreAttributes();

@@ -304,13 +304,13 @@ internal static class RoslynCodeGenerator
 
         void EmitPreAttributes()
         {
-            var cat = GetAttr(Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportCategoryAttribute);
+            var cat = GetAttr(Annotations.Known.Types.ExportCategoryAttribute);
             if (cat is not null)
             {
                 var name = cat.ConstructorArguments.Count > 0 ? (cat.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
                 Add($"[ExportCategory(\"{Escape(name)}\")] ");
             }
-            var sub = GetAttr(Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportSubgroupAttribute);
+            var sub = GetAttr(Annotations.Known.Types.ExportSubgroupAttribute);
             if (sub is not null)
             {
                 var name = sub.ConstructorArguments.Count > 0 ? (sub.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
@@ -318,7 +318,7 @@ internal static class RoslynCodeGenerator
                 if (!string.IsNullOrEmpty(prefix)) Add($"[ExportSubgroup(\"{Escape(name)}\", Prefix=\"{Escape(prefix!)}\")] ");
                 else Add($"[ExportSubgroup(\"{Escape(name)}\")] ");
             }
-            var tip = GetAttr(Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportTooltipAttribute);
+            var tip = GetAttr(Annotations.Known.Types.ExportTooltipAttribute);
             if (tip is not null)
             {
                 var text = tip.ConstructorArguments.Count > 0 ? (tip.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
@@ -337,7 +337,7 @@ internal static class RoslynCodeGenerator
 
         bool TryEmitRange()
         {
-            var rangeAttr = GetAttr(Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportRangeAttribute);
+            var rangeAttr = GetAttr(Annotations.Known.Types.ExportRangeAttribute);
             if (rangeAttr is null) return false;
             double min = 0, max = 0, step = 0; bool slider = false;
             var ctor = rangeAttr.ConstructorArguments;
@@ -351,7 +351,7 @@ internal static class RoslynCodeGenerator
 
         bool TryEmitFile()
         {
-            var fileAttr = GetAttr(Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportFileAttribute);
+            var fileAttr = GetAttr(Annotations.Known.Types.ExportFileAttribute);
             if (fileAttr is null) return false;
             var filter = fileAttr.ConstructorArguments.Count > 0
                 ? (fileAttr.ConstructorArguments[0].Value as string ?? string.Empty)
@@ -362,14 +362,14 @@ internal static class RoslynCodeGenerator
 
         bool TryEmitDir()
         {
-            if (!HasAttr(Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportDirAttribute)) return false;
+            if (!HasAttr(Annotations.Known.Types.ExportDirAttribute)) return false;
             EmitProperty("[Export(PropertyHint.Dir)] ");
             return true;
         }
 
         bool TryEmitResourceType()
         {
-            var resAttr = GetAttr(Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportResourceTypeAttribute);
+            var resAttr = GetAttr(Annotations.Known.Types.ExportResourceTypeAttribute);
             if (resAttr is null) return false;
             var typeName = resAttr.ConstructorArguments.Count > 0 ? (resAttr.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
             EmitProperty($"[Export(PropertyHint.ResourceType, \"{Escape(typeName)}\")] ");
@@ -379,12 +379,12 @@ internal static class RoslynCodeGenerator
         bool TryEmitStringHints()
         {
             if (p.PropertyType != typeof(string)) return false;
-            if (HasAttr(Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportMultilineAttribute))
+            if (HasAttr(Annotations.Known.Types.ExportMultilineAttribute))
             {
                 EmitProperty("[Export(PropertyHint.MultilineText)] ");
                 return true;
             }
-            var enumList = GetAttr(Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportEnumListAttribute);
+            var enumList = GetAttr(Annotations.Known.Types.ExportEnumListAttribute);
             if (enumList is not null)
             {
                 var values = enumList.ConstructorArguments.Count > 0 ? (enumList.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
@@ -397,14 +397,14 @@ internal static class RoslynCodeGenerator
         bool TryEmitColorNoAlpha()
         {
             if (p.PropertyType.FullName != KnownGodot.Color) return false;
-            if (!HasAttr(Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportColorNoAlphaAttribute)) return false;
+            if (!HasAttr(Annotations.Known.Types.ExportColorNoAlphaAttribute)) return false;
             EmitProperty("[Export(PropertyHint.ColorNoAlpha)] ");
             return true;
         }
 
         bool TryEmitLayerMask2D()
         {
-            if (!HasAttr(Headsetsniper.Godot.FSharp.Annotations.Known.Types.ExportLayerMask2DRenderAttribute)) return false;
+            if (!HasAttr(Annotations.Known.Types.ExportLayerMask2DRenderAttribute)) return false;
             EmitProperty("[Export(PropertyHint.Layers2DRender)] ");
             return true;
         }
