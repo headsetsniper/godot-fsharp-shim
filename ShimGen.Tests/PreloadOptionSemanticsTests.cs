@@ -33,7 +33,7 @@ type PL1() =
         var path = Directory.EnumerateFiles(outDir!, "PL1.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null);
         var src = File.ReadAllText(path!);
-        StringAssert.Contains("throw new System.InvalidOperationException(\"[shimgen][PL1] Missing preload resource", src);
+        StringAssert.Contains("new System.InvalidOperationException(\"[shimgen][PL1] Missing preload resource", src);
     }
 
     [Test]

@@ -6,6 +6,8 @@ using System.Reflection;
 using System.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using System.Text.RegularExpressions;
+using NUnit.Framework;
 
 public static class TestHelpers
 {
@@ -45,6 +47,18 @@ public static class TestHelpers
         }
         return path;
     }
+
+    public static void AssertContainsAttributeThenMember(string source, string attribute, string memberDeclaration)
+    {
+        var pattern = Regex.Escape(attribute) + "\\s+" + Regex.Escape(memberDeclaration);
+        if (!Regex.IsMatch(source, pattern))
+        {
+            Assert.Fail($"Expected to find attribute then member with optional whitespace/newlines: '{attribute} ... {memberDeclaration}'\nPattern: {pattern}\nSource snippet (first 400 chars):\n{source.Substring(0, Math.Min(400, source.Length))}");
+        }
+    }
+
+    public static void AssertContainsExportedMember(string source, string memberDeclaration)
+        => AssertContainsAttributeThenMember(source, "[Export]", memberDeclaration);
 
     public static MetadataReference RefFromAssembly(Assembly asm) => MetadataReference.CreateFromFile(asm.Location);
     public static MetadataReference RefFromPath(string path) => MetadataReference.CreateFromFile(path);

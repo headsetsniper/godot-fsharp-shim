@@ -61,8 +61,8 @@ type PathsImpl() =
         var path = Directory.EnumerateFiles(outDir!, "Paths.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null);
         var src = File.ReadAllText(path!);
-        StringAssert.Contains("[Export(PropertyHint.File, \"*.png,*.jpg\")] public System.String ImagePath", src);
-        StringAssert.Contains("[Export(PropertyHint.Dir)] public System.String Folder", src);
+        TestHelpers.AssertContainsAttributeThenMember(src, "[Export(PropertyHint.File, \"*.png,*.jpg\")]", "public System.String ImagePath");
+        TestHelpers.AssertContainsAttributeThenMember(src, "[Export(PropertyHint.Dir)]", "public System.String Folder");
     }
 
     [Test]
@@ -87,9 +87,9 @@ type HintsImpl() =
         var path = Directory.EnumerateFiles(outDir!, "Hints.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null);
         var src = File.ReadAllText(path!);
-        StringAssert.Contains("[Export(PropertyHint.ResourceType, \"Texture2D\")] public System.String TexturePath", src);
-        StringAssert.Contains("[Export(PropertyHint.Enum, \"A,B,C\")] public System.String Choice", src);
-        StringAssert.Contains("[Export(PropertyHint.MultilineText)] public System.String Description", src);
+        TestHelpers.AssertContainsAttributeThenMember(src, "[Export(PropertyHint.ResourceType, \"Texture2D\")]", "public System.String TexturePath");
+        TestHelpers.AssertContainsAttributeThenMember(src, "[Export(PropertyHint.Enum, \"A,B,C\")]", "public System.String Choice");
+        TestHelpers.AssertContainsAttributeThenMember(src, "[Export(PropertyHint.MultilineText)]", "public System.String Description");
     }
 
     [Test]
@@ -112,8 +112,8 @@ type VisualsImpl() =
         var path = Directory.EnumerateFiles(outDir!, "Visuals.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null);
         var src = File.ReadAllText(path!);
-        StringAssert.Contains("[Export(PropertyHint.ColorNoAlpha)] public Godot.Color Tint", src);
-        StringAssert.Contains("[Export(PropertyHint.Layers2DRender)] public System.Int32 Layers", src);
+        TestHelpers.AssertContainsAttributeThenMember(src, "[Export(PropertyHint.ColorNoAlpha)]", "public Godot.Color Tint");
+        TestHelpers.AssertContainsAttributeThenMember(src, "[Export(PropertyHint.Layers2DRender)]", "public System.Int32 Layers");
     }
 
     [Test]
@@ -137,8 +137,8 @@ type DocsImpl() =
         Assert.That(path, Is.Not.Null);
         var src = File.ReadAllText(path!);
         StringAssert.Contains("[ExportCategory(\"Movement\")]", src);
-        StringAssert.Contains("[ExportSubgroup(\"Speed\", Prefix=\"spd_\")]", src);
+        StringAssert.Contains("[ExportSubgroup(\"Speed\", Prefix = \"spd_\")]", src);
         StringAssert.Contains("[ExportTooltip(\"Units per second\")]", src);
-        StringAssert.Contains("[Export] public System.Single Speed", src);
+        TestHelpers.AssertContainsExportedMember(src, "public System.Single Speed");
     }
 }

@@ -52,7 +52,7 @@ type FooImpl() =
         var outDir = FsBatch.GetOutDir<ExportTypesAndDefaultsTests>();
         var fooPath = Directory.EnumerateFiles(outDir!, "Foo.cs", SearchOption.AllDirectories).First();
         var src = File.ReadAllText(fooPath);
-        StringAssert.Contains("[Export] public System.Int32 Speed", src);
+        TestHelpers.AssertContainsExportedMember(src, "public System.Int32 Speed");
 
         var stubsAsm = typeof(Godot.Node2D).Assembly;
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
@@ -83,9 +83,9 @@ type BazImpl() =
         var bazPath = Directory.EnumerateFiles(outDir!, "Baz.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(bazPath, Is.Not.Null, "Baz.cs not generated");
         var src = File.ReadAllText(bazPath!);
-        StringAssert.Contains("[Export] public Godot.Vector2 V2", src);
-        StringAssert.Contains("[Export] public Godot.Vector3 V3", src);
-        StringAssert.Contains("[Export] public Godot.Color C", src);
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.Vector2 V2");
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.Vector3 V3");
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.Color C");
     }
 
     [Test]
@@ -107,8 +107,8 @@ type BarImpl() =
         var barPath = Directory.EnumerateFiles(outDir!, "Bar.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(barPath, Is.Not.Null, "Bar.cs not generated");
         var src = File.ReadAllText(barPath!);
-        StringAssert.Contains("[Export] public System.Int32 A", src);
-        StringAssert.Contains("[Export] public System.String S", src);
+        TestHelpers.AssertContainsExportedMember(src, "public System.Int32 A");
+        TestHelpers.AssertContainsExportedMember(src, "public System.String S");
         StringAssert.DoesNotContain("object O", src);
     }
 
@@ -133,11 +133,11 @@ type PrimImpl() =
         var path = Directory.EnumerateFiles(outDir!, "Prim.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null, "Prim.cs not generated");
         var src = File.ReadAllText(path!);
-        StringAssert.Contains("[Export] public System.Int32 I", src);
-        StringAssert.Contains("[Export] public System.Single F", src);
-        StringAssert.Contains("[Export] public System.Double D", src);
-        StringAssert.Contains("[Export] public System.Boolean B", src);
-        StringAssert.Contains("[Export] public System.String S", src);
+        TestHelpers.AssertContainsExportedMember(src, "public System.Int32 I");
+        TestHelpers.AssertContainsExportedMember(src, "public System.Single F");
+        TestHelpers.AssertContainsExportedMember(src, "public System.Double D");
+        TestHelpers.AssertContainsExportedMember(src, "public System.Boolean B");
+        TestHelpers.AssertContainsExportedMember(src, "public System.String S");
     }
 
     [Test]
@@ -161,7 +161,7 @@ type EnumyImpl() =
         var path = Directory.EnumerateFiles(outDir!, "Enumy.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null, "Enumy.cs not generated");
         var src = File.ReadAllText(path!);
-        StringAssert.Contains("[Export] public ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum Mode", src);
+        TestHelpers.AssertContainsExportedMember(src, "public ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum Mode");
     }
 
     [Test]
@@ -187,9 +187,9 @@ type QuxImpl() =
         var quxPath = Directory.EnumerateFiles(outDir!, "Qux.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(quxPath, Is.Not.Null, "Qux.cs not generated");
         var src = File.ReadAllText(quxPath!);
-        StringAssert.Contains("[Export] public System.Int32[] Numbers", src);
-        StringAssert.Contains("[Export] public System.String[] Names", src);
-        StringAssert.Contains("[Export] public ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum Mode", src);
+        TestHelpers.AssertContainsExportedMember(src, "public System.Int32[] Numbers");
+        TestHelpers.AssertContainsExportedMember(src, "public System.String[] Names");
+        TestHelpers.AssertContainsExportedMember(src, "public ShimGen.Tests.ExportTypesAndDefaultsTests.TestEnum Mode");
     }
 
     [Test]
@@ -238,10 +238,10 @@ type BagImpl() =
         var path = Directory.EnumerateFiles(outDir!, "Bag.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null);
         var src = File.ReadAllText(path!);
-        StringAssert.Contains("[Export] public System.Collections.Generic.List<System.Int32> Numbers", src);
-        StringAssert.Contains("[Export] public System.Collections.Generic.Dictionary<System.String, System.Int32> Map", src);
-        StringAssert.Contains("[Export] public Godot.Texture2D Texture", src);
-        StringAssert.Contains("[Export] public Godot.PackedScene Scene", src);
+        TestHelpers.AssertContainsExportedMember(src, "public System.Collections.Generic.List<System.Int32> Numbers");
+        TestHelpers.AssertContainsExportedMember(src, "public System.Collections.Generic.Dictionary<System.String, System.Int32> Map");
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.Texture2D Texture");
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.PackedScene Scene");
     }
 
     [Test]
@@ -267,13 +267,13 @@ type TyperImpl() =
         var path = Directory.EnumerateFiles(outDir!, "Typer.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(path, Is.Not.Null);
         var src = File.ReadAllText(path!);
-        StringAssert.Contains("[Export] public Godot.Basis B", src);
-        StringAssert.Contains("[Export] public Godot.Rect2 R", src);
-        StringAssert.Contains("[Export] public Godot.Transform2D T2", src);
-        StringAssert.Contains("[Export] public Godot.Transform3D T3", src);
-        StringAssert.Contains("[Export] public Godot.NodePath P", src);
-        StringAssert.Contains("[Export] public Godot.StringName S", src);
-        StringAssert.Contains("[Export] public Godot.RID Id", src);
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.Basis B");
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.Rect2 R");
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.Transform2D T2");
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.Transform3D T3");
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.NodePath P");
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.StringName S");
+        TestHelpers.AssertContainsExportedMember(src, "public Godot.RID Id");
     }
 
     [Test]
