@@ -36,14 +36,13 @@ internal static class IntegrationTestUtil
         var targetAnn = Path.Combine(implDir, Path.GetFileName(annPath));
         if (!File.Exists(targetAnn)) File.Copy(annPath, targetAnn, overwrite: true);
         var args = fsSourceDir == null
-            ? $"\"{exe}\" \"{implPath}\" \"{outDir}\" --roslyn"
-            : $"\"{exe}\" \"{implPath}\" \"{outDir}\" \"{fsSourceDir}\" --roslyn";
+            ? $"\"{exe}\" \"{implPath}\" \"{outDir}\""
+            : $"\"{exe}\" \"{implPath}\" \"{outDir}\" \"{fsSourceDir}\"";
 
         // Ensure regeneration env var doesn't interfere with idempotence/relocation tests
         var env = new System.Collections.Generic.Dictionary<string, string?>
         {
             ["SHIMGEN_REGENERATE_SCRIPTS"] = null,
-            // Generator mode is forced via CLI flag (--roslyn) for determinism in tests
         };
         var res = ProcessUtil.Run("dotnet", args, env: env);
         Assert.That(res.ExitCode, Is.EqualTo(0), $"ShimGen failed. Stdout:\n{res.Stdout}\nStderr:\n{res.Stderr}");

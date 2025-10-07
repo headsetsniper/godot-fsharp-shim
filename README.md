@@ -122,11 +122,7 @@ dotnet build FsharpWithShim.csproj -v:n
 ## Development
 
 - Run tests: `dotnet test ShimGen.Tests`
-  - Tests run against the Roslyn-based generator by default. This is intentional to validate parity while keeping the classic path available.
-  - To force a specific generator during local runs:
-    - Roslyn: add `-- "--roslyn"` (already default in tests)
-    - Classic: add `-- "--no-roslyn"`
-    - Or set the environment variable `SHIMGEN_USE_ROSLYN=1` (Roslyn) / `0` (classic). CLI flags take precedence over the env var.
+  - The generator uses Roslyn exclusively now. No flags or env variables are required or supported to switch modes.
 - Pack packages:
 
   - `dotnet pack Annotations -c Release`
@@ -457,8 +453,6 @@ Priorities
 ShimGen includes a Roslyn-based generator alongside the classic string-based one. The classic path remains available, but the test suite exercises the Roslyn path by default.
 
 - Force a mode when invoking the console runner:
-  - `--roslyn` to force Roslyn
-  - `--no-roslyn` to force classic
-- Or set the environment variable: `SHIMGEN_USE_ROSLYN=1` to prefer Roslyn (or `0` for classic). CLI switches override the env var.
+  - The generator is Roslyn-only; no mode switches are needed.
 
 When using the MSBuild buildTransitive path, the Example project can resolve Roslyn’s assemblies (deps.json is staged). If you force regeneration with `SHIMGEN_REGENERATE_SCRIPTS`, close the Godot editor first to avoid Windows file locks under `Scripts/Generated`.

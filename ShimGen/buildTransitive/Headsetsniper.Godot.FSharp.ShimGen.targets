@@ -32,10 +32,8 @@
       <_ShimGenTool Condition="Exists('$(_ShimGenToolFromPkg)')">$(_ShimGenToolFromPkg)</_ShimGenTool>
       <_ShimGenTool Condition="'$(_ShimGenTool)' == '' and Exists('$(_ShimGenLocalBin)')">$(_ShimGenLocalBin)</_ShimGenTool>
       <_ShimGenTool Condition="'$(_ShimGenTool)' == '' and Exists('$(_ShimGenLibNextToTargets)')">$(_ShimGenLibNextToTargets)</_ShimGenTool>
-      <!-- If Roslyn mode is requested, prefer the local bin so we can stage deps.json and resolve packages -->
-      <_PreferLocalRoslyn>$([System.Environment]::GetEnvironmentVariable('SHIMGEN_USE_ROSLYN'))</_PreferLocalRoslyn>
-      <_PreferLocalRoslyn Condition="'$(_PreferLocalRoslyn)' != ''">true</_PreferLocalRoslyn>
-      <_ShimGenTool Condition="'$(_PreferLocalRoslyn)' == 'true' and Exists('$(_ShimGenLocalBin)')">$(_ShimGenLocalBin)</_ShimGenTool>
+  <!-- Prefer local bin if available during repo/dev builds; this helps stage deps.json for Roslyn tooling. -->
+  <_ShimGenTool Condition="'$(MSBuildThisFileDirectory)' != '' and Exists('$(_ShimGenLocalBin)')">$(_ShimGenLocalBin)</_ShimGenTool>
     </PropertyGroup>
     <Message Text="[shimgen] Tool candidates: pkg=$(_ShimGenToolFromPkg)[exists=$([System.IO.File]::Exists('$(_ShimGenToolFromPkg)'))] localBin=$(_ShimGenLocalBin)[exists=$([System.IO.File]::Exists('$(_ShimGenLocalBin)'))] libNext=$(_ShimGenLibNextToTargets)[exists=$([System.IO.File]::Exists('$(_ShimGenLibNextToTargets)'))]" Importance="$(_ShimGenLogImportance)" />
   </Target>

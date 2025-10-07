@@ -8,9 +8,9 @@ internal static class Program
 {
     public static int Main(string[] args)
     {
-        var (ok, asmPath, outDir, fsDir, dryRun, roslynOverride) = ParseOptions(args);
+        var (ok, asmPath, outDir, fsDir, dryRun) = ParseOptions(args);
         if (!ok) return PrintUsageAndExit();
-        var useRoslyn = roslynOverride ?? UseRoslyn();
+        // Roslyn generator is the only path now.
 
         IsolatedLoadContext? lc = null;
         try
@@ -20,7 +20,7 @@ internal static class Program
             var types = SafeGetTypes(asm);
             var (regenAll, regenSet) = ParseRegenerateTargets(Environment.GetEnvironmentVariable("SHIMGEN_REGENERATE_SCRIPTS"));
 
-            var (plan, liveTypes) = GenerateForTypes(types, outDir, fsDir, dryRun, regenAll, regenSet, useRoslyn);
+            var (plan, liveTypes) = GenerateForTypes(types, outDir, fsDir, dryRun, regenAll, regenSet);
 
             if (!string.IsNullOrEmpty(fsDir))
                 PruneOrphans(outDir, fsDir!, liveTypes, dryRun, plan.PlannedDeletes);
@@ -45,18 +45,13 @@ internal static class Program
         return 2;
     }
 
-    private static (bool ok, string asmPath, string outDir, string? fsDir, bool dryRun, bool? roslynOverride) ParseOptions(string[] args)
+    private static (bool ok, string asmPath, string outDir, string? fsDir, bool dryRun) ParseOptions(string[] args)
     {
-        if (args is null) return (false, string.Empty, string.Empty, null, false, null);
+        if (args is null) return (false, string.Empty, string.Empty, null, false);
         bool dryRun = args.Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase));
-        bool? roslynOverride = args.Any(a => string.Equals(a, "--roslyn", StringComparison.OrdinalIgnoreCase)) ? true
-            : args.Any(a => string.Equals(a, "--no-roslyn", StringComparison.OrdinalIgnoreCase)) ? false
-            : (bool?)null;
-        var positional = args.Where(a => !string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase)
-                                      && !string.Equals(a, "--roslyn", StringComparison.OrdinalIgnoreCase)
-                                      && !string.Equals(a, "--no-roslyn", StringComparison.OrdinalIgnoreCase)).ToArray();
+        var positional = args.Where(a => !string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase)).ToArray();
         if (positional.Length < 2)
-            return (false, string.Empty, string.Empty, null, dryRun, roslynOverride);
+            return (false, string.Empty, string.Empty, null, dryRun);
 
         string asmPath = positional[0];
         string outDir = positional[1];
@@ -74,10 +69,10 @@ internal static class Program
         if (!File.Exists(asmPath))
         {
             Console.Error.WriteLine($"[shimgen] F# assembly not found: {asmPath}");
-            return (false, string.Empty, string.Empty, null, dryRun, roslynOverride);
+            return (false, string.Empty, string.Empty, null, dryRun);
         }
 
-        return (true, asmPath, outDir, fsDir, dryRun, roslynOverride);
+        return (true, asmPath, outDir, fsDir, dryRun);
     }
 
     private static IsolatedLoadContext PrepareLoadContext(string asmPath)
@@ -86,11 +81,9 @@ internal static class Program
         EnsureDependency(lc, "FSharp.Core");
         EnsureDependency(lc, Annotations.Known.Assembly.Name);
         EnsureDependency(lc, Annotations.Known.Assembly.LegacyName);
-        if (UseRoslyn())
-        {
-            EnsureDependency(AssemblyLoadContext.Default, "Microsoft.CodeAnalysis");
-            EnsureDependency(AssemblyLoadContext.Default, "Microsoft.CodeAnalysis.CSharp");
-        }
+        // Roslyn assemblies are required for generation
+        EnsureDependency(AssemblyLoadContext.Default, "Microsoft.CodeAnalysis");
+        EnsureDependency(AssemblyLoadContext.Default, "Microsoft.CodeAnalysis.CSharp");
         return lc;
     }
 
@@ -200,7 +193,7 @@ internal static class Program
         int Written
     );
 
-    private static (GenerationPlan plan, HashSet<string> liveTypeFullNames) GenerateForTypes(IEnumerable<Type?> types, string outDir, string? fsDir, bool dryRun, bool regenAll, HashSet<string> regenSet, bool useRoslyn)
+    private static (GenerationPlan plan, HashSet<string> liveTypeFullNames) GenerateForTypes(IEnumerable<Type?> types, string outDir, string? fsDir, bool dryRun, bool regenAll, HashSet<string> regenSet)
     {
         int scanned = 0, annotated = 0, written = 0;
         var plannedWrites = new List<string>();
@@ -218,7 +211,7 @@ internal static class Program
             annotated++;
             seenTypeFullNames.Add(spec.Value.ImplType.FullName!);
 
-            var code = useRoslyn ? RoslynCodeGenerator.Generate(spec.Value, fsDir) : GenerateCode(spec.Value, fsDir);
+            var code = RoslynCodeGenerator.Generate(spec.Value, fsDir);
             var (path, oldPath, relForThis) = ComputeDestination(outDir, fsDir, spec.Value, code, dryRun);
 
             bool shouldRegen = regenAll || regenSet.Contains(spec.Value.ClassName) || regenSet.Contains(spec.Value.ImplType.FullName ?? string.Empty);
@@ -615,351 +608,7 @@ internal static class Program
         return (false, null);
     }
 
-    private static string GenerateCode(ScriptSpec spec, string? fsSourceDir)
-    {
-        var ns = "Generated";
-        var shimDisplayName = !string.IsNullOrWhiteSpace(spec.ClassName) ? spec.ClassName : (spec.ImplType.Name ?? "GeneratedShim");
-        var shimDisplayLiteral = EscapeStringLiteral(shimDisplayName);
-        var implDisplayName = spec.ImplType.FullName ?? spec.ImplType.Name ?? shimDisplayName;
-        var implDisplayLiteral = EscapeStringLiteral(implDisplayName);
-        var sb = new StringBuilder();
-        sb.AppendLine("// <auto-generated>");
-        sb.AppendLine("// This file was generated by Headsetsniper.Godot.FSharp.ShimGen.");
-        sb.AppendLine("// Do NOT edit this file manually. Any changes will be overwritten.");
-        sb.AppendLine($"// ShimGenVersion: {GetGeneratorVersionMajorMinorPatch()}");
-        sb.AppendLine($"// Source F# type: {spec.ImplType.FullName}");
-        if (!string.IsNullOrEmpty(fsSourceDir))
-        {
-            var (rel, hash) = TryGetSourceInfo(fsSourceDir!, spec.ImplType);
-            if (!string.IsNullOrEmpty(rel))
-            {
-                sb.AppendLine($"// SourceFile: {rel}");
-                if (!string.IsNullOrEmpty(hash)) sb.AppendLine($"// SourceHash: {hash}");
-            }
-        }
-        sb.AppendLine("// </auto-generated>");
-        sb.AppendLine();
-        sb.AppendLine("using Godot;");
-        sb.AppendLine("using Headsetsniper.Godot.FSharp.Annotations;");
-        sb.AppendLine($"namespace {ns};");
-        if (spec.Tool) sb.AppendLine("[Tool]");
-        sb.AppendLine("[GlobalClass]");
-        if (!string.IsNullOrWhiteSpace(spec.Icon)) sb.AppendLine($"[Icon(\"{spec.Icon}\")] ");
-        sb.AppendLine($"public partial class {spec.ClassName} : {spec.BaseTypeName}");
-        sb.AppendLine("{");
-        sb.AppendLine($"    private readonly {GetTypeDisplayName(spec.ImplType)} _impl = new {GetTypeDisplayName(spec.ImplType)}();");
-
-        foreach (var p in spec.Exports)
-        {
-            // If the F# impl property type is FSharpOption<T>, expose the shim export as the inner T
-            var (isOpt, optInner) = TryUnwrapFSharpOption(p.PropertyType);
-            string exportTypeName = GetTypeDisplayName(isOpt ? optInner! : p.PropertyType);
-            // Prepend grouping/tooltip attributes if present on the impl property
-            void EmitPreAttributes()
-            {
-                var cat = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportCategoryAttribute);
-                if (cat is not null)
-                {
-                    var name = cat.ConstructorArguments.Count > 0 ? (cat.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
-                    sb.AppendLine($"    [ExportCategory(\"{name}\")] ");
-                }
-                var sub = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportSubgroupAttribute);
-                if (sub is not null)
-                {
-                    var name = sub.ConstructorArguments.Count > 0 ? (sub.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
-                    var prefix = sub.NamedArguments.FirstOrDefault(na => na.MemberName == "Prefix").TypedValue.Value as string;
-                    if (!string.IsNullOrEmpty(prefix)) sb.AppendLine($"    [ExportSubgroup(\"{name}\", Prefix=\"{prefix}\")] ");
-                    else sb.AppendLine($"    [ExportSubgroup(\"{name}\")] ");
-                }
-                var tip = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportTooltipAttribute);
-                if (tip is not null)
-                {
-                    var text = tip.ConstructorArguments.Count > 0 ? (tip.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
-                    sb.AppendLine($"    [ExportTooltip(\"{text}\")] ");
-                }
-            }
-
-            // ExportRange support
-            var rangeAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportRangeAttribute);
-            if (rangeAttr is not null)
-            {
-                // Emit [Export(PropertyHint.Range, "min,max,step,slider")] when range is defined
-                double min = 0, max = 0, step = 0; bool slider = false;
-                var ctorArgs = rangeAttr.ConstructorArguments;
-                if (ctorArgs.Count >= 1) min = Convert.ToDouble(ctorArgs[0].Value);
-                if (ctorArgs.Count >= 2) max = Convert.ToDouble(ctorArgs[1].Value);
-                if (ctorArgs.Count >= 3) step = Convert.ToDouble(ctorArgs[2].Value);
-                if (ctorArgs.Count >= 4 && ctorArgs[3].ArgumentType == typeof(bool)) slider = (bool)ctorArgs[3].Value!;
-                var hintStr = $"{min},{max},{step},{(slider ? 1 : 0)}";
-                EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.Range, \"{hintStr}\")] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
-                continue;
-            }
-
-            // File/Dir/Resource hints
-            var fileAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportFileAttribute);
-            if (fileAttr is not null)
-            {
-                var filter = fileAttr.ConstructorArguments.Count > 0 ? (fileAttr.ConstructorArguments[0].Value as string ?? string.Empty) : (fileAttr.NamedArguments.FirstOrDefault(na => na.MemberName == "Filter").TypedValue.Value as string ?? string.Empty);
-                EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.File, \"{filter}\")] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
-                continue;
-            }
-            var dirAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportDirAttribute);
-            if (dirAttr is not null)
-            {
-                EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.Dir)] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
-                continue;
-            }
-            var resAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportResourceTypeAttribute);
-            if (resAttr is not null)
-            {
-                var typeName = resAttr.ConstructorArguments.Count > 0 ? (resAttr.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
-                EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.ResourceType, \"{typeName}\")] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
-                continue;
-            }
-
-            // Multiline and color-no-alpha
-            if (p.PropertyType == typeof(string))
-            {
-                var multiAttr = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == Annotations.Known.Types.ExportMultilineAttribute);
-                if (multiAttr)
-                {
-                    EmitPreAttributes();
-                    sb.AppendLine($"    [Export(PropertyHint.MultilineText)] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
-                    continue;
-                }
-                var enumListAttr = p.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType.FullName == Annotations.Known.Types.ExportEnumListAttribute);
-                if (enumListAttr is not null)
-                {
-                    var values = enumListAttr.ConstructorArguments.Count > 0 ? (enumListAttr.ConstructorArguments[0].Value as string ?? string.Empty) : string.Empty;
-                    EmitPreAttributes();
-                    sb.AppendLine($"    [Export(PropertyHint.Enum, \"{values}\")] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
-                    continue;
-                }
-            }
-            if (p.PropertyType.FullName == KnownGodot.Color)
-            {
-                var cna = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == Annotations.Known.Types.ExportColorNoAlphaAttribute);
-                if (cna)
-                {
-                    EmitPreAttributes();
-                    sb.AppendLine($"    [Export(PropertyHint.ColorNoAlpha)] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
-                    continue;
-                }
-            }
-
-            // Layer mask (2D render) example
-            var layerMask2D = p.GetCustomAttributesData().Any(a => a.AttributeType.FullName == Annotations.Known.Types.ExportLayerMask2DRenderAttribute);
-            if (layerMask2D)
-            {
-                EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.Layers2DRender)] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
-                continue;
-            }
-
-            // Flags enum support: when property type is enum with [Flags], emit PropertyHint.Flags with names
-            if (p.PropertyType.IsEnum && p.PropertyType.GetCustomAttributesData().Any(a => a.AttributeType.FullName == "System.FlagsAttribute"))
-            {
-                string hintList = string.Join(',', Enum.GetNames(p.PropertyType));
-                EmitPreAttributes();
-                sb.AppendLine($"    [Export(PropertyHint.Flags, \"{hintList}\")] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
-                continue;
-            }
-
-            // Default export
-            EmitPreAttributes();
-            sb.AppendLine($"    [Export] public {exportTypeName} {p.Name} {{ get => {(isOpt ? $"_impl.{p.Name} is null ? default : _impl.{p.Name}.Value" : $"_impl.{p.Name}")}; set => {(isOpt ? $"_impl.{p.Name} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(optInner!)}>.Some(value)" : $"_impl.{p.Name} = value")}; }}");
-        }
-
-        if (spec.HasEnterTree) sb.AppendLine("    public override void _EnterTree() => _impl.EnterTree();");
-        if (spec.HasReady)
-        {
-            sb.AppendLine("    public override void _Ready()");
-            sb.AppendLine("    {");
-            sb.AppendLine("        if (_impl is IGdScript<" + spec.BaseTypeName + "> gd)");
-            sb.AppendLine("            gd.Node = this;");
-            // NodePath auto-wiring before calling Ready()
-            if (spec.NodePathMembers.Length > 0)
-            {
-                foreach (var np in spec.NodePathMembers)
-                {
-                    var assignTarget = np.IsProperty ? $"_impl.{np.Name}" : $"_impl.{np.Name}"; // fields/properties same syntax
-                    var pathExpr = string.IsNullOrEmpty(np.Path) ? $"nameof({np.Name})" : $"\"{np.Path}\"";
-                    sb.AppendLine($"        var __n_{np.Name} = GetNodeOrNull<{GetTypeDisplayName(np.MemberType)}>(new NodePath({pathExpr}));");
-                    if (np.IsOption)
-                    {
-                        sb.AppendLine($"        {assignTarget} = __n_{np.Name} == null ? Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(np.MemberType)}>.None : Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(np.MemberType)}>.Some(__n_{np.Name});");
-                    }
-                    else
-                    {
-                        sb.AppendLine($"        if (__n_{np.Name} == null) throw new System.InvalidOperationException(\"[shimgen][{shimDisplayLiteral}] Missing required NodePath for {np.Name} on {implDisplayLiteral}\");");
-                        sb.AppendLine($"        {assignTarget} = __n_{np.Name};");
-                    }
-                }
-            }
-            if (spec.PreloadMembers.Length > 0)
-            {
-                foreach (var pl in spec.PreloadMembers)
-                {
-                    var assignTarget = pl.IsProperty ? $"_impl.{pl.Name}" : $"_impl.{pl.Name}";
-                    var sanitizedPath = EscapeStringLiteral(pl.Path ?? string.Empty);
-                    var memberNameLiteral = EscapeStringLiteral(pl.Name);
-                    var memberKind = pl.IsProperty ? "property" : "field";
-                    var loadVar = $"__p_{pl.Name}";
-                    sb.AppendLine($"        var {loadVar} = ResourceLoader.Load<{GetTypeDisplayName(pl.MemberType)}>(\"{sanitizedPath}\");");
-                    sb.AppendLine($"        if ({loadVar} == null) throw new System.InvalidOperationException(\"[shimgen][{shimDisplayLiteral}] Missing preload resource \\\"{sanitizedPath}\\\" for {memberKind} \\\"{memberNameLiteral}\\\" on {implDisplayLiteral}\");");
-                    if (pl.IsOption)
-                        sb.AppendLine($"        {assignTarget} = Microsoft.FSharp.Core.FSharpOption<{GetTypeDisplayName(pl.MemberType)}>.Some({loadVar});");
-                    else
-                        sb.AppendLine($"        {assignTarget} = {loadVar};");
-                }
-            }
-            // Autoconnect signals to impl methods
-            if (spec.AutoConnects.Length > 0)
-            {
-                foreach (var ac in spec.AutoConnects)
-                {
-                    var pnames = Enumerable.Range(0, ac.ParamTypes.Length).Select(i => "arg" + i).ToArray();
-                    var paramDecls = string.Join(", ", ac.ParamTypes.Select(GetTypeDisplayName).Zip(pnames, (t, n) => t + " " + n));
-                    var argList = string.Join(", ", pnames);
-                    var handlerName = $"__On_{ac.Signal}";
-                    sb.AppendLine($"        GetNodeOrNull<Node>(new NodePath(\"{ac.Path}\"))?.Connect(\"{ac.Signal}\", Callable.From(({paramDecls}) => _impl.{ac.HandlerName}({argList})));".Replace("( )", "()"));
-                }
-            }
-            sb.AppendLine("        _impl.Ready();");
-            sb.AppendLine("    }");
-        }
-        if (spec.HasExitTree) sb.AppendLine("    public override void _ExitTree() => _impl.ExitTree();");
-        if (spec.HasProcess) sb.AppendLine("    public override void _Process(double delta) => _impl.Process(delta);");
-        if (spec.HasPhysicsProcess) sb.AppendLine("    public override void _PhysicsProcess(double delta) => _impl.PhysicsProcess(delta);");
-        if (spec.HasInput) sb.AppendLine("    public override void _Input(Godot.InputEvent @event) => _impl.Input(@event);");
-        if (spec.HasUnhandledInput) sb.AppendLine("    public override void _UnhandledInput(Godot.InputEvent @event) => _impl.UnhandledInput(@event);");
-        if (spec.HasNotification) sb.AppendLine("    public override void _Notification(long what) => _impl.Notification(what);");
-
-        // Conditional callbacks based on base type support
-        bool IsControl() => spec.BaseTypeName.EndsWith(".Control", StringComparison.Ordinal);
-        bool IsCanvasItem() => spec.BaseTypeName.EndsWith(".CanvasItem", StringComparison.Ordinal) || spec.BaseTypeName.EndsWith(".Node2D", StringComparison.Ordinal) || spec.BaseTypeName.EndsWith(".Control", StringComparison.Ordinal);
-
-        if (IsControl() && spec.HasGuiInput) sb.AppendLine("    public override void _GuiInput(Godot.InputEvent @event) => _impl.GuiInput(@event);");
-        if (IsControl() && spec.HasShortcutInput) sb.AppendLine("    public override void _ShortcutInput(Godot.InputEvent @event) => _impl.ShortcutInput(@event);");
-        if (IsControl() && spec.HasUnhandledKeyInput) sb.AppendLine("    public override void _UnhandledKeyInput(Godot.InputEvent @event) => _impl.UnhandledKeyInput(@event);");
-        if (IsCanvasItem() && spec.HasDraw) sb.AppendLine("    public override void _Draw() => _impl.Draw();");
-        if (IsControl() && spec.HasCanDropData) sb.AppendLine("    public override bool _CanDropData(Godot.Vector2 atPosition, Godot.Variant data) => _impl.CanDropData(atPosition, data);");
-        if (IsControl() && spec.HasDropData) sb.AppendLine("    public override void _DropData(Godot.Vector2 atPosition, Godot.Variant data) => _impl.DropData(atPosition, data);");
-        if (IsControl() && spec.HasGetDragData) sb.AppendLine("    public override Godot.Variant _GetDragData(Godot.Vector2 atPosition) => (Godot.Variant)_impl.GetDragData(atPosition);");
-        if (IsControl() && spec.HasHasPoint) sb.AppendLine("    public override bool _HasPoint(Godot.Vector2 position) => _impl.HasPoint(position);");
-        if (IsControl() && spec.HasGetMinimumSize) sb.AppendLine("    public override Godot.Vector2 _GetMinimumSize() => _impl.GetMinimumSize();");
-        if (IsControl() && spec.HasMakeCustomTooltip) sb.AppendLine("    public override Godot.Control _MakeCustomTooltip(string forText) => _impl.MakeCustomTooltip(forText);");
-        if (IsControl() && spec.HasGetTooltip) sb.AppendLine("    public override string _GetTooltip(Godot.Vector2 atPosition) => _impl.GetTooltip(atPosition);");
-
-        foreach (var sig in spec.Signals)
-        {
-            // Build typed Action signature if parameters exist; otherwise Action
-            if (sig.ParamTypes.Length == 0)
-            {
-                sb.AppendLine($"    [Signal] public event System.Action {sig.Name};");
-                sb.AppendLine($"    public void Emit{sig.Name}() => {sig.Name}?.Invoke();");
-            }
-            else
-            {
-                var typeList = string.Join(", ", sig.ParamTypes.Select(GetTypeDisplayName));
-                var paramDecls = string.Join(", ", sig.ParamTypes.Select(GetTypeDisplayName).Zip(sig.ParamNames, (t, n) => t + " " + n));
-                var argList = string.Join(", ", sig.ParamNames);
-                sb.AppendLine($"    [Signal] public event System.Action<{typeList}> {sig.Name};");
-                sb.AppendLine($"    public void Emit{sig.Name}({paramDecls}) => {sig.Name}?.Invoke({argList});");
-            }
-        }
-
-        sb.AppendLine("}");
-        var text = sb.ToString();
-        // Normalize line endings to LF for deterministic outputs across platforms
-        text = text.Replace("\r\n", "\n");
-        return text;
-    }
-
-    private static string EscapeStringLiteral(string value)
-    {
-        if (string.IsNullOrEmpty(value))
-            return string.Empty;
-        return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
-    }
-
-    private static bool UseRoslyn()
-    {
-        try
-        {
-            var v = Environment.GetEnvironmentVariable("SHIMGEN_USE_ROSLYN");
-            if (string.IsNullOrWhiteSpace(v)) return false;
-            v = v.Trim();
-            return v == "1" || v.Equals("true", StringComparison.OrdinalIgnoreCase) || v.Equals("yes", StringComparison.OrdinalIgnoreCase);
-        }
-        catch { return false; }
-    }
-
-    private static string GetGeneratorVersionMajorMinorPatch()
-    {
-        try
-        {
-            var asm = typeof(Program).Assembly;
-            var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-            var raw = !string.IsNullOrWhiteSpace(info) ? info! : (asm.GetName().Version?.ToString() ?? "0.0.0");
-            // Keep only numeric Major.Minor.Patch
-            var core = raw.Split('-', '+')[0].Trim();
-            var parts = core.Split('.');
-            if (parts.Length >= 3)
-                return string.Join('.', parts[0], parts[1], parts[2]);
-            if (parts.Length == 2)
-                return string.Join('.', parts[0], parts[1], "0");
-            if (parts.Length == 1)
-                return string.Join('.', parts[0], "0", "0");
-            return "0.0.0";
-        }
-        catch { return "0.0.0"; }
-    }
-
-    private static string GetTypeDisplayName(Type t)
-    {
-        // Arrays
-        if (t.IsArray)
-        {
-            var elem = t.GetElementType()!;
-            return GetTypeDisplayName(elem) + "[]";
-        }
-
-        // Generics (e.g., List<int>, Dictionary<string,int>)
-        if (t.IsGenericType)
-        {
-            var def = t.GetGenericTypeDefinition();
-            var ns = def.Namespace;
-            var name = def.Name;
-            var backtick = name.IndexOf('`');
-            if (backtick >= 0) name = name.Substring(0, backtick);
-            var args = t.GetGenericArguments().Select(GetTypeDisplayName);
-            var prefix = string.IsNullOrEmpty(ns) ? string.Empty : ns + ".";
-            return prefix + name + "<" + string.Join(", ", args) + ">";
-        }
-
-        // Nested types
-        if (t.IsNested)
-        {
-            var parts = new List<string>();
-            var cur = t;
-            while (cur != null)
-            {
-                parts.Add(cur.Name);
-                cur = cur.DeclaringType;
-            }
-            parts.Reverse();
-            var ns = t.Namespace;
-            var prefix = string.IsNullOrEmpty(ns) ? string.Empty : ns + ".";
-            return prefix + string.Join(".", parts);
-        }
-
-        return t.FullName!;
-    }
+    // Removed legacy string-based generator. RoslynCodeGenerator is the single path.
 
     private static (string? rel, string? hash) TryGetSourceInfo(string dir, Type type)
     {
@@ -1208,7 +857,7 @@ internal static class Program
             {
                 // If SourceHash matches but the generator is newer (or version missing), force rewrite
                 var oldVer = ExtractShimGenVersion(existingNorm);
-                var curVer = GetGeneratorVersionMajorMinorPatch();
+                var curVer = ExtractShimGenVersion(content);
                 // If the previous header included pre-release/build metadata, normalize it to Major.Minor.Patch
                 if (NeedsHeaderNormalization(oldVer)) return true;
                 if (!IsOlderVersion(oldVer, curVer)) return false;
@@ -1231,7 +880,7 @@ internal static class Program
         if (!string.IsNullOrEmpty(oldHash) && oldHash == newHash)
         {
             var oldVer = ExtractShimGenVersion(existingNorm);
-            var curVer = GetGeneratorVersionMajorMinorPatch();
+            var curVer = ExtractShimGenVersion(content);
             if (NeedsHeaderNormalization(oldVer)) return true;
             if (!IsOlderVersion(oldVer, curVer)) return false;
         }
