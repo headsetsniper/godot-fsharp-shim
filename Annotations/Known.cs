@@ -20,6 +20,7 @@ public static class Known
     public static class Types
     {
         public static readonly string GodotScriptAttribute = typeof(GodotScriptAttribute).FullName!;
+        public static readonly string GodotToolAttribute = typeof(GodotToolAttribute).FullName!;
         public static readonly string IGdScript = typeof(IGdScript<>).FullName!.Split('`')[0];
 
         public static readonly string NodePathAttribute = typeof(NodePathAttribute).FullName!;

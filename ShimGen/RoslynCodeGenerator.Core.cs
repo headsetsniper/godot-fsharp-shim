@@ -25,6 +25,7 @@ internal static partial class RoslynCodeGenerator
         classDecl = classDecl.AddMembers(CreateLifecycleAndReadyMembers(ctx).ToArray());
         classDecl = classDecl.AddMembers(CreateUiAndCanvasMembers(ctx).ToArray());
         classDecl = classDecl.AddMembers(CreateSignalMembers(ctx).ToArray());
+        classDecl = classDecl.AddMembers(CreateEnsureImplMethod(ctx));
         nsDecl = nsDecl.AddMembers(classDecl);
         var cu = SyntaxFactory.CompilationUnit()
             .WithUsings(SyntaxFactory.List(usings))
@@ -100,10 +101,64 @@ internal static partial class RoslynCodeGenerator
     {
         var spec = ctx.Spec;
         var implTypeName = SyntaxFactory.ParseTypeName(GetTypeDisplayName(spec.ImplType));
-        return SyntaxFactory.FieldDeclaration(
-                SyntaxFactory.VariableDeclaration(implTypeName)
-                    .WithVariables(SyntaxFactory.SingletonSeparatedList(SyntaxFactory.VariableDeclarator(SyntaxFactory.Identifier("_impl")).WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ObjectCreationExpression(implTypeName).WithArgumentList(SyntaxFactory.ArgumentList()))))))
-            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword), SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
+        // Eagerly initialize for legacy/property wiring. Defer to EnsureImpl() when using constructor injection.
+        var varDecl = SyntaxFactory.VariableDeclaration(implTypeName);
+        var varInit = ctx.Spec.UseCtorInjection
+            ? SyntaxFactory.VariableDeclarator(SyntaxFactory.Identifier("_impl"))
+            : SyntaxFactory.VariableDeclarator(SyntaxFactory.Identifier("_impl")).WithInitializer(
+                SyntaxFactory.EqualsValueClause(SyntaxFactory.ObjectCreationExpression(implTypeName).WithArgumentList(SyntaxFactory.ArgumentList())));
+        return SyntaxFactory.FieldDeclaration(varDecl.WithVariables(SyntaxFactory.SingletonSeparatedList(varInit)))
+            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword));
+    }
+
+    private static MemberDeclarationSyntax CreateEnsureImplMethod(GenContext ctx)
+    {
+        var spec = ctx.Spec;
+        var method = SyntaxFactory.MethodDeclaration(SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.VoidKeyword)), "EnsureImpl")
+            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword));
+
+        var body = new List<StatementSyntax>();
+        body.Add(SyntaxFactory.ParseStatement("if (_impl != null) return;\n"));
+
+        if (spec.UseCtorInjection)
+        {
+            var args = new List<string>();
+            foreach (var b in spec.CtorParams)
+            {
+                switch (b.Kind)
+                {
+                    case CtorParamKind.Self:
+                        args.Add("this");
+                        break;
+                    case CtorParamKind.NodePath:
+                        // Ensure field/property is assigned prior to Ready; look up same logic as BuildNodePathWiring
+                        // Recompute path expression: either attribute provided path or name
+                        var np = spec.NodePathMembers.First(n => n.Name == b.MemberName);
+                        var pathExpr = string.IsNullOrEmpty(np.Path) ? $"nameof({np.Name})" : $"\"{Escape(np.Path!)}\"";
+                        var tmpVar = "__di_np_" + np.Name;
+                        body.Add(SyntaxFactory.ParseStatement($"var {tmpVar} = GetNodeOrNull<{GetTypeDisplayName(np.MemberType)}>(new NodePath({pathExpr}));\n"));
+                        body.Add(SyntaxFactory.ParseStatement($"if ({tmpVar} == null) throw new System.InvalidOperationException(\"[shimgen][{Escape(spec.ClassName)}] Missing required NodePath for {np.Name} for constructor injection on {Escape(spec.ImplType.FullName ?? spec.ImplType.Name ?? spec.ClassName)}\");\n"));
+                        args.Add(tmpVar);
+                        break;
+                    case CtorParamKind.Preload:
+                        var pl = spec.PreloadMembers.First(n => n.Name == b.MemberName);
+                        var loadVar = "__di_pl_" + pl.Name;
+                        body.Add(SyntaxFactory.ParseStatement($"var {loadVar} = ResourceLoader.Load<{GetTypeDisplayName(pl.MemberType)}>(\"{Escape(pl.Path)}\");\n"));
+                        body.Add(SyntaxFactory.ParseStatement($"if ({loadVar} == null) throw new System.InvalidOperationException(\"[shimgen][{Escape(spec.ClassName)}] Missing preload resource {Escape(pl.Path)} for constructor injection on {Escape(spec.ImplType.FullName ?? spec.ImplType.Name ?? spec.ClassName)}\");\n"));
+                        args.Add(loadVar);
+                        break;
+                }
+            }
+            var implTypeName = GetTypeDisplayName(spec.ImplType);
+            body.Add(SyntaxFactory.ParseStatement($"_impl = new {implTypeName}({string.Join(", ", args)});\n"));
+        }
+        else
+        {
+            var implTypeName = GetTypeDisplayName(spec.ImplType);
+            body.Add(SyntaxFactory.ParseStatement($"_impl = new {implTypeName}();\n"));
+        }
+
+        return method.WithBody(SyntaxFactory.Block(body));
     }
 
     private static IEnumerable<MemberDeclarationSyntax> CreateExportMembers(GenContext ctx)

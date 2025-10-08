@@ -37,9 +37,14 @@ internal static partial class RoslynCodeGenerator
         var stmts = new List<StatementSyntax>();
         var shimDisplayLiteral = Escape(spec.ClassName);
         var implDisplayLiteral = Escape(spec.ImplType.FullName ?? spec.ImplType.Name ?? spec.ClassName);
+        stmts.Add(SyntaxFactory.ParseStatement("EnsureImpl();\n"));
         stmts.Add(SyntaxFactory.ParseStatement($"if (_impl is IGdScript<{spec.BaseTypeName}> gd)\n    gd.Node = this;\n"));
-        stmts.AddRange(BuildNodePathWiring(spec, shimDisplayLiteral, implDisplayLiteral));
-        stmts.AddRange(BuildPreloadWiring(spec, shimDisplayLiteral, implDisplayLiteral));
+        // In ctor-injection mode, NodePath/Preload are supplied via constructor; otherwise wire properties here
+        if (!spec.UseCtorInjection)
+        {
+            stmts.AddRange(BuildNodePathWiring(spec, shimDisplayLiteral, implDisplayLiteral));
+            stmts.AddRange(BuildPreloadWiring(spec, shimDisplayLiteral, implDisplayLiteral));
+        }
         stmts.AddRange(BuildAutoConnects(spec));
         stmts.Add(SyntaxFactory.ParseStatement("_impl.Ready();\n"));
         return stmts;

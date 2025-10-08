@@ -9,6 +9,8 @@ internal readonly record struct ScriptSpec(
     PropertyInfo[] Exports,
     bool Tool,
     string? Icon,
+    bool UseCtorInjection,
+    CtorParamBinding[] CtorParams,
     bool HasReady,
     bool HasEnterTree,
     bool HasExitTree,
@@ -32,6 +34,19 @@ internal readonly record struct ScriptSpec(
     NodePathMember[] NodePathMembers,
     PreloadMember[] PreloadMembers,
     AutoConnectSpec[] AutoConnects
+);
+
+internal enum CtorParamKind
+{
+    Self,
+    NodePath,
+    Preload
+}
+
+internal readonly record struct CtorParamBinding(
+    CtorParamKind Kind,
+    string? MemberName,
+    Type ParamType
 );
 
 internal readonly record struct NodePathMember(
