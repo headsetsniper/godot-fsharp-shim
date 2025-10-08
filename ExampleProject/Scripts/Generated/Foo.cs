@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.FooImpl
 // SourceFile: Foo.fs
-// SourceHash: 7f1ddea10d31232b41ecddecbde402aa5ea9b86485ebb614a5a7270dcf9dd14f
+// SourceHash: e0f49a99e857eed6ee981e19821fadd91a0c682217df495ab2884a1eff52c058
 // </auto-generated>
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;

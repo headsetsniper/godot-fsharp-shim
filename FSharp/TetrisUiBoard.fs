@@ -84,58 +84,63 @@ type TetrisUiBoardImpl() =
         and set (_: int) = ()
 
     member private this.EnsureGrid() =
-        let existing = node.GetNodeOrNull<GridContainer>(new NodePath "Grid")
+        // In editor, _Process can be scheduled before _Ready has injected Node.
+        // Bail out until Node is available to avoid NREs.
+        match box node with
+        | null -> gridReady <- false
+        | _ ->
+            let existing = node.GetNodeOrNull<GridContainer>(new NodePath "Grid")
 
-        let gridContainer =
-            if isNull existing then
-                debug ("Creating GridContainer (editor=" + string (Engine.IsEditorHint()) + ")")
-                let g = new GridContainer()
-                g.Name <- new StringName "Grid"
-                g.Columns <- cols
-                g.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                g.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                g.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
-                node.AddChild(g)
-                g
+            let gridContainer =
+                if isNull existing then
+                    debug ("Creating GridContainer (editor=" + string (Engine.IsEditorHint()) + ")")
+                    let g = new GridContainer()
+                    g.Name <- new StringName "Grid"
+                    g.Columns <- cols
+                    g.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                    g.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                    g.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
+                    node.AddChild(g)
+                    g
+                else
+                    existing
+
+            gridContainer.SetAnchorsPreset Control.LayoutPreset.FullRect
+            gridContainer.OffsetLeft <- 0f
+            gridContainer.OffsetTop <- 0f
+            gridContainer.OffsetRight <- 0f
+            gridContainer.OffsetBottom <- 0f
+
+            // Clear and rebuild children once on first init or mismatch
+            if gridContainer.GetChildCount() <> cols * rows then
+                while gridContainer.GetChildCount() > 0 do
+                    let ch = gridContainer.GetChild(0)
+                    gridContainer.RemoveChild(ch)
+                    ch.QueueFree()
+
+                for y in 0 .. rows - 1 do
+                    for x in 0 .. cols - 1 do
+                        let cr = new ColorRect()
+                        cr.CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
+                        cr.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                        cr.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                        cr.Color <- Colors.Transparent
+                        gridContainer.AddChild(cr)
+                        cells[y, x] <- cr
+
+                if not printedBuilt then
+                    printedBuilt <- true
+                    debug $"Initialized grid {cols}x{rows} at path {node.GetPath()} with CellSize={this.CellSize}"
+
+                gridReady <- true
             else
-                existing
+                // Map existing children in row-major order
+                for i in 0 .. gridContainer.GetChildCount() - 1 do
+                    let y = i / cols
+                    let x = i % cols
+                    cells[y, x] <- gridContainer.GetChild(i) :?> ColorRect
 
-        gridContainer.SetAnchorsPreset Control.LayoutPreset.FullRect
-        gridContainer.OffsetLeft <- 0f
-        gridContainer.OffsetTop <- 0f
-        gridContainer.OffsetRight <- 0f
-        gridContainer.OffsetBottom <- 0f
-
-        // Clear and rebuild children once on first init or mismatch
-        if gridContainer.GetChildCount() <> cols * rows then
-            while gridContainer.GetChildCount() > 0 do
-                let ch = gridContainer.GetChild(0)
-                gridContainer.RemoveChild(ch)
-                ch.QueueFree()
-
-            for y in 0 .. rows - 1 do
-                for x in 0 .. cols - 1 do
-                    let cr = new ColorRect()
-                    cr.CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
-                    cr.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                    cr.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                    cr.Color <- Colors.Transparent
-                    gridContainer.AddChild(cr)
-                    cells[y, x] <- cr
-
-            if not printedBuilt then
-                printedBuilt <- true
-                debug $"Initialized grid {cols}x{rows} at path {node.GetPath()} with CellSize={this.CellSize}"
-
-            gridReady <- true
-        else
-            // Map existing children in row-major order
-            for i in 0 .. gridContainer.GetChildCount() - 1 do
-                let y = i / cols
-                let x = i % cols
-                cells[y, x] <- gridContainer.GetChild(i) :?> ColorRect
-
-            gridReady <- true
+                gridReady <- true
 
     member private this.SyncCellSizes() =
         for y in 0 .. rows - 1 do
@@ -179,7 +184,9 @@ type TetrisUiBoardImpl() =
                             c.Color <- Color(1.0f, 0.4f, 0.2f)
 
     member private this.DrawUi() =
-        if not gridReady then
+        if obj.ReferenceEquals(node, null) then
+            ()
+        elif not gridReady then
             this.EnsureGrid()
 
         if not gridReady then
@@ -309,34 +316,37 @@ type TetrisUiBoardImpl() =
         this.DrawUi()
 
     member this.Process(_delta: double) =
-        if not printedProcessOnce && Engine.IsEditorHint() then
-            printedProcessOnce <- true
-            debug "Process() (editor)"
+        match box node with
+        | null -> () // wait for _Ready to inject Node
+        | _ ->
+            if not printedProcessOnce && Engine.IsEditorHint() then
+                printedProcessOnce <- true
+                debug "Process() (editor)"
 
-        let canPlace shape x y = this.CanPlace(shape, x, y)
+            let canPlace shape x y = this.CanPlace(shape, x, y)
 
-        let state: UiState =
-            { Shape = curShape
-              X = curX
-              Y = curY
-              MoveX = this.MoveX
-              Rotate = rotateRequested
-              HardDrop = hardDropRequested }
+            let state: UiState =
+                { Shape = curShape
+                  X = curX
+                  Y = curY
+                  MoveX = this.MoveX
+                  Rotate = rotateRequested
+                  HardDrop = hardDropRequested }
 
-        let updated =
-            state |> applyMove canPlace |> applyRotate canPlace |> applyHardDrop canPlace
+            let updated =
+                state |> applyMove canPlace |> applyRotate canPlace |> applyHardDrop canPlace
 
-        curShape <- updated.Shape
-        curX <- updated.X
-        curY <- updated.Y
-        this.MoveX <- 0
-        rotateRequested <- false
-        hardDropRequested <- false
+            curShape <- updated.Shape
+            curX <- updated.X
+            curY <- updated.Y
+            this.MoveX <- 0
+            rotateRequested <- false
+            hardDropRequested <- false
 
-        this.DrawUi()
+            this.DrawUi()
 
-        if Engine.IsEditorHint() then
-            node.QueueRedraw()
+            if Engine.IsEditorHint() then
+                node.QueueRedraw()
 
     member this.Draw() =
         if Engine.IsEditorHint() then
