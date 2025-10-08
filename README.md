@@ -13,6 +13,7 @@ This repository lets you write gameplay in F# and auto-generate C# shims that Go
 - [Features](#features)
   - [GlobalClass and Icon](#globalclass-and-icon)
   - [Tool scripts](#tool-scripts)
+  - [Constructor injection (DI)](#constructor-injection-di)
   - [Lifecycle forwarding (EnterTree/ExitTree)](#lifecycle-forwarding-entertreeexittree)
   - [NodePath auto‑wiring in \_Ready](#nodepath-auto-wiring-in-_ready)
   - [Editor hints](#editor-hints)
@@ -25,7 +26,7 @@ This repository lets you write gameplay in F# and auto-generate C# shims that Go
 ## Projects
 
 - `Annotations` (NuGet: Headsetsniper.Godot.FSharp.Annotations)
-  - Provides `[GodotScript]` attribute used in F#.
+  - Provides `[GodotScript]` and `[GodotTool]` attributes used in F#.
   - Provides `IGdScript<'TNode>` which lets your F# impl receive its Godot node.
 - `FSharp`
   - Your F# gameplay logic referencing `Annotations`.
@@ -40,17 +41,33 @@ This repository lets you write gameplay in F# and auto-generate C# shims that Go
 1. In your F# project:
 
 - Install `Headsetsniper.Godot.FSharp.Annotations`.
-- Annotate classes with:
-  - `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D")>]`
-- Optionally implement `IGdScript<Node2D>` (or your base type) to get the node injected in Ready:
+- Annotate classes with `[<GodotScript>]` (gameplay) or `[<GodotTool>]` (editor tools).
+- Prefer constructor injection for gameplay: first parameter is the Godot base type; subsequent parameters bind to NodePath/Preload by name or unique type.
 
 ```fsharp
-type FooImpl() =
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+
+[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D")>]
+type FooImpl(node: Node2D) =
+  // Optional: still implement IGdScript<'T> if you want Node on the interface too
   interface IGdScript<Node2D> with
-    member val Node = Unchecked.defaultof<Node2D> with get, set
-  member this.Ready() =
-    // this.Node is set by the generated shim before calling Ready()
-    ()
+    member _.Node with get() = node and set _ = ()
+
+  member _.Ready() =
+    let sprite = new Sprite2D()
+    sprite.Texture <- ResourceLoader.Load("res://icon.svg") :?> Texture2D
+    node.AddChild(sprite)
+```
+
+For editor tools, use `[<GodotTool>]` and a parameterless constructor:
+
+```fsharp
+[<GodotTool(ClassName = "TetrisUiBoard", BaseTypeName = "Godot.Control")>]
+type TetrisUiBoardImpl() =
+  interface IGdScript<Control> with
+    member val Node = Unchecked.defaultof<Control> with get, set
+  member _.Ready() = ()
 ```
 
 2. In your Godot C# project:
@@ -154,8 +171,33 @@ The generator and annotations now support these capabilities out of the box:
 
 ### Tool scripts
 
-- Enable editor-time behavior by setting `Tool=true` on `GodotScript`.
-- F#: `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D", Tool = true)>]`
+- Mark editor-time scripts with `[<GodotTool(... )>]` or by setting `Tool = true` on `[<GodotScript>]`.
+- F# examples:
+  - Tool attribute: `[<GodotTool(ClassName = "Board", BaseTypeName = "Godot.Control")>]`
+  - Legacy flag: `[<GodotScript(ClassName = "Board", BaseTypeName = "Godot.Control", Tool = true)>]`
+- DI is disabled for tool scripts. The shim sets `IGdScript<T>.Node` and runs wiring in `_Ready()`; avoid relying on `EnterTree` for injected state in tools.
+
+### Constructor injection (DI)
+
+Gameplay scripts can opt into DI by defining a single public constructor:
+
+- First parameter must match `BaseTypeName` (the node the shim derives from). The shim passes `this`.
+- Remaining parameters bind to `[NodePath]` and `[Preload]` members:
+  - Name-based binding first (parameter name matches member name).
+  - If no name match: unique type-based binding (exact type, unambiguous).
+- Requirements to enable DI:
+  - All required `[NodePath]` (non-Option) present in the constructor.
+  - All required `[Preload]` present.
+  - Exactly one public constructor.
+- When DI is active:
+  - The shim constructs your F# implementation in `_Ready()` after resolving NodePaths/Preloads.
+  - `IGdScript<T>.Node` is then set, and your `Ready()` is invoked.
+  - No property wiring is performed for NodePath/Preload (they are provided via constructor args).
+- When DI is not active (tool script, multiple ctors, or missing bindings):
+  - The shim falls back to eager construction and property wiring in `_Ready()`.
+  - Clear warnings are emitted describing why DI was not used.
+
+Preload with Option<'T>: DI still injects the concrete resource type and will fail fast if the resource is missing. Prefer non-Option types for Preload targets to reflect this guarantee.
 
 ### Lifecycle forwarding (EnterTree/ExitTree)
 
@@ -207,8 +249,8 @@ The shim forwards callbacks when your F# implementation exposes matching methods
     - `[NodePath]` must target a non-Option type, otherwise generation fails with an error.
     - `[OptionalNodePath]` must target `Option<'T>`, otherwise generation fails with an error.
   - Runtime wiring semantics:
-    - `[NodePath]` → throws InvalidOperationException at runtime if the node is missing (fail fast), then assigns the resolved node.
-    - `[OptionalNodePath]` → assigns `None` when missing and `Some node` when found.
+    - When DI is active: NodePaths required by the constructor are resolved before construction; missing required nodes throw and prevent construction.
+    - When DI is not active: `[NodePath]` throws on missing and assigns the resolved node; `[OptionalNodePath]` assigns `None` when missing and `Some node` when found.
 
 ### Editor hints
 
@@ -273,8 +315,9 @@ Notes
   - NodePath is required (non-Option) and throws if missing; OptionalNodePath is for `Option<'T>` and sets `None` if missing.
 
 - Preload
-  - For `[<Preload(...)]` members whose type is a Godot Resource (e.g., `Texture2D`, `PackedScene`): the shim always attempts to load and will throw `InvalidOperationException` when the resource is missing. This guarantees that F# members for preloadables are initialized with a non-null resource, or the scene fails early.
-  - If the F# type is `Option<'T>` where `'T :> Resource`, the shim still assigns `Some resource`. Missing resources will throw before assignment, so your F# code never sees `None` for preloadables. Prefer using plain non-Option types for preloads to reflect this guarantee.
+  - For `[<Preload(...)]` members whose type is a Godot Resource (e.g., `Texture2D`, `PackedScene`): the shim always attempts to load and will throw `InvalidOperationException` when the resource is missing.
+  - With DI: constructor parameters receive concrete resources; missing assets throw before construction.
+  - With property wiring: members are assigned after load. Prefer plain non-Option types to reflect the guarantee.
   - For non-preloadable references (e.g., NodePath, arbitrary references not covered by Preload), keep using `Option<'T>` when the reference may be absent.
 
 Examples

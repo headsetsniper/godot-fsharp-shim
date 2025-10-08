@@ -4,30 +4,40 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisHudImpl
 // SourceFile: TetrisHud.fs
-// SourceHash: a60edabb156dc1fb63f90ef6ea4e109186914eab274c37c7b0d968158386ac70
+// SourceHash: 234306c5a2f3d178a11ced76b3b749e4e4b91fcaf9af02084caac4383173a8c4
 // </auto-generated>
-
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
-namespace Generated;
-[GlobalClass]
-public partial class TetrisHud : Godot.Control
+
+namespace Generated
 {
-    private readonly Game.TetrisHudImpl _impl = new Game.TetrisHudImpl();
-    public override void _Ready()
+    [GlobalClass]
+    public partial class TetrisHud : Godot.Control
     {
-        if (_impl is IGdScript<Godot.Control> gd)
-            gd.Node = this;
-        var __n_ScoreLabel = GetNodeOrNull<Godot.Label>(new NodePath("ScoreLabel"));
-        if (__n_ScoreLabel == null) throw new System.InvalidOperationException("[shimgen][TetrisHud] Missing required NodePath for ScoreLabel on Game.TetrisHudImpl");
-        _impl.ScoreLabel = __n_ScoreLabel;
-        var __n_StatusLabel = GetNodeOrNull<Godot.Label>(new NodePath("StatusLabel"));
-        if (__n_StatusLabel == null) throw new System.InvalidOperationException("[shimgen][TetrisHud] Missing required NodePath for StatusLabel on Game.TetrisHudImpl");
-        _impl.StatusLabel = __n_StatusLabel;
-        var __n_Board = GetNodeOrNull<Godot.Node>(new NodePath("../Board"));
-        if (__n_Board == null) throw new System.InvalidOperationException("[shimgen][TetrisHud] Missing required NodePath for Board on Game.TetrisHudImpl");
-        _impl.Board = __n_Board;
-        _impl.Ready();
+        private Game.TetrisHudImpl _impl;
+        public override void _Ready()
+        {
+            EnsureImpl();
+            if (_impl is IGdScript<Godot.Control> gd)
+                gd.Node = this;
+            _impl.Ready();
+        }
+
+        public override void _Process(double delta) => _impl.Process(delta);
+        private void EnsureImpl()
+        {
+            if (_impl != null)
+                return;
+            var __di_np_ScoreLabel = GetNodeOrNull<Godot.Label>(new NodePath("ScoreLabel"));
+            if (__di_np_ScoreLabel == null)
+                throw new System.InvalidOperationException("[shimgen][TetrisHud] Missing required NodePath for ScoreLabel for constructor injection on Game.TetrisHudImpl");
+            var __di_np_StatusLabel = GetNodeOrNull<Godot.Label>(new NodePath("StatusLabel"));
+            if (__di_np_StatusLabel == null)
+                throw new System.InvalidOperationException("[shimgen][TetrisHud] Missing required NodePath for StatusLabel for constructor injection on Game.TetrisHudImpl");
+            var __di_np_Board = GetNodeOrNull<Godot.Node>(new NodePath("../Board"));
+            if (__di_np_Board == null)
+                throw new System.InvalidOperationException("[shimgen][TetrisHud] Missing required NodePath for Board for constructor injection on Game.TetrisHudImpl");
+            _impl = new Game.TetrisHudImpl(this, __di_np_ScoreLabel, __di_np_StatusLabel, __di_np_Board);
+        }
     }
-    public override void _Process(double delta) => _impl.Process(delta);
 }

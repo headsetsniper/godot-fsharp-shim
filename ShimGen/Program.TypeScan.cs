@@ -16,7 +16,7 @@ internal static partial class Program
         var callbacks = DetectCallbacks(t);
         var (nodePaths, preloads) = CollectNodePathsAndPreloads(t);
         var autoConnects = CollectAutoConnects(t);
-        var (useCtorInjection, ctorParams) = ComputeConstructorInjection(t, meta.BaseTypeName, nodePaths, preloads, toolAttr is not null);
+        var (useCtorInjection, ctorParams) = ComputeConstructorInjection(t, meta.BaseTypeName, nodePaths, preloads, meta.Tool);
 
         return new ScriptSpec(
             t,

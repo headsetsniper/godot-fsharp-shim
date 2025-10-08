@@ -4,15 +4,15 @@ open Godot
 open Headsetsniper.Godot.FSharp.Annotations
 
 [<GodotScript(ClassName = "Tetris", BaseTypeName = "Godot.Node2D", Icon = "res://icon.svg", Tool = false)>]
-type TetrisImpl() =
+type TetrisImpl(_node: Node2D, board: Node, hud: Control, dropTimer: Timer) =
     [<NodePath(Path = "UIRoot/Board")>]
-    member val Board: Node = Unchecked.defaultof<_> with get, set
+    member val Board: Node = board with get, set
 
     [<NodePath(Path = "UIRoot/HUD")>]
-    member val Hud: Control = Unchecked.defaultof<_> with get, set
+    member val Hud: Control = hud with get, set
 
     [<NodePath(Path = "UIRoot/DropTimer")>]
-    member val DropTimer: Timer = Unchecked.defaultof<_> with get, set
+    member val DropTimer: Timer = dropTimer with get, set
 
     member this.Ready() =
         this.DropTimer.WaitTime <- 0.6

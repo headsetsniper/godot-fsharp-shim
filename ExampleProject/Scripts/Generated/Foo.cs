@@ -4,22 +4,34 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.FooImpl
 // SourceFile: Foo.fs
-// SourceHash: c07c83fea31e3ce7f0f8404d5a0183ffd2693b0436e8f4ad1878d650526638ef
+// SourceHash: 7f1ddea10d31232b41ecddecbde402aa5ea9b86485ebb614a5a7270dcf9dd14f
 // </auto-generated>
-
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
-namespace Generated;
-[GlobalClass]
-public partial class Foo : Godot.Node2D
+
+namespace Generated
 {
-    private readonly Game.FooImpl _impl = new Game.FooImpl();
-    [Export] public System.Int32 Speed { get => _impl.Speed; set => _impl.Speed = value; }
-    public override void _Ready()
+    [GlobalClass]
+    public partial class Foo : Godot.Node2D
     {
-        if (_impl is IGdScript<Godot.Node2D> gd)
-            gd.Node = this;
-        _impl.Ready();
+        private Game.FooImpl _impl;
+        [Export]
+        public System.Int32 Speed { get => _impl.Speed; set => _impl.Speed = value; }
+
+        public override void _Ready()
+        {
+            EnsureImpl();
+            if (_impl is IGdScript<Godot.Node2D> gd)
+                gd.Node = this;
+            _impl.Ready();
+        }
+
+        public override void _Process(double delta) => _impl.Process(delta);
+        private void EnsureImpl()
+        {
+            if (_impl != null)
+                return;
+            _impl = new Game.FooImpl(this);
+        }
     }
-    public override void _Process(double delta) => _impl.Process(delta);
 }

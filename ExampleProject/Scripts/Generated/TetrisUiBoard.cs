@@ -4,28 +4,44 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisUiBoardImpl
 // SourceFile: TetrisUiBoard.fs
-// SourceHash: 5a0e78bfca41a4d117bf52cbc66ef9189fc4537be8fc3da21b23a0120c1780e4
+// SourceHash: 466bfbcd16818346d09623c40ce88a004ba381c35d7630d6bf175a74d4ee7b42
 // </auto-generated>
-
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
-namespace Generated;
-[Tool]
-[GlobalClass]
-public partial class TetrisUiBoard : Godot.Control
+
+namespace Generated
 {
-    private readonly Game.TetrisUiBoardImpl _impl = new Game.TetrisUiBoardImpl();
-    [Export(PropertyHint.Range, "8,64,1,1")] public System.Single CellSize { get => _impl.CellSize; set => _impl.CellSize = value; }
-    [Export] public System.Int32 MoveX { get => _impl.MoveX; set => _impl.MoveX = value; }
-    [Export] public System.Int32 Score { get => _impl.Score; set => _impl.Score = value; }
-    public override void _EnterTree() => _impl.EnterTree();
-    public override void _Ready()
+    [Tool]
+    [GlobalClass]
+    public partial class TetrisUiBoard : Godot.Control
     {
-        if (_impl is IGdScript<Godot.Control> gd)
-            gd.Node = this;
-        GetNodeOrNull<Node>(new NodePath("../DropTimer"))?.Connect("timeout", Callable.From(() => _impl.OnTimeout()));
-        _impl.Ready();
+        private Game.TetrisUiBoardImpl _impl = new Game.TetrisUiBoardImpl();
+        [Export(PropertyHint.Range, "8,64,1,1")]
+        public System.Single CellSize { get => _impl.CellSize; set => _impl.CellSize = value; }
+
+        [Export]
+        public System.Int32 MoveX { get => _impl.MoveX; set => _impl.MoveX = value; }
+
+        [Export]
+        public System.Int32 Score { get => _impl.Score; set => _impl.Score = value; }
+
+        public override void _EnterTree() => _impl.EnterTree();
+        public override void _Ready()
+        {
+            EnsureImpl();
+            if (_impl is IGdScript<Godot.Control> gd)
+                gd.Node = this;
+            GetNodeOrNull<Node>(new NodePath("../DropTimer"))?.Connect("timeout", Callable.From(() => _impl.OnTimeout()));
+            _impl.Ready();
+        }
+
+        public override void _Process(double delta) => _impl.Process(delta);
+        public override void _Draw() => _impl.Draw();
+        private void EnsureImpl()
+        {
+            if (_impl != null)
+                return;
+            _impl = new Game.TetrisUiBoardImpl();
+        }
     }
-    public override void _Process(double delta) => _impl.Process(delta);
-    public override void _Draw() => _impl.Draw();
 }

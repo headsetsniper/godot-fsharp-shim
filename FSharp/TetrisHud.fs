@@ -4,15 +4,15 @@ open Godot
 open Headsetsniper.Godot.FSharp.Annotations
 
 [<GodotScript(ClassName = "TetrisHud", BaseTypeName = "Godot.Control")>]
-type TetrisHudImpl() =
+type TetrisHudImpl(_node: Control, scoreLabel: Label, statusLabel: Label, board: Node) =
     [<NodePath(Path = "ScoreLabel")>]
-    member val ScoreLabel: Label = Unchecked.defaultof<_> with get, set
+    member val ScoreLabel: Label = scoreLabel with get, set
 
     [<NodePath(Path = "StatusLabel")>]
-    member val StatusLabel: Label = Unchecked.defaultof<_> with get, set
+    member val StatusLabel: Label = statusLabel with get, set
 
     [<NodePath(Path = "../Board")>]
-    member val Board: Node = Unchecked.defaultof<_> with get, set
+    member val Board: Node = board with get, set
 
     member _.Ready() = ()
 

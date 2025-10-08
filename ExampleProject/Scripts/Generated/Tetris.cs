@@ -4,32 +4,42 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisImpl
 // SourceFile: Tetris.fs
-// SourceHash: 638c72f00be8a08f4dbc7de5d75259419b7a3f093fae32b43d831b66327a879e
+// SourceHash: 41dbc8bb9e4defb7948b4998210168a6738a679542b6ab4583ddf4bbd683c715
 // </auto-generated>
-
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
-namespace Generated;
-[GlobalClass]
-[Icon("res://icon.svg")] 
-public partial class Tetris : Godot.Node2D
+
+namespace Generated
 {
-    private readonly Game.TetrisImpl _impl = new Game.TetrisImpl();
-    public override void _Ready()
+    [GlobalClass]
+    [Icon("res://icon.svg")]
+    public partial class Tetris : Godot.Node2D
     {
-        if (_impl is IGdScript<Godot.Node2D> gd)
-            gd.Node = this;
-        var __n_Board = GetNodeOrNull<Godot.Node>(new NodePath("UIRoot/Board"));
-        if (__n_Board == null) throw new System.InvalidOperationException("[shimgen][Tetris] Missing required NodePath for Board on Game.TetrisImpl");
-        _impl.Board = __n_Board;
-        var __n_Hud = GetNodeOrNull<Godot.Control>(new NodePath("UIRoot/HUD"));
-        if (__n_Hud == null) throw new System.InvalidOperationException("[shimgen][Tetris] Missing required NodePath for Hud on Game.TetrisImpl");
-        _impl.Hud = __n_Hud;
-        var __n_DropTimer = GetNodeOrNull<Godot.Timer>(new NodePath("UIRoot/DropTimer"));
-        if (__n_DropTimer == null) throw new System.InvalidOperationException("[shimgen][Tetris] Missing required NodePath for DropTimer on Game.TetrisImpl");
-        _impl.DropTimer = __n_DropTimer;
-        _impl.Ready();
+        private Game.TetrisImpl _impl;
+        public override void _Ready()
+        {
+            EnsureImpl();
+            if (_impl is IGdScript<Godot.Node2D> gd)
+                gd.Node = this;
+            _impl.Ready();
+        }
+
+        public override void _Process(double delta) => _impl.Process(delta);
+        public override void _Input(Godot.InputEvent @event) => _impl.Input(@event);
+        private void EnsureImpl()
+        {
+            if (_impl != null)
+                return;
+            var __di_np_Board = GetNodeOrNull<Godot.Node>(new NodePath("UIRoot/Board"));
+            if (__di_np_Board == null)
+                throw new System.InvalidOperationException("[shimgen][Tetris] Missing required NodePath for Board for constructor injection on Game.TetrisImpl");
+            var __di_np_Hud = GetNodeOrNull<Godot.Control>(new NodePath("UIRoot/HUD"));
+            if (__di_np_Hud == null)
+                throw new System.InvalidOperationException("[shimgen][Tetris] Missing required NodePath for Hud for constructor injection on Game.TetrisImpl");
+            var __di_np_DropTimer = GetNodeOrNull<Godot.Timer>(new NodePath("UIRoot/DropTimer"));
+            if (__di_np_DropTimer == null)
+                throw new System.InvalidOperationException("[shimgen][Tetris] Missing required NodePath for DropTimer for constructor injection on Game.TetrisImpl");
+            _impl = new Game.TetrisImpl(this, __di_np_Board, __di_np_Hud, __di_np_DropTimer);
+        }
     }
-    public override void _Process(double delta) => _impl.Process(delta);
-    public override void _Input(Godot.InputEvent @event) => _impl.Input(@event);
 }

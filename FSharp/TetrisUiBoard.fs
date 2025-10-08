@@ -47,7 +47,7 @@ module internal TetrisUiPipeline =
 
             { s with Y = y; HardDrop = false }
 
-[<GodotScript(ClassName = "TetrisUiBoard", BaseTypeName = "Godot.Control", Tool = true)>]
+[<GodotTool(ClassName = "TetrisUiBoard", BaseTypeName = "Godot.Control")>]
 type TetrisUiBoardImpl() =
     let mutable node: Control = Unchecked.defaultof<_>
     let cols, rows = 10, 20
