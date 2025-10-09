@@ -6,6 +6,7 @@ using NUnit.Framework;
 namespace ShimGen.Tests;
 
 [TestFixture]
+[NonParallelizable]
 public class RegenerateEnvTests
 {
     [OneTimeTearDown]

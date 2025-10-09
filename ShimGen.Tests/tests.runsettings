@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RunSettings>
+  <RunConfiguration>
+    <MaxCpuCount>8</MaxCpuCount>
+  </RunConfiguration>
   <LoggerRunSettings>
     <Loggers>
       <Logger friendlyName="Console" enabled="True">
@@ -9,4 +12,7 @@
       </Logger>
     </Loggers>
   </LoggerRunSettings>
+  <NUnit>
+    <NumberOfTestWorkers>8</NumberOfTestWorkers>
+  </NUnit>
 </RunSettings>
