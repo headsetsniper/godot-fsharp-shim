@@ -10,10 +10,9 @@ namespace ShimGen.Tests;
 
 internal static class IntegrationTestUtil
 {
-    public static string RunShimGen(string implPath, string? fsSourceDir = null, string? outDirOverride = null)
+    public static string RunShimGen(string implPath, string? fsSourceDir = null, string? outDirOverride = null, bool suppressErrorOutput = false, bool assertOnError = false)
     {
         var outDir = outDirOverride ?? TestHelpers.CreateTempDir();
-        // Ensure the attribute assembly is next to the impl assembly to help resolution in test runs
         var implDir = Path.GetDirectoryName(implPath)!;
         var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
         var targetAnn = Path.Combine(implDir, Path.GetFileName(annPath));
@@ -21,11 +20,11 @@ internal static class IntegrationTestUtil
 
         try
         {
-            // Prefer in-process run to avoid dotnet process spawn overhead
-            var regen = (string?)null; // explicitly clear during normal runs
-            var code = Headsetsniper.Godot.FSharp.ShimGen.TestingHooks.RunInProcess(implPath, outDir, fsSourceDir, regenerateEnv: regen, throwOnError: false);
+            var regen = (string?)null;
+            var code = Headsetsniper.Godot.FSharp.ShimGen.TestingHooks.RunInProcess(implPath, outDir, fsSourceDir, regenerateEnv: regen, throwOnError: false, suppressErrorOutput: suppressErrorOutput);
             if (code == 0) return outDir;
-            // Fall back to external process to preserve behavior if in-process failed for environment reasons
+            if (assertOnError)
+                Assert.Fail($"ShimGen failed in-process with exit code {code}.");
         }
         catch
         {
@@ -58,6 +57,10 @@ internal static class IntegrationTestUtil
             ["SHIMGEN_REGENERATE_SCRIPTS"] = null,
         };
         var res = ProcessUtil.Run("dotnet", args, env: env);
+        if (assertOnError && res.ExitCode != 0)
+        {
+            Assert.Fail("ShimGen failed.");
+        }
         Assert.That(res.ExitCode, Is.EqualTo(0), $"ShimGen failed. Stdout:\n{res.Stdout}\nStderr:\n{res.Stderr}");
         return outDir;
     }

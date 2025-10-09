@@ -24,7 +24,7 @@ type NpA() =
 """)]
     public void NodePath_On_Option_Throws_Generation_Error()
     {
-        Assert.Catch<AssertionException>(() => FsBatchComponent.BuildForFixture(typeof(NodePathOptionalityFailTests)));
+        Assert.Catch<AssertionException>(() => FsBatchComponent.BuildForFixtureQuietExpectingError(typeof(NodePathOptionalityFailTests)));
     }
 
     [Test]
@@ -40,7 +40,8 @@ type NpB() =
 """)]
     public void OptionalNodePath_On_NonOption_Throws_Generation_Error()
     {
-        Assert.Catch<AssertionException>(() => FsBatchComponent.BuildForFixture(typeof(NodePathOptionalityFailTests)));
+        // Build the fixture; generator should fail for invalid OptionalNodePath usage. Suppress error output to avoid test warnings.
+        Assert.Catch<AssertionException>(() => FsBatchComponent.BuildForFixtureQuietExpectingError(typeof(NodePathOptionalityFailTests)));
     }
 
 }

@@ -60,8 +60,13 @@ internal static class FsBatchRegistry
 public static class FsBatchComponent
 {
     public static void BuildForFixture(Type fixtureType)
+        => BuildForFixtureCore(fixtureType, suppressErrorOutput: false, assertOnError: false, eagerHeaderScenarios: false);
+
+    public static void BuildForFixtureQuietExpectingError(Type fixtureType)
+        => BuildForFixtureCore(fixtureType, suppressErrorOutput: true, assertOnError: true, eagerHeaderScenarios: false);
+
+    private static void BuildForFixtureCore(Type fixtureType, bool suppressErrorOutput, bool assertOnError, bool eagerHeaderScenarios)
     {
-        // Intentionally quiet by default; flip ProcessUtil echo if you need live streaming
         var methods = fixtureType
             .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
             .Where(m => m.GetCustomAttributes(typeof(TestAttribute), inherit: true).Any());
@@ -72,14 +77,14 @@ public static class FsBatchComponent
 
         if (fsCases.Length == 0)
         {
-            return; // Nothing to do for this fixture
+            return;
         }
 
         var byClass = fsCases
             .GroupBy(c => c.ScriptClassName)
             .Select(g => g.First())
             .ToList();
-        var rerunCount = fsCases.Length - byClass.Count; // extra FsCase attachments request reruns
+        var rerunCount = fsCases.Length - byClass.Count;
 
         var tempDir = TestHelpers.CreateTempDir();
         var files = new Dictionary<string, string>();
@@ -121,11 +126,11 @@ public static class FsBatchComponent
             Assert.Fail($"F# build failed. Stdout:\n{build.Stdout}\nStderr:\n{build.Stderr}");
         }
         var implPath = FindOutputAssembly(tempDir);
-        var outDir = IntegrationTestUtil.RunShimGen(implPath, fsSourceDir: tempDir);
+        var outDir = IntegrationTestUtil.RunShimGen(implPath, fsSourceDir: tempDir, outDirOverride: null, suppressErrorOutput: suppressErrorOutput, assertOnError: assertOnError);
         // If tests declared additional FsCase entries beyond the unique classes, treat them as rerun requests
         for (int i = 0; i < rerunCount; i++)
         {
-            IntegrationTestUtil.RunShimGen(implPath, fsSourceDir: tempDir, outDirOverride: outDir);
+            IntegrationTestUtil.RunShimGen(implPath, fsSourceDir: tempDir, outDirOverride: outDir, suppressErrorOutput: suppressErrorOutput, assertOnError: assertOnError);
         }
 
         var info = new FsFixtureInfo
@@ -140,7 +145,7 @@ public static class FsBatchComponent
 
     public static void BuildForFixture(Type fixtureType, bool eagerHeaderScenarios)
     {
-        BuildForFixture(fixtureType);
+        BuildForFixtureCore(fixtureType, suppressErrorOutput: false, assertOnError: false, eagerHeaderScenarios: false);
         if (!eagerHeaderScenarios) return;
         var info = FsBatchRegistry.Get(fixtureType);
         if (info == null) return;

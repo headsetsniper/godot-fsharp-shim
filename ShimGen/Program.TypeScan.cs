@@ -272,7 +272,7 @@ internal static partial class Program
         if (ctors.Length == 0) return (false, Array.Empty<CtorParamBinding>());
         if (ctors.Length > 1)
         {
-            Console.Error.WriteLine($"[shimgen][warn] {t.FullName}: Multiple public constructors found. DI requires a single constructor. Falling back to property wiring.");
+            LogWarn($"[shimgen][warn] {t.FullName}: Multiple public constructors found. DI requires a single constructor. Falling back to property wiring.");
             return (false, Array.Empty<CtorParamBinding>());
         }
         var ctor = ctors[0];
@@ -281,7 +281,7 @@ internal static partial class Program
         var expectedSelf = ps[0].ParameterType.FullName ?? string.Empty;
         if (!string.Equals(expectedSelf, baseTypeName, StringComparison.Ordinal))
         {
-            Console.Error.WriteLine($"[shimgen][warn] {t.FullName}: First constructor parameter must be '{baseTypeName}' for DI. Found '{expectedSelf}'. Falling back to property wiring.");
+            LogWarn($"[shimgen][warn] {t.FullName}: First constructor parameter must be '{baseTypeName}' for DI. Found '{expectedSelf}'. Falling back to property wiring.");
             return (false, Array.Empty<CtorParamBinding>());
         }
 
@@ -302,7 +302,7 @@ internal static partial class Program
             { bindings.Add(new(CtorParamKind.NodePath, npMatches[0].Name, p.ParameterType)); bound.Add(npMatches[0].Name); continue; }
             if (npMatches.Length > 1)
             {
-                Console.Error.WriteLine($"[shimgen][warn] {t.FullName}: Ambiguous constructor parameter '{p.Name}:{p.ParameterType.Name}'. Multiple NodePath members share this type. Rename the parameter to match the target member name.");
+                LogWarn($"[shimgen][warn] {t.FullName}: Ambiguous constructor parameter '{p.Name}:{p.ParameterType.Name}'. Multiple NodePath members share this type. Rename the parameter to match the target member name.");
                 return (false, Array.Empty<CtorParamBinding>());
             }
 
@@ -311,11 +311,11 @@ internal static partial class Program
             { bindings.Add(new(CtorParamKind.Preload, plMatches[0].Name, p.ParameterType)); bound.Add(plMatches[0].Name); continue; }
             if (plMatches.Length > 1)
             {
-                Console.Error.WriteLine($"[shimgen][warn] {t.FullName}: Ambiguous constructor parameter '{p.Name}:{p.ParameterType.Name}'. Multiple Preload members share this type. Rename the parameter to match the target member name.");
+                LogWarn($"[shimgen][warn] {t.FullName}: Ambiguous constructor parameter '{p.Name}:{p.ParameterType.Name}'. Multiple Preload members share this type. Rename the parameter to match the target member name.");
                 return (false, Array.Empty<CtorParamBinding>());
             }
 
-            Console.Error.WriteLine($"[shimgen][warn] {t.FullName}: Constructor parameter '{p.Name}' of type '{p.ParameterType.FullName}' did not match any NodePath/Preload members. DI disabled for this type.");
+            LogWarn($"[shimgen][warn] {t.FullName}: Constructor parameter '{p.Name}' of type '{p.ParameterType.FullName}' did not match any NodePath/Preload members. DI disabled for this type.");
             return (false, Array.Empty<CtorParamBinding>());
         }
 
@@ -325,9 +325,9 @@ internal static partial class Program
             return (true, bindings.ToArray());
 
         if (requiredNpMissing.Length > 0)
-            Console.Error.WriteLine($"[shimgen][warn] {t.FullName}: DI requires all required [NodePath] members in the constructor. Missing: {string.Join(", ", requiredNpMissing)}. Falling back to property wiring.");
+            LogWarn($"[shimgen][warn] {t.FullName}: DI requires all required [NodePath] members in the constructor. Missing: {string.Join(", ", requiredNpMissing)}. Falling back to property wiring.");
         if (requiredPlMissing.Length > 0)
-            Console.Error.WriteLine($"[shimgen][warn] {t.FullName}: DI requires all Required [Preload] members in the constructor. Missing: {string.Join(", ", requiredPlMissing)}. Falling back to property wiring.");
+            LogWarn($"[shimgen][warn] {t.FullName}: DI requires all Required [Preload] members in the constructor. Missing: {string.Join(", ", requiredPlMissing)}. Falling back to property wiring.");
         return (false, Array.Empty<CtorParamBinding>());
     }
 

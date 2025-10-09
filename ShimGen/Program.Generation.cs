@@ -50,12 +50,12 @@ internal static partial class Program
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                 File.WriteAllText(path, code, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
                 written++;
-                Console.WriteLine($"[shimgen] Regenerated (in-place) {path}");
+                LogInfo($"[shimgen] Regenerated (in-place) {path}");
             }
             else if (WriteIfChanged(path, code))
             {
                 written++;
-                Console.WriteLine($"[shimgen] Wrote {path}");
+                LogInfo($"[shimgen] Wrote {path}");
             }
 
             if (!string.IsNullOrEmpty(relForThis))
@@ -113,14 +113,14 @@ internal static partial class Program
 
     private static void PrintSummary(GenerationPlan plan, bool dryRun)
     {
-        Console.WriteLine($"[shimgen] Summary: Moves={plan.PlannedMoves.Count}, Deletes={plan.PlannedDeletes.Count}.");
+        LogInfo($"[shimgen] Summary: Moves={plan.PlannedMoves.Count}, Deletes={plan.PlannedDeletes.Count}.");
         if (dryRun)
         {
-            Console.WriteLine($"[shimgen] Dry-run: Writes={plan.PlannedWrites.Count}, Skipped={plan.PlannedSkips.Count}.");
-            foreach (var m in plan.PlannedMoves) Console.WriteLine($"[shimgen] plan MOVE {m.from} -> {m.to}");
-            foreach (var d in plan.PlannedDeletes) Console.WriteLine($"[shimgen] plan DELETE {d}");
-            foreach (var w in plan.PlannedWrites) Console.WriteLine($"[shimgen] plan WRITE {w}");
+            LogInfo($"[shimgen] Dry-run: Writes={plan.PlannedWrites.Count}, Skipped={plan.PlannedSkips.Count}.");
+            foreach (var m in plan.PlannedMoves) LogInfo($"[shimgen] plan MOVE {m.from} -> {m.to}");
+            foreach (var d in plan.PlannedDeletes) LogInfo($"[shimgen] plan DELETE {d}");
+            foreach (var w in plan.PlannedWrites) LogInfo($"[shimgen] plan WRITE {w}");
         }
-        Console.WriteLine($"[shimgen] Completed. Scanned={plan.Scanned}, Annotated={plan.Annotated}, Written={plan.Written}.");
+        LogInfo($"[shimgen] Completed. Scanned={plan.Scanned}, Annotated={plan.Annotated}, Written={plan.Written}.");
     }
 }
