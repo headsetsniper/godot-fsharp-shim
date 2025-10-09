@@ -1,21 +1,31 @@
-[gd_scene load_steps=4 format=3 uid="uid://cqq37r6h7eunq"]
+[gd_scene load_steps=7 format=3 uid="uid://cqq37r6h7eunq"]
 
 [ext_resource type="Script" uid="uid://d3r5eusies2ch" path="res://Scripts/Generated/Tetris.cs" id="1"]
 [ext_resource type="Script" uid="uid://bsdltjmowqx0w" path="res://Scripts/Generated/TetrisUiBoard.cs" id="2_xkfk2"]
 [ext_resource type="Script" uid="uid://ctxa72a7j2gfd" path="res://Scripts/Generated/TetrisHud.cs" id="3"]
+[ext_resource type="Script" uid="uid://c1vopfutcftay" path="res://Scripts/Generated/TetrisTickRelay.cs" id="4"]
+[ext_resource type="Script" uid="uid://5eiyy7in7sca" path="res://Scripts/Generated/TetrisBagPreview.cs" id="5"]
+[ext_resource type="Script" uid="uid://b6gu6og7y6s7e" path="res://Scripts/Generated/TetrisGridView.cs" id="6"]
 
 [node name="Tetris" type="Node2D"]
 script = ExtResource("1")
 
 [node name="UIRoot" type="Control" parent="."]
-layout_mode = 0
+layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="TickRelay" type="Node" parent="UIRoot"]
+script = ExtResource("4")
 
 [node name="Board" type="Control" parent="UIRoot"]
-layout_mode = 0
-anchors_preset = 15
+process_mode = 3
+anchors_preset = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 16.0
@@ -24,10 +34,20 @@ offset_right = -16.0
 offset_bottom = -16.0
 script = ExtResource("2_xkfk2")
 CellSize = 24.0
+GridEncoded = "0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000|0000000000"
+CurrentEncoded = "110|011"
+CurrentX = 4
+
+[node name="GridView" type="Control" parent="UIRoot/Board"]
+custom_minimum_size = Vector2(240, 480)
+anchors_preset = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("6")
+CellSize = 24.0
 
 [node name="HUD" type="Control" parent="UIRoot"]
-layout_mode = 0
-anchors_preset = 15
+anchors_preset = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("3")
@@ -49,3 +69,16 @@ offset_top = 28.0
 [node name="DropTimer" type="Timer" parent="UIRoot"]
 wait_time = 0.6
 autostart = true
+
+[node name="BagPreview" type="Control" parent="UIRoot"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = 498.0
+offset_top = 44.0
+offset_right = 626.0
+offset_bottom = 140.0
+grow_horizontal = 0
+script = ExtResource("5")
+CellSize = 24.0

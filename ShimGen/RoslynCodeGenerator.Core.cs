@@ -24,7 +24,9 @@ internal static partial class RoslynCodeGenerator
         classDecl = classDecl.AddMembers(CreateExportMembers(ctx).ToArray());
         classDecl = classDecl.AddMembers(CreateLifecycleAndReadyMembers(ctx).ToArray());
         classDecl = classDecl.AddMembers(CreateUiAndCanvasMembers(ctx).ToArray());
-        classDecl = classDecl.AddMembers(CreateSignalMembers(ctx).ToArray());
+        // Only emit signals when the F# impl declares Signal_ methods
+        if (ctx.Spec.Signals.Length > 0)
+            classDecl = classDecl.AddMembers(CreateSignalMembers(ctx).ToArray());
         classDecl = classDecl.AddMembers(CreateEnsureImplMethod(ctx));
         nsDecl = nsDecl.AddMembers(classDecl);
         var cu = SyntaxFactory.CompilationUnit()

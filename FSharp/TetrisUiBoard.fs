@@ -49,6 +49,7 @@ module internal TetrisUiPipeline =
 
 [<GodotTool(ClassName = "TetrisUiBoard", BaseTypeName = "Godot.Control")>]
 type TetrisUiBoardImpl() =
+    let mutable nodeOpt: Control option = None
     let mutable node: Control = Unchecked.defaultof<_>
     let cols, rows = 10, 20
     let mutable grid: CellFlags[,] = Array2D.zeroCreate rows cols
@@ -57,27 +58,54 @@ type TetrisUiBoardImpl() =
     let mutable curShape: bool[,] = Tetromino.shape Tetromino.Kind.I
     let mutable curX, curY = 3, 0
     let mutable cells: ColorRect[,] = Array2D.zeroCreate rows cols
-    // request flags set via signals
+    // request flags exposed as exported properties
     let mutable rotateRequested = false
     let mutable hardDropRequested = false
+    let mutable bagRequested = false
     let mutable printedReady = false
     let mutable printedBuilt = false
     let mutable printedDrawOnce = false
     let mutable printedProcessOnce = false
     let mutable timeoutCount = 0
     let mutable gridReady = false
+    let mutable useInternalRendering = true
+    // bag state (UI moved to TetrisBagPreview)
+    let mutable bagShape: bool[,] option = None
 
-    let debug (msg: string) = GD.Print $"[TetrisUiBoard] {msg}"
+    let debug (_msg: string) = ()
+    let warn (_msg: string) = ()
+
+    // No custom Godot signals; we drive redraws directly on views
 
     interface IGdScript<Control> with
         member _.Node
-            with get () = node
-            and set v = node <- v
+            with get () =
+                match nodeOpt with
+                | Some n -> n
+                | None -> raise (InvalidOperationException "Node not set")
+            and set v =
+                node <- v
+                nodeOpt <- Some v
 
     [<ExportRange(8.0, 64.0, 1.0, true)>]
     member val CellSize: float32 = 24.0f with get, set
 
     member val MoveX: int = 0 with get, set
+
+    [<Export>]
+    member this.RotateRequested
+        with get () = rotateRequested
+        and set v = rotateRequested <- v
+
+    [<Export>]
+    member this.HardDropRequested
+        with get () = hardDropRequested
+        and set v = hardDropRequested <- v
+
+    [<Export>]
+    member this.BagRequested
+        with get () = bagRequested
+        and set v = bagRequested <- v
 
     member _.Score
         with get () = score
@@ -86,61 +114,65 @@ type TetrisUiBoardImpl() =
     member private this.EnsureGrid() =
         // In editor, _Process can be scheduled before _Ready has injected Node.
         // Bail out until Node is available to avoid NREs.
-        match box node with
-        | null -> gridReady <- false
-        | _ ->
-            let existing = node.GetNodeOrNull<GridContainer>(new NodePath "Grid")
-
-            let gridContainer =
-                if isNull existing then
-                    debug ("Creating GridContainer (editor=" + string (Engine.IsEditorHint()) + ")")
-                    let g = new GridContainer()
-                    g.Name <- new StringName "Grid"
-                    g.Columns <- cols
-                    g.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                    g.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                    g.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
-                    node.AddChild(g)
-                    g
-                else
-                    existing
-
-            gridContainer.SetAnchorsPreset Control.LayoutPreset.FullRect
-            gridContainer.OffsetLeft <- 0f
-            gridContainer.OffsetTop <- 0f
-            gridContainer.OffsetRight <- 0f
-            gridContainer.OffsetBottom <- 0f
-
-            // Clear and rebuild children once on first init or mismatch
-            if gridContainer.GetChildCount() <> cols * rows then
-                while gridContainer.GetChildCount() > 0 do
-                    let ch = gridContainer.GetChild(0)
-                    gridContainer.RemoveChild(ch)
-                    ch.QueueFree()
-
-                for y in 0 .. rows - 1 do
-                    for x in 0 .. cols - 1 do
-                        let cr = new ColorRect()
-                        cr.CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
-                        cr.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                        cr.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
-                        cr.Color <- Colors.Transparent
-                        gridContainer.AddChild(cr)
-                        cells[y, x] <- cr
-
-                if not printedBuilt then
-                    printedBuilt <- true
-                    debug $"Initialized grid {cols}x{rows} at path {node.GetPath()} with CellSize={this.CellSize}"
-
+        match nodeOpt with
+        | None -> gridReady <- false
+        | Some node ->
+            if not useInternalRendering then
                 gridReady <- true
+                ()
             else
-                // Map existing children in row-major order
-                for i in 0 .. gridContainer.GetChildCount() - 1 do
-                    let y = i / cols
-                    let x = i % cols
-                    cells[y, x] <- gridContainer.GetChild(i) :?> ColorRect
+                let existing = node.GetNodeOrNull<GridContainer>(new NodePath "Grid")
 
-                gridReady <- true
+                let gridContainer =
+                    if isNull existing then
+                        let g = new GridContainer()
+                        g.Name <- new StringName "Grid"
+                        g.Columns <- cols
+                        g.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                        g.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                        g.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
+                        node.AddChild(g)
+                        g
+                    else
+                        existing
+
+                gridContainer.SetAnchorsPreset Control.LayoutPreset.FullRect
+                gridContainer.OffsetLeft <- 0f
+                gridContainer.OffsetTop <- 0f
+                gridContainer.OffsetRight <- 0f
+                gridContainer.OffsetBottom <- 0f
+
+                // Clear and rebuild children once on first init or mismatch
+                if gridContainer.GetChildCount() <> cols * rows then
+                    while gridContainer.GetChildCount() > 0 do
+                        let ch = gridContainer.GetChild(0)
+                        gridContainer.RemoveChild(ch)
+                        ch.QueueFree()
+
+                    for y in 0 .. rows - 1 do
+                        for x in 0 .. cols - 1 do
+                            let cr = new ColorRect()
+                            cr.CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
+                            cr.SizeFlagsHorizontal <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                            cr.SizeFlagsVertical <- Control.SizeFlags.Fill ||| Control.SizeFlags.Expand
+                            cr.Color <- Colors.Transparent
+                            gridContainer.AddChild(cr)
+                            cells[y, x] <- cr
+
+                    if not printedBuilt then
+                        printedBuilt <- true
+
+                    gridReady <- true
+                else
+                    // Map existing children in row-major order
+                    for i in 0 .. gridContainer.GetChildCount() - 1 do
+                        let y = i / cols
+                        let x = i % cols
+                        cells[y, x] <- gridContainer.GetChild(i) :?> ColorRect
+
+                    gridReady <- true
+
+                ()
 
     member private this.SyncCellSizes() =
         for y in 0 .. rows - 1 do
@@ -150,9 +182,14 @@ type TetrisUiBoardImpl() =
                 if not (obj.ReferenceEquals(c, null)) then
                     c.CustomMinimumSize <- Vector2(this.CellSize, this.CellSize)
 
-        match node.GetNodeOrNull<GridContainer>(new NodePath "Grid") with
-        | null -> ()
-        | gc -> gc.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
+        match nodeOpt with
+        | Some n ->
+            let gc = n.GetNodeOrNull<GridContainer>(new NodePath "Grid")
+
+            if not (isNull gc) then
+                gc.CustomMinimumSize <- Vector2(float32 cols * this.CellSize, float32 rows * this.CellSize)
+        | None -> ()
+
 
     member private _.PaintBase() =
         for y in 0 .. rows - 1 do
@@ -183,22 +220,93 @@ type TetrisUiBoardImpl() =
                         if not (obj.ReferenceEquals(c, null)) then
                             c.Color <- Color(1.0f, 0.4f, 0.2f)
 
+    member private _.EncodeBag() =
+        match bagShape with
+        | None -> ""
+        | Some shape ->
+            let h = shape.GetLength 0
+            let w = shape.GetLength 1
+
+            let rows =
+                [ for y in 0 .. h - 1 ->
+                      let chars = [ for x in 0 .. w - 1 -> if shape[y, x] then '1' else '0' ]
+                      new String(Array.ofList chars) ]
+
+            String.Join("|", rows)
+
+    [<Export>]
+    member val BagEncoded: string = "" with get, set
+
+    member private _.EncodeGrid() =
+        let rows =
+            [ for y in 0 .. rows - 1 ->
+                  let chars =
+                      [ for x in 0 .. cols - 1 -> if grid[y, x] <> CellFlags.Empty then '1' else '0' ]
+
+                  new String(Array.ofList chars) ]
+
+        String.Join("|", rows)
+
+    [<Export>]
+    member val GridEncoded: string = "" with get, set
+
+    member private _.EncodeCurrent() =
+        let h = curShape.GetLength 0
+        let w = curShape.GetLength 1
+
+        let rows =
+            [ for y in 0 .. h - 1 ->
+                  let chars = [ for x in 0 .. w - 1 -> if curShape[y, x] then '1' else '0' ]
+                  new String(Array.ofList chars) ]
+
+        String.Join("|", rows)
+
+    [<Export>]
+    member val CurrentEncoded: string = "" with get, set
+
+    [<Export>]
+    member val CurrentX: int = 0 with get, set
+
+    [<Export>]
+    member val CurrentY: int = 0 with get, set
+
+    member private this.PushStateToExports() =
+        this.GridEncoded <- this.EncodeGrid()
+        this.CurrentEncoded <- this.EncodeCurrent()
+        this.CurrentX <- curX
+        this.CurrentY <- curY
+        this.BagEncoded <- this.EncodeBag()
+
     member private this.DrawUi() =
-        if obj.ReferenceEquals(node, null) then
-            ()
-        elif not gridReady then
-            this.EnsureGrid()
+        match nodeOpt with
+        | None -> ()
+        | Some _ ->
+            if not gridReady then
+                this.EnsureGrid()
 
-        if not gridReady then
-            ()
-        else
-            if not printedDrawOnce then
-                printedDrawOnce <- true
-                debug "DrawUi() invoked"
+            if gridReady then
+                if not printedDrawOnce then
+                    printedDrawOnce <- true
 
-            this.SyncCellSizes()
-            this.PaintBase()
-            this.PaintOverlay()
+                if useInternalRendering then
+                    this.SyncCellSizes()
+                    this.PaintBase()
+                    this.PaintOverlay()
+
+                this.PushStateToExports()
+                // Also nudge external views directly
+                match nodeOpt with
+                | Some n ->
+                    let gv = n.GetNodeOrNull<Control>(new NodePath "GridView")
+
+                    if not (isNull gv) then
+                        gv.QueueRedraw()
+
+                    let bp = n.GetNodeOrNull<Control>(new NodePath "../BagPreview")
+
+                    if not (isNull bp) then
+                        bp.QueueRedraw()
+                | None -> ()
 
     member _.Clear() = grid <- Array2D.zeroCreate rows cols
 
@@ -264,43 +372,62 @@ type TetrisUiBoardImpl() =
     member this.Ready() =
         if not printedReady then
             printedReady <- true
-            debug ("Ready() (editor=" + string (Engine.IsEditorHint()) + ")")
 
-        if Engine.IsEditorHint() then
-            // Ensure _Process runs in the editor
-            node.ProcessMode <- Node.ProcessModeEnum.Always
-            node.SetProcess true
-            node.QueueRedraw()
+        // Ensure _Process runs both in editor and at runtime
+        nodeOpt
+        |> Option.iter (fun n ->
+            n.ProcessMode <- Node.ProcessModeEnum.Always
+            n.SetProcess true
+            n.QueueRedraw())
 
-        // Define and connect user signals for inputs
-        // Ensure signals exist even if no external connections
-        node.AddUserSignal(new StringName "RequestRotate")
-        node.AddUserSignal(new StringName "RequestHardDrop")
-        // Self-connect to flip request flags, processed in _Process
-        node.Connect(new StringName "RequestRotate", Callable.From(fun () -> rotateRequested <- true))
-        |> ignore
+        // No custom signals; inputs are exposed via exported properties
 
-        node.Connect(new StringName "RequestHardDrop", Callable.From(fun () -> hardDropRequested <- true))
-        |> ignore
+        // Disable internal rendering if an external GridView is present
+        useInternalRendering <-
+            match nodeOpt with
+            | None -> true
+            | Some n -> isNull (n.GetNodeOrNull<Control>(new NodePath "GridView"))
 
-        this.EnsureGrid()
-        // Set a subtle background so the board bounds are visible
-        node.Modulate <- Color(0.1f, 0.1f, 0.1f, 1.0f)
+        if useInternalRendering then
+            this.EnsureGrid()
+        else
+            gridReady <- true
+        // Do not tint the board; views draw their own backgrounds
 
         this.Clear()
         this.SpawnNewPiece()
         this.DrawUi()
+        // Push exports and nudge initial redraws
+        this.PushStateToExports()
+        this.DrawUi()
 
-    member this.EnterTree() =
-        // Node is injected in _Ready; avoid touching 'node' here
-        debug ("EnterTree() (editor=" + string (Engine.IsEditorHint()) + ")")
+        // Connect to TickRelay.Tick after ensuring signal exists
+        let tr =
+            match nodeOpt with
+            | None -> null
+            | Some n -> n.GetNodeOrNull<Node>(new NodePath "../TickRelay")
 
-    [<AutoConnect("../DropTimer", "timeout")>]
+        if obj.ReferenceEquals(tr, null) then
+            ()
+        else
+            let tick = new StringName "Tick"
+
+            if not (tr.HasSignal tick) then
+                tr.AddUserSignal tick
+
+            let err =
+                tr.Connect(tick, Callable.From(new System.Action(fun () -> this.OnTimeout())))
+
+            if err <> Error.Ok && err <> Error.AlreadyInUse then
+                ()
+
+    member this.EnterTree() = ()
+
     member this.OnTimeout() =
         timeoutCount <- timeoutCount + 1
 
         if timeoutCount <= 3 then
-            debug $"OnTimeout #{timeoutCount}"
+            ()
 
         if this.CanPlace(curShape, curX, curY + 1) then
             curY <- curY + 1
@@ -312,16 +439,16 @@ type TetrisUiBoardImpl() =
                 score <- score + (cleared * 100)
 
             this.SpawnNewPiece()
+            this.PushStateToExports()
 
         this.DrawUi()
 
     member this.Process(_delta: double) =
-        match box node with
-        | null -> () // wait for _Ready to inject Node
-        | _ ->
+        match nodeOpt with
+        | None -> () // wait for _Ready to inject Node
+        | Some node ->
             if not printedProcessOnce && Engine.IsEditorHint() then
                 printedProcessOnce <- true
-                debug "Process() (editor)"
 
             let canPlace shape x y = this.CanPlace(shape, x, y)
 
@@ -339,9 +466,32 @@ type TetrisUiBoardImpl() =
             curShape <- updated.Shape
             curX <- updated.X
             curY <- updated.Y
+            this.PushStateToExports()
+
+            // Bag mechanic: Shift toggles store or retrieve
+            if bagRequested then
+                match bagShape with
+                | None ->
+                    // Store current piece, spawn a new one
+                    bagShape <- Some curShape
+                    this.SpawnNewPiece()
+                    this.PushStateToExports()
+                | Some stored ->
+                    // Retrieve stored piece and clear bag; no swapping
+                    curShape <- stored
+                    bagShape <- None
+                    curX <- (cols / 2) - 1
+                    curY <- 0
+
+                    if not (this.CanPlace(curShape, curX, curY)) then
+                        this.SpawnNewPiece()
+
+                    this.PushStateToExports()
+
             this.MoveX <- 0
             rotateRequested <- false
             hardDropRequested <- false
+            bagRequested <- false
 
             this.DrawUi()
 
@@ -352,4 +502,4 @@ type TetrisUiBoardImpl() =
         if Engine.IsEditorHint() then
             // This confirms CanvasItem draw is called in-editor when queued
             if not printedDrawOnce then
-                debug "Draw() (editor)"
+                ()

@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisUiBoardImpl
 // SourceFile: TetrisUiBoard.fs
-// SourceHash: dbf341c5aacf0f36176bb5695595abfdd49f2c97499de783961e555a16c520d9
+// SourceHash: f65a8d5c03e9f123fd5ff382a518d9b067c22334798e5b3c6196e089d3725e79
 // </auto-generated>
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
@@ -23,7 +23,31 @@ namespace Generated
         public System.Int32 MoveX { get => _impl.MoveX; set => _impl.MoveX = value; }
 
         [Export]
+        public System.Boolean RotateRequested { get => _impl.RotateRequested; set => _impl.RotateRequested = value; }
+
+        [Export]
+        public System.Boolean HardDropRequested { get => _impl.HardDropRequested; set => _impl.HardDropRequested = value; }
+
+        [Export]
+        public System.Boolean BagRequested { get => _impl.BagRequested; set => _impl.BagRequested = value; }
+
+        [Export]
         public System.Int32 Score { get => _impl.Score; set => _impl.Score = value; }
+
+        [Export]
+        public System.String BagEncoded { get => _impl.BagEncoded; set => _impl.BagEncoded = value; }
+
+        [Export]
+        public System.String GridEncoded { get => _impl.GridEncoded; set => _impl.GridEncoded = value; }
+
+        [Export]
+        public System.String CurrentEncoded { get => _impl.CurrentEncoded; set => _impl.CurrentEncoded = value; }
+
+        [Export]
+        public System.Int32 CurrentX { get => _impl.CurrentX; set => _impl.CurrentX = value; }
+
+        [Export]
+        public System.Int32 CurrentY { get => _impl.CurrentY; set => _impl.CurrentY = value; }
 
         public override void _EnterTree() => _impl.EnterTree();
         public override void _Ready()
@@ -31,7 +55,6 @@ namespace Generated
             EnsureImpl();
             if (_impl is IGdScript<Godot.Control> gd)
                 gd.Node = this;
-            GetNodeOrNull<Node>(new NodePath("../DropTimer"))?.Connect("timeout", Callable.From(() => _impl.OnTimeout()));
             _impl.Ready();
         }
 
