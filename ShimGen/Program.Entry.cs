@@ -19,7 +19,8 @@ internal static partial class Program
         return 2;
     }
 
-    private static int RunPipeline(string asmPath, string outDir, string? fsDir, bool dryRun)
+    // Exposed internally for test in-process execution; public wrapper provided in TestingHooks.cs
+    internal static int RunPipeline(string asmPath, string outDir, string? fsDir, bool dryRun)
     {
         IsolatedLoadContext? lc = null;
         try

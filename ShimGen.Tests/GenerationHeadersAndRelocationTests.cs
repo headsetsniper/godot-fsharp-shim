@@ -164,19 +164,12 @@ type FooImpl() =
         }) + "\n";
         File.WriteAllText(fsFile, fsContent);
 
-        var code = string.Join("\n", new[]{
-            "namespace Game.Scripts",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
-            "type FooImpl() =",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node2D).Assembly), annPath }, asmName: "GameScriptsImpl");
+        // Reuse the fixture-compiled implementation to avoid per-test F# compilation overhead
+        var impl = FsBatch.GetImplAssemblyPath<GenerationHeadersAndRelocationTests>();
+        Assert.That(impl, Is.Not.Null.And.Not.Empty, "Fixture impl assembly not available");
+        var implPath = impl ?? throw new AssertionException("Fixture impl assembly not available");
 
-        var outDir = IntegrationTestUtil.RunShimGen(impl, root);
+        var outDir = IntegrationTestUtil.RunShimGen(implPath, root);
 
         var expectedDir = Path.Combine(outDir, "Game", "Scripts");
         var expectedFile = Path.Combine(expectedDir, "Foo.cs");
@@ -203,18 +196,10 @@ type FooImpl() =
         }) + "\n";
         File.WriteAllText(fsA, fsContent);
 
-        var code = string.Join("\n", new[]{
-            "namespace Game.Scripts",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
-            "type FooImpl() =",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node2D).Assembly), annPath }, asmName: "GameScriptsImpl_Move");
-        var outDir = IntegrationTestUtil.RunShimGen(impl, root);
+        var impl = FsBatch.GetImplAssemblyPath<GenerationHeadersAndRelocationTests>();
+        Assert.That(impl, Is.Not.Null.And.Not.Empty, "Fixture impl assembly not available");
+        var implPath = impl ?? throw new AssertionException("Fixture impl assembly not available");
+        var outDir = IntegrationTestUtil.RunShimGen(implPath, root);
 
         var oldGenerated = Path.Combine(outDir, "Game", "Scripts", "Foo.cs");
         Assert.That(File.Exists(oldGenerated), Is.True, "Initial generated file missing");
@@ -293,18 +278,10 @@ type FooImpl() =
         }) + "\n";
         File.WriteAllText(fs, fsContent);
 
-        var code = string.Join("\n", new[]{
-            "namespace Game",
-            "",
-            "open Godot",
-            "open Headsetsniper.Godot.FSharp.Annotations",
-            $"[<GodotScript(ClassName=\"Foo\", BaseTypeName=\"{KnownGodot.Node2D}\")>]",
-            "type FooImpl() =",
-            "    member _.Ready() = ()"
-        });
-        var annPath = Assembly.GetAssembly(typeof(GodotScriptAttribute))!.Location;
-        var impl = TestHelpers.CompileFSharp(code, new[] { TestHelpers.RefPathFromAssembly(typeof(Godot.Node2D).Assembly), annPath }, asmName: "GameImpl_Prune");
-        var outDir = IntegrationTestUtil.RunShimGen(impl, root);
+        var impl = FsBatch.GetImplAssemblyPath<GenerationHeadersAndRelocationTests>();
+        Assert.That(impl, Is.Not.Null.And.Not.Empty, "Fixture impl assembly not available");
+        var implPath = impl ?? throw new AssertionException("Fixture impl assembly not available");
+        var outDir = IntegrationTestUtil.RunShimGen(implPath, root);
         var gen = Path.Combine(outDir, "Game", "Foo.cs");
         Assert.That(File.Exists(gen), Is.True);
 
