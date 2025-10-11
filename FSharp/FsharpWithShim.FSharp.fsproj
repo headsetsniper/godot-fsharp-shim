@@ -6,7 +6,6 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Foo.fs" />
     <Compile Include="TetrisTypes.fs" />
     <Compile Include="TetrisTickRelay.fs" />
     <Compile Include="TetrisBagPreview.fs" />
