@@ -93,17 +93,17 @@ type TetrisUiBoardImpl() =
     member val MoveX: int = 0 with get, set
 
     [<Export>]
-    member this.RotateRequested
+    member _.RotateRequested
         with get () = rotateRequested
         and set v = rotateRequested <- v
 
     [<Export>]
-    member this.HardDropRequested
+    member _.HardDropRequested
         with get () = hardDropRequested
         and set v = hardDropRequested <- v
 
     [<Export>]
-    member this.BagRequested
+    member _.BagRequested
         with get () = bagRequested
         and set v = bagRequested <- v
 
@@ -421,7 +421,7 @@ type TetrisUiBoardImpl() =
             if err <> Error.Ok && err <> Error.AlreadyInUse then
                 ()
 
-    member this.EnterTree() = ()
+    member _.EnterTree() = ()
 
     member this.OnTimeout() =
         timeoutCount <- timeoutCount + 1
@@ -497,9 +497,3 @@ type TetrisUiBoardImpl() =
 
             if Engine.IsEditorHint() then
                 node.QueueRedraw()
-
-    member this.Draw() =
-        if Engine.IsEditorHint() then
-            // This confirms CanvasItem draw is called in-editor when queued
-            if not printedDrawOnce then
-                ()

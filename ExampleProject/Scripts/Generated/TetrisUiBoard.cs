@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisUiBoardImpl
 // SourceFile: TetrisUiBoard.fs
-// SourceHash: 321d2aa476687cd87bebdec7d0f59bfa22813330a16d7498c0c6252c272487ae
+// SourceHash: 35644739cc508031b0130711b9ad815b80030dd7f2f63f59c0b8744f5b039cff
 // </auto-generated>
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
@@ -59,7 +59,6 @@ namespace Generated
         }
 
         public override void _Process(double delta) => _impl.Process(delta);
-        public override void _Draw() => _impl.Draw();
         private void EnsureImpl()
         {
             if (_impl != null)
