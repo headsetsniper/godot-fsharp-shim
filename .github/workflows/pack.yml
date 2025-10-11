@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths-ignore:
       - 'ExampleProject/**'
+      - 'FSharp/**'
     tags:
       - 'v*'
   workflow_dispatch:
