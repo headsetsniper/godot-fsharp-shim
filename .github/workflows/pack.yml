@@ -3,6 +3,8 @@ name: pack-and-publish
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'ExampleProject/**'
     tags:
       - 'v*'
   workflow_dispatch:
