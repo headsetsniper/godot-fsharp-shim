@@ -20,4 +20,4 @@ project/assembly_name="FsharpWithShim"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/gd-plug-ui/plugin.cfg")
+enabled=PackedStringArray("res://addons/gd-plug-ui/plugin.cfg", "res://addons/gdUnit4/plugin.cfg")
