@@ -21,3 +21,9 @@ project/assembly_name="FsharpWithShim"
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/gd-plug-ui/plugin.cfg", "res://addons/gdUnit4/plugin.cfg")
+
+[gdunit4]
+
+settings/test/test_lookup_folder="Scripts/Tests"
+settings/test/test_discovery=true
+ui/toolbar/run_overall=true

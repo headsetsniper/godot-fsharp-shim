@@ -1,3 +1,7 @@
 addons
 !addons/gd-plug-ui
 !addons/gd-plug
+.plugged
+gdunit4_testadapter_v5
+reports
+TestResults

@@ -6,9 +6,19 @@
     <EnableDefaultItems>false</EnableDefaultItems>
   <!-- Local dev fallback: if CI doesn't pass ShimGenPackageVersion, use a floating version to get the latest 0.x.y -->
   <ShimGenPackageVersion Condition="'$(ShimGenPackageVersion)'==''">0.*</ShimGenPackageVersion>
+  <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   <!-- Prefer local ShimGen targets during repo development when present -->
   <UseLocalShimGen Condition="Exists('..\ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets')">true</UseLocalShimGen>
+    <RunSettingsFilePath>$(MSBuildProjectDirectory)\.runsettings</RunSettingsFilePath>
   </PropertyGroup>
+ <PropertyGroup>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+        <!--Disable warning/error of invalid/incompatible GodotSharp version, the package GdUnit4.API is build by V4.2.0-->
+        <NoWarn>NU1605</NoWarn>
+        <!-- Prevent MSTest adapter from being discovered -->
+        <VSTestTestAdapterPath>none</VSTestTestAdapterPath>
+        <TestFramework>GdUnit4</TestFramework>
+    </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\\FSharp\\FsharpWithShim.FSharp.fsproj">
@@ -16,6 +26,15 @@
       <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>
+<ItemGroup>
+  <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1"/>
+        <PackageReference Include="gdUnit4.api" Version="5.0.0"/>
+  <PackageReference Include="gdUnit4.test.adapter" Version="3.0.0"/>
+        <PackageReference Include="gdUnit4.analyzers" Version="1.0.0">
+            <PrivateAssets>none</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+   </ItemGroup>
 
   <ItemGroup Condition="'$(UseLocalShimGen)'!='true'">
     <PackageReference Include="Headsetsniper.Godot.FSharp.ShimGen" Version="$(ShimGenPackageVersion)">
@@ -32,7 +51,9 @@
   <ItemGroup>
     <Compile Include="Scenes\**\*.cs" />
     <Compile Include="Scripts\**\*.cs" Exclude="Scripts\Generated\**\*.cs" />
+    <Compile Include="gdunit4_testadapter_v5\**\*.cs" />
   </ItemGroup>
 
   <!-- Rely on the package's buildTransitive targets for generation; no local imports needed. -->
 </Project>
+
