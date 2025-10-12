@@ -6,7 +6,6 @@
     <EnableDefaultItems>false</EnableDefaultItems>
   <!-- Local dev fallback: if CI doesn't pass ShimGenPackageVersion, use a floating version to get the latest 0.x.y -->
   <ShimGenPackageVersion Condition="'$(ShimGenPackageVersion)'==''">0.*</ShimGenPackageVersion>
-  <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   <!-- Prefer local ShimGen targets during repo development when present -->
   <UseLocalShimGen Condition="Exists('..\ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets')">true</UseLocalShimGen>
     <RunSettingsFilePath>$(MSBuildProjectDirectory)\.runsettings</RunSettingsFilePath>
@@ -27,8 +26,8 @@
     </ProjectReference>
   </ItemGroup>
 <ItemGroup>
-  <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1"/>
-        <PackageReference Include="gdUnit4.api" Version="5.0.0"/>
+  <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0"/>
+  <PackageReference Include="gdUnit4.api" Version="5.1.0-rc1"/>
   <PackageReference Include="gdUnit4.test.adapter" Version="3.0.0"/>
         <PackageReference Include="gdUnit4.analyzers" Version="1.0.0">
             <PrivateAssets>none</PrivateAssets>
@@ -50,9 +49,19 @@
 
   <ItemGroup>
     <Compile Include="Scenes\**\*.cs" />
+    <!-- Include hand-written scripts but exclude generated to control them explicitly below -->
     <Compile Include="Scripts\**\*.cs" Exclude="Scripts\Generated\**\*.cs" />
+    <!-- Ensure generated shims are compiled even if the generator target doesn't run (e.g., when Godot compiles the project during tests) -->
+    <Compile Include="Scripts\Generated\**\*.cs" Visible="false" Condition="Exists('$(MSBuildProjectDirectory)\Scripts\Generated')" />
     <Compile Include="gdunit4_testadapter_v5\**\*.cs" />
+    <!-- Include the addon C# wrapper in normal builds and Godot runtime builds; exclude only for Godot editor-driven builds (windows-editor) to avoid duplicate type registration. -->
+    <Compile Include="addons\gdUnit4\src\dotnet\**\*.cs" Visible="false" Condition="'$(GodotTargetPlatform)'!='windows-editor'" />
   </ItemGroup>
+
+  <!-- Enable the gdUnit4 .NET API bridge for non-editor builds; exclude only for windows-editor to avoid duplicate registration in the editor. -->
+  <PropertyGroup Condition="'$(GodotTargetPlatform)'!='windows-editor'">
+    <DefineConstants>$(DefineConstants);GDUNIT4NET_API_V5</DefineConstants>
+  </PropertyGroup>
 
   <!-- Rely on the package's buildTransitive targets for generation; no local imports needed. -->
 </Project>

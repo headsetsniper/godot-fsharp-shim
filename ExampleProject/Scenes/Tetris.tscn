@@ -1,11 +1,11 @@
 [gd_scene load_steps=7 format=3 uid="uid://cqq37r6h7eunq"]
 
-[ext_resource type="Script" uid="uid://d3r5eusies2ch" path="res://Scripts/Generated/Tetris.cs" id="1"]
-[ext_resource type="Script" uid="uid://bsdltjmowqx0w" path="res://Scripts/Generated/TetrisUiBoard.cs" id="2_xkfk2"]
-[ext_resource type="Script" uid="uid://ctxa72a7j2gfd" path="res://Scripts/Generated/TetrisHud.cs" id="3"]
-[ext_resource type="Script" uid="uid://c1vopfutcftay" path="res://Scripts/Generated/TetrisTickRelay.cs" id="4"]
-[ext_resource type="Script" uid="uid://5eiyy7in7sca" path="res://Scripts/Generated/TetrisBagPreview.cs" id="5"]
-[ext_resource type="Script" uid="uid://b6gu6og7y6s7e" path="res://Scripts/Generated/TetrisGridView.cs" id="6"]
+[ext_resource type="Script" uid="uid://dfrnngc14ksfl" path="res://Scripts/Generated/Tetris.cs" id="1"]
+[ext_resource type="Script" uid="uid://btyj30t66faab" path="res://Scripts/Generated/TetrisUiBoard.cs" id="2_xkfk2"]
+[ext_resource type="Script" uid="uid://b4q32357kkxms" path="res://Scripts/Generated/TetrisHud.cs" id="3"]
+[ext_resource type="Script" uid="uid://dwo881xwqusb8" path="res://Scripts/Generated/TetrisTickRelay.cs" id="4"]
+[ext_resource type="Script" uid="uid://bv37opuam2kg4" path="res://Scripts/Generated/TetrisBagPreview.cs" id="5"]
+[ext_resource type="Script" uid="uid://bvgh818x2rl6u" path="res://Scripts/Generated/TetrisGridView.cs" id="6"]
 
 [node name="Tetris" type="Node2D"]
 script = ExtResource("1")

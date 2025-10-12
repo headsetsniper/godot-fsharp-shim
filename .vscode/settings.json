@@ -1,4 +1,6 @@
 {
     "godotTools.editorPath.godot4": "h:\\Tools\\GodotMono\\Godot_v4.5-stable_mono_win64.exe",
     "chat.tools.terminal.enableAutoApprove": true,
+    "dotnet-test-explorer.runSettingsPath": "./ExampleProject/.runsettings",
+    "dotnet.defaultSolution": "disable"
 }
