@@ -107,7 +107,7 @@ public static class FsBatchComponent
 
         var projXml = "<Project Sdk=\"Microsoft.NET.Sdk\">\n" +
                       "  <PropertyGroup>\n" +
-                      "    <TargetFramework>net8.0</TargetFramework>\n" +
+                      "    <TargetFramework>net9.0</TargetFramework>\n" +
                       "    <GenerateDocumentationFile>false</GenerateDocumentationFile>\n" +
                       "    <ImplicitUsings>enable</ImplicitUsings>\n" +
                       "  </PropertyGroup>\n" +
@@ -239,10 +239,10 @@ public static class FsBatchComponent
     private static string FindOutputAssembly(string workingDir)
     {
         // The generated temp project is named "Fixture.fsproj", so the assembly name is "Fixture.dll"
-        var expected = Path.Combine(workingDir, "bin", "Debug", "net8.0", "Fixture.dll");
+        var expected = Path.Combine(workingDir, "bin", "Debug", "net9.0", "Fixture.dll");
         if (File.Exists(expected)) return expected;
 
-        var binDir = Path.Combine(workingDir, "bin", "Debug", "net8.0");
+        var binDir = Path.Combine(workingDir, "bin", "Debug", "net9.0");
         if (!Directory.Exists(binDir))
             throw new DirectoryNotFoundException($"Build output directory missing: {binDir}");
 

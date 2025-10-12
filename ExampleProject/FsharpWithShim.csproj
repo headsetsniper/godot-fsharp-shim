@@ -1,6 +1,6 @@
 <Project Sdk="Godot.NET.Sdk/4.5.0">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <!-- Avoid picking up C# files from nested projects like ShimGen/Annotations -->
     <EnableDefaultItems>false</EnableDefaultItems>

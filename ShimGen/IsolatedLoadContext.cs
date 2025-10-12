@@ -44,8 +44,8 @@ internal sealed class IsolatedLoadContext : AssemblyLoadContext
                     var candidates = Directory.EnumerateFiles(pkgDir, fileName, SearchOption.AllDirectories)
                                               .Where(p => p.Contains(Path.DirectorySeparatorChar + "lib" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                                               .ToArray();
-                    // Prefer net8.0, then higher TFM alphabetically as a fallback
-                    string? pick = candidates.FirstOrDefault(p => p.Contains(Path.DirectorySeparatorChar + "net8.0" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                    // Prefer net9.0, then higher TFM alphabetically as a fallback
+                    string? pick = candidates.FirstOrDefault(p => p.Contains(Path.DirectorySeparatorChar + "net9.0" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                                     ?? candidates.OrderByDescending(p => p).FirstOrDefault();
                     if (!string.IsNullOrEmpty(pick)) return LoadFromAssemblyPath(pick!);
                 }

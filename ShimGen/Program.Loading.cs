@@ -89,7 +89,7 @@ internal static partial class Program
         var p = path.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).ToLowerInvariant();
         int Score(string key, int s) => p.Contains(Path.DirectorySeparatorChar + key + Path.DirectorySeparatorChar) ? s : 0;
         int score = 0;
-        score = Math.Max(score, Score("net8.0", 600));
+        score = Math.Max(score, Score("net9.0", 600));
         score = Math.Max(score, Score("net7.0", 500));
         score = Math.Max(score, Score("net6.0", 400));
         score = Math.Max(score, Score("net5.0", 350));

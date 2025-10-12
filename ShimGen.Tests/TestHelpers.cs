@@ -83,7 +83,7 @@ public static class TestHelpers
 
         var projXml = "<Project Sdk=\"Microsoft.NET.Sdk\">\n" +
                       "    <PropertyGroup>\n" +
-                      "        <TargetFramework>net8.0</TargetFramework>\n" +
+                      "        <TargetFramework>net9.0</TargetFramework>\n" +
                       "        <GenerateDocumentationFile>false</GenerateDocumentationFile>\n" +
                       $"        <AssemblyName>{name}</AssemblyName>\n" +
                       "        <ImplicitUsings>enable</ImplicitUsings>\n" +
@@ -112,7 +112,7 @@ public static class TestHelpers
             var stderr = p.StandardError.ReadToEnd();
             throw new InvalidOperationException($"F# build failed. Stdout:\n{stdout}\nStderr:\n{stderr}");
         }
-        var outDll = Path.Combine(dir, "bin", "Debug", "net8.0", name + ".dll");
+        var outDll = Path.Combine(dir, "bin", "Debug", "net9.0", name + ".dll");
         if (!File.Exists(outDll))
             throw new FileNotFoundException("F# build succeeded but output DLL not found", outDll);
         return outDll;
