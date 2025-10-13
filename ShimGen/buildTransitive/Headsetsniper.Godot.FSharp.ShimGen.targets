@@ -106,8 +106,9 @@
     </ItemGroup>
   </Target>
 
-  <!-- Clean up generated files -->
+  <!-- Clean up generated files ?
   <Target Name="CleanGeneratedShims" AfterTargets="Clean">
     <RemoveDir Directories="$(FSharpShimsOutDir)" Condition="Exists('$(FSharpShimsOutDir)')" />
   </Target>
+   -->
 </Project>

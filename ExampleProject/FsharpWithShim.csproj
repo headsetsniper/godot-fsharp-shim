@@ -51,8 +51,10 @@
     <Compile Include="Scenes\**\*.cs" />
     <!-- Include hand-written scripts but exclude generated to control them explicitly below -->
     <Compile Include="Scripts\**\*.cs" Exclude="Scripts\Generated\**\*.cs" />
-    <!-- Ensure generated shims are compiled even if the generator target doesn't run (e.g., when Godot compiles the project during tests) -->
-    <Compile Include="Scripts\Generated\**\*.cs" Visible="false" Condition="Exists('$(MSBuildProjectDirectory)\Scripts\Generated')" />
+    <!-- Fallback: only include generated shims when shim generation is disabled; avoids duplicate includes with buildTransitive target. -->
+    <Compile Include="Scripts\Generated\**\*.cs"
+             Visible="false"
+             Condition="'$(FSharpShimsEnabled)'=='false' and Exists('$(MSBuildProjectDirectory)\Scripts\Generated')" />
     <Compile Include="gdunit4_testadapter_v5\**\*.cs" />
     <!-- Include the addon C# wrapper in normal builds and Godot runtime builds; exclude only for Godot editor-driven builds (windows-editor) to avoid duplicate type registration. -->
     <Compile Include="addons\gdUnit4\src\dotnet\**\*.cs" Visible="false" Condition="'$(GodotTargetPlatform)'!='windows-editor'" />
@@ -62,7 +64,5 @@
   <PropertyGroup Condition="'$(GodotTargetPlatform)'!='windows-editor'">
     <DefineConstants>$(DefineConstants);GDUNIT4NET_API_V5</DefineConstants>
   </PropertyGroup>
-
-  <!-- Rely on the package's buildTransitive targets for generation; no local imports needed. -->
 </Project>
 
