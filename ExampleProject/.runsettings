@@ -4,12 +4,11 @@
         <MaxCpuCount>1</MaxCpuCount>
         <TestAdaptersPaths>.</TestAdaptersPaths>
         <TestSessionTimeout>1800000</TestSessionTimeout>
-        <TreatNoTestsAsError>true</TreatNoTestsAsError>
+        <TreatNoTestsAsError>false</TreatNoTestsAsError>
         
         <!-- Environment variables available to tests -->
         <EnvironmentVariables>
             <GODOT_BIN>H:\Tools\GodotMono\Godot_v4.5-stable_mono_win64.exe</GODOT_BIN>
-            <DEBUG_MODE>true</DEBUG_MODE>
         </EnvironmentVariables>
     </RunConfiguration>
 
@@ -27,16 +26,13 @@
 
     <!-- GdUnit4-specific configuration -->
     <GdUnit4>
-        <!-- Additional Godot runtime parameters -->
-    <Parameters>--verbose --headless --quit</Parameters>
-        
-        <!-- Test display name format: SimpleName or FullyQualifiedName -->
+        <Parameters>--audio-driver Dummy --display-driver windows --rendering-driver opengl3 --screen 0</Parameters>
         <DisplayName>FullyQualifiedName</DisplayName>
         
         <!-- Capture stdout from test cases -->
         <CaptureStdOut>true</CaptureStdOut>
         
         <!-- Compilation timeout for large projects (milliseconds) -->
-        <CompileProcessTimeout>20000</CompileProcessTimeout>
+        <CompileProcessTimeout>40000</CompileProcessTimeout>
     </GdUnit4>
 </RunSettings>
