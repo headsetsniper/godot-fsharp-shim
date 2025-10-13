@@ -4,6 +4,10 @@
     <FSharpShimsOutDir Condition="'$(FSharpShimsOutDir)'==''">$(MSBuildProjectDirectory)\Scripts\Generated</FSharpShimsOutDir>
     <!-- Controls diagnostic verbosity of [shimgen] messages and stdout during build (default: false) -->
     <FSharpShimsVerbose Condition="'$(FSharpShimsVerbose)'==''">false</FSharpShimsVerbose>
+    <!-- Include generated shims as a fallback when the generator didn't add Compile items (e.g., Godot editor build) -->
+    <FSharpShimsFallbackInclude Condition="'$(FSharpShimsFallbackInclude)'==''">true</FSharpShimsFallbackInclude>
+    <!-- Optional regenerate control forwarded to the tool as SHIMGEN_REGENERATE_SCRIPTS -->
+    <FSharpShimsRegenerate Condition="'$(FSharpShimsRegenerate)'==''"></FSharpShimsRegenerate>
   </PropertyGroup>
 
   <!-- Resolve ShimGen tool from the restored package (robust across CI/local) -->
@@ -96,13 +100,30 @@
   }
 }' />
     <Message Text="[shimgen] Staged tool at $(_ShimGenStageDll) (ann=@(_AnnRef->'%(Filename)%(Extension)'))" Importance="$(_ShimGenLogImportance)" />
-
+    <PropertyGroup>
+      <!-- Forward regenerate control to tool only when set -->
+      <_ShimGenEnvVars Condition="'$(FSharpShimsRegenerate)'!=''">SHIMGEN_REGENERATE_SCRIPTS=$(FSharpShimsRegenerate)</_ShimGenEnvVars>
+    </PropertyGroup>
     <Exec Command="dotnet &quot;$(_ShimGenStageDll)&quot; &quot;%(_FSharpRefs.Identity)&quot; &quot;$(FSharpShimsOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.MSBuildSourceProjectFile)'))&quot;"
           WorkingDirectory="$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.Identity)'))"
-      StandardOutputImportance="$(_ShimGenStdOutImportance)" StandardErrorImportance="High" />
+          EnvironmentVariables="$(_ShimGenEnvVars)"
+          StandardOutputImportance="$(_ShimGenStdOutImportance)" StandardErrorImportance="High" />
     <ItemGroup>
+      <!-- Ensure we don't end up with duplicate Compile items if included elsewhere -->
+      <Compile Remove="$(FSharpShimsOutDir)\**\*.cs" />
       <Compile Include="$(FSharpShimsOutDir)\**\*.cs" Visible="false" />
       <FileWrites Include="$(FSharpShimsOutDir)\**\*.cs" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Fallback include: ensure generated shims are compiled when the generator didn't add them (e.g., editor-driven builds) -->
+  <Target Name="FallbackIncludeGeneratedShims"
+          BeforeTargets="CoreCompile;Compile"
+          AfterTargets="RunShimGen"
+          Condition="'$(FSharpShimsFallbackInclude)'=='true' and Exists('$(FSharpShimsOutDir)')">
+    <ItemGroup>
+      <Compile Remove="$(FSharpShimsOutDir)\**\*.cs" />
+      <Compile Include="$(FSharpShimsOutDir)\**\*.cs" Visible="false" />
     </ItemGroup>
   </Target>
 

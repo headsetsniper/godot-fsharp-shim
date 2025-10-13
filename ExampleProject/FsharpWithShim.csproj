@@ -2,26 +2,19 @@
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <!-- Avoid picking up C# files from nested projects like ShimGen/Annotations -->
     <EnableDefaultItems>false</EnableDefaultItems>
-  <!-- Local dev fallback: if CI doesn't pass ShimGenPackageVersion, use a floating version to get the latest 0.x.y -->
-  <ShimGenPackageVersion Condition="'$(ShimGenPackageVersion)'==''">0.*</ShimGenPackageVersion>
-  <!-- Prefer local ShimGen targets during repo development when present -->
-  <UseLocalShimGen Condition="Exists('..\ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets')">true</UseLocalShimGen>
+    <!-- Local dev fallback: if CI doesn't pass ShimGenPackageVersion, use a floating version to get the latest 0.x.y -->
+    <ShimGenPackageVersion Condition="'$(ShimGenPackageVersion)'==''">0.*</ShimGenPackageVersion>
+    <!-- Prefer local ShimGen targets during repo development when present -->
+    <UseLocalShimGen Condition="Exists('..\ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets')">true</UseLocalShimGen>
     <RunSettingsFilePath>$(MSBuildProjectDirectory)\.runsettings</RunSettingsFilePath>
-  </PropertyGroup>
- <PropertyGroup>
-        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-        <!--Disable warning/error of invalid/incompatible GodotSharp version, the package GdUnit4.API is build by V4.2.0-->
-        <NoWarn>NU1605</NoWarn>
-        <!-- Prevent MSTest adapter from being discovered -->
-        <VSTestTestAdapterPath>none</VSTestTestAdapterPath>
-        <TestFramework>GdUnit4</TestFramework>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <VSTestTestAdapterPath>none</VSTestTestAdapterPath>
+    <TestFramework>GdUnit4</TestFramework>
     </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\\FSharp\\FsharpWithShim.FSharp.fsproj">
-      <!-- Reference for compile so generated shims can see F# types, but do not copy to output. -->
       <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>
@@ -51,10 +44,6 @@
     <Compile Include="Scenes\**\*.cs" />
     <!-- Include hand-written scripts but exclude generated to control them explicitly below -->
     <Compile Include="Scripts\**\*.cs" Exclude="Scripts\Generated\**\*.cs" />
-    <!-- Fallback: only include generated shims when shim generation is disabled; avoids duplicate includes with buildTransitive target. -->
-    <Compile Include="Scripts\Generated\**\*.cs"
-             Visible="false"
-             Condition="'$(FSharpShimsEnabled)'=='false' and Exists('$(MSBuildProjectDirectory)\Scripts\Generated')" />
     <Compile Include="gdunit4_testadapter_v5\**\*.cs" />
     <!-- Include the addon C# wrapper in normal builds and Godot runtime builds; exclude only for Godot editor-driven builds (windows-editor) to avoid duplicate type registration. -->
     <Compile Include="addons\gdUnit4\src\dotnet\**\*.cs" Visible="false" Condition="'$(GodotTargetPlatform)'!='windows-editor'" />
