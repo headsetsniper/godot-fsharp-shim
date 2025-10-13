@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisUiBoardImpl
 // SourceFile: TetrisUiBoard.fs
-// SourceHash: 35644739cc508031b0130711b9ad815b80030dd7f2f63f59c0b8744f5b039cff
+// SourceHash: 126bdd9d21cf379b6e4182cba8c047b3e3e90598445c619dcd217abda7ad903f
 // </auto-generated>
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
@@ -33,6 +33,9 @@ namespace Generated
 
         [Export]
         public System.Int32 Score { get => _impl.Score; set => _impl.Score = value; }
+
+        [Export]
+        public System.String TestPieceQueue { get => _impl.TestPieceQueue; set => _impl.TestPieceQueue = value; }
 
         [Export]
         public System.String BagEncoded { get => _impl.BagEncoded; set => _impl.BagEncoded = value; }

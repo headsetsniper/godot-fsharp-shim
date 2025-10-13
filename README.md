@@ -125,21 +125,29 @@ The example project is wired to run gdUnit4 tests directly via `dotnet test` usi
   - Set `RunSettingsFilePath` to `$(MSBuildProjectDirectory)\​.runsettings` so `dotnet test` picks it up automatically.
   - Disable MSTest adapter discovery: `<VSTestTestAdapterPath>none</VSTestTestAdapterPath>`
   - Select the test framework: `<TestFramework>GdUnit4</TestFramework>`
-  - Reference required packages:
-    - `Microsoft.NET.Test.Sdk`
-    - `gdUnit4.api`
-    - `gdUnit4.test.adapter`
+  - Reference required packages (known-good pairing):
+    - `Microsoft.NET.Test.Sdk` (tested with 18.0.0)
+    - `gdUnit4.api` 5.0.0
+    - `gdUnit4.test.adapter` 3.0.0
     - `gdUnit4.analyzers`
   - Include adapter sources:
     - `Compile Include="gdunit4_testadapter_v5\**\*.cs"`
     - `Compile Include="addons\gdUnit4\src\dotnet\**\*.cs" Visible="false" Condition="'$(GodotTargetPlatform)'!='windows-editor'"`
   - ShimGen targets handle generated files; no manual include/exclude for `Scripts/Generated` is needed.
+  - Keep the gdUnit4 editor plugin enabled in `project.godot` to ensure discovery works the same locally and on CI.
 
 - `.runsettings` (in `ExampleProject/.runsettings`):
   - Point `GODOT_BIN` to your Godot Mono executable.
-  - Set gdUnit4 parameters: `--audio-driver Dummy --display-driver windows --rendering-driver opengl3 --screen 0`
-  - Increase compile timeout for editor-driven rebuilds.
-  - Disable “no tests” as error for smoother CI/local runs.
+  - Use stable runtime parameters (Windows-friendly): `-d -v --headless --audio-driver Dummy --rendering-driver opengl3 --screen 0`
+    - Avoid `--quit` and DAP/LSP flags in test runs; they can break the test adapter’s handshake.
+  - Increase compile timeout for editor-driven rebuilds and disable “no tests” as error for smoother CI/local runs.
+
+Example excerpt from a working `.runsettings`:
+
+- GODOT_BIN set to your local Godot 4.5 Mono executable path
+- Parameters: `-d -v --headless --audio-driver Dummy --rendering-driver opengl3 --screen 0`
+- Capture standard output/logs enabled
+- Extended timeouts for initial editor-driven compile
 
 ### Run tests
 
@@ -148,6 +156,15 @@ dotnet test ExampleProject/FsharpWithShim.csproj -c Debug
 ```
 
 If Godot is already running, close it to avoid file locks or port binding conflicts. The `.runsettings` is picked up automatically via the csproj property.
+
+Stability tip (Windows): if a run hangs or the adapter reports an unexpected status code, kill lingering test hosts and Godot before retrying:
+
+```powershell
+Get-Process testhost* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Get-Process vstest* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Get-Process datacollector* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Get-Process *Godot* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+```
 
 ## Local development
 

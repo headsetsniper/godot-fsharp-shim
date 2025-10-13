@@ -71,6 +71,9 @@ type TetrisUiBoardImpl() =
     let mutable useInternalRendering = true
     // bag state (UI moved to TetrisBagPreview)
     let mutable bagShape: bool[,] option = None
+    // test hook: deterministic piece sequence
+    let mutable testQueue: Tetromino.Kind[] = Array.empty
+    let mutable testQueueIndex = 0
 
     let debug (_msg: string) = ()
     let warn (_msg: string) = ()
@@ -107,9 +110,39 @@ type TetrisUiBoardImpl() =
         with get () = bagRequested
         and set v = bagRequested <- v
 
+    [<Export>]
     member _.Score
         with get () = score
         and set (_: int) = ()
+
+    [<Export>]
+    member this.TestPieceQueue
+        with get () =
+            if testQueue.Length = 0 then
+                ""
+            else
+                let names = testQueue |> Array.map (fun k -> k.ToString())
+                String.Join(",", names)
+        and set (value: string) =
+            let parse (s: string) =
+                match s.Trim().ToUpperInvariant() with
+                | "I" -> Some Tetromino.Kind.I
+                | "O" -> Some Tetromino.Kind.O
+                | "T" -> Some Tetromino.Kind.T
+                | "S" -> Some Tetromino.Kind.S
+                | "Z" -> Some Tetromino.Kind.Z
+                | "J" -> Some Tetromino.Kind.J
+                | "L" -> Some Tetromino.Kind.L
+                | _ -> None
+
+            let tokens =
+                if String.IsNullOrWhiteSpace value then
+                    [||]
+                else
+                    value.Split([| ','; ';'; '\n'; '\r'; '\t' |], StringSplitOptions.RemoveEmptyEntries)
+
+            testQueue <- tokens |> Array.choose parse
+            testQueueIndex <- 0
 
     member private this.EnsureGrid() =
         // In editor, _Process can be scheduled before _Ready has injected Node.
@@ -362,7 +395,13 @@ type TetrisUiBoardImpl() =
         cleared
 
     member this.SpawnNewPiece() =
-        curShape <- Tetromino.shape (Tetromino.all.[rng.Next(Tetromino.all.Length)])
+        if testQueue.Length > 0 then
+            let kind = testQueue[testQueueIndex % testQueue.Length]
+            testQueueIndex <- testQueueIndex + 1
+            curShape <- Tetromino.shape kind
+        else
+            curShape <- Tetromino.shape (Tetromino.all.[rng.Next(Tetromino.all.Length)])
+
         curX <- (cols / 2) - 1
         curY <- 0
 
