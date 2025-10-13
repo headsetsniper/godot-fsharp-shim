@@ -20,6 +20,7 @@ This repository lets you write gameplay in F# and auto-generate C# shims that Go
   - [Signals](#signals)
   - [Autoconnect](#autoconnect)
 - [Configuration](#configuration)
+- [Testing with gdUnit4](#testing-with-gdunit4)
 - [Local development](#local-development)
 - [Todo](#todo)
 
@@ -112,6 +113,41 @@ Notes:
 - When regenerating in-place and a prior generated file is found, the generator overwrites that exact path rather than relocating. This keeps the same UID next to the file.
 - If no previous file is found for a script, it falls back to the normal output path under `Scripts/Generated`.
 - Close the Godot editor before regeneration on Windows to avoid file locks under `Scripts/Generated`. (Sporadical Error)
+
+## Testing with gdUnit4
+
+The example project is wired to run gdUnit4 tests directly via `dotnet test` using a `.runsettings` file and minimal csproj configuration.
+
+### Project setup (ExampleProject)
+
+- In `FsharpWithShim.csproj`:
+
+  - Set `RunSettingsFilePath` to `$(MSBuildProjectDirectory)\​.runsettings` so `dotnet test` picks it up automatically.
+  - Disable MSTest adapter discovery: `<VSTestTestAdapterPath>none</VSTestTestAdapterPath>`
+  - Select the test framework: `<TestFramework>GdUnit4</TestFramework>`
+  - Reference required packages:
+    - `Microsoft.NET.Test.Sdk`
+    - `gdUnit4.api`
+    - `gdUnit4.test.adapter`
+    - `gdUnit4.analyzers`
+  - Include adapter sources:
+    - `Compile Include="gdunit4_testadapter_v5\**\*.cs"`
+    - `Compile Include="addons\gdUnit4\src\dotnet\**\*.cs" Visible="false" Condition="'$(GodotTargetPlatform)'!='windows-editor'"`
+  - ShimGen targets handle generated files; no manual include/exclude for `Scripts/Generated` is needed.
+
+- `.runsettings` (in `ExampleProject/.runsettings`):
+  - Point `GODOT_BIN` to your Godot Mono executable.
+  - Set gdUnit4 parameters: `--audio-driver Dummy --display-driver windows --rendering-driver opengl3 --screen 0`
+  - Increase compile timeout for editor-driven rebuilds.
+  - Disable “no tests” as error for smoother CI/local runs.
+
+### Run tests
+
+```powershell
+dotnet test ExampleProject/FsharpWithShim.csproj -c Debug
+```
+
+If Godot is already running, close it to avoid file locks or port binding conflicts. The `.runsettings` is picked up automatically via the csproj property.
 
 ## Local development
 
