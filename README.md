@@ -79,22 +79,39 @@ type TetrisUiBoardImpl() =
 
 ## Configuration
 
-- `FSharpShimsEnabled` (true by default)
-- `FSharpShimsOutDir` (default `Scripts/Generated`)
-- `FSharpShimsVerbose` (false by default): when `true`, the buildTransitive target raises [shimgen] log verbosity and prints the tool's stdout at Normal importance. Useful for troubleshooting generator behavior in consumer builds.
+- FSharpShimsEnabled (true by default)
+  - Master switch to enable/disable shim generation.
+- FSharpShimsOutDir (default `Scripts/Generated`)
+  - Output folder for generated C# shims; path stability helps keep Godot UIDs stable.
+- FSharpShimsVerbose (false by default)
+  - When `true`, increases `[shimgen]` log verbosity and prints tool stdout at Normal importance.
+- FSharpShimsRegenerate (empty by default)
+  - Forwarded to the generator as the `SHIMGEN_REGENERATE_SCRIPTS` environment variable when set. Examples:
+    - `FSharpShimsRegenerate=all` (or `*`) — regenerate all shims in-place.
+    - `FSharpShimsRegenerate=Tetris,TetrisBoard` — regenerate the listed scripts.
+- FSharpShimsFallbackInclude (true by default)
+  - Automatically includes `$(FSharpShimsOutDir)/**/*.cs` at compile time when the generator hasn’t added them (e.g., Godot/editor-driven builds). Inclusion is idempotent and avoids duplicate source warnings.
+
+Notes
+
+- Consumers do NOT need to manually include or exclude `Scripts/Generated/**/*.cs` in their project files. The buildTransitive targets add them when the generator runs and fall back to including existing files when it doesn’t.
 - Command-line runner supports `--dry-run` to print planned writes/moves/deletes without changes.
 
 ### In-place regeneration (preserve Godot UIDs)
 
-Set an environment variable to force the generator to rewrite existing generated scripts in place, preserving their file paths and Godot .uid files:
+You can set regeneration either via MSBuild property or environment variable. Both map to the same behavior.
 
-- `SHIMGEN_REGENERATE_SCRIPTS=all` (or `*`) to regenerate all scripts in-place.
-- `SHIMGEN_REGENERATE_SCRIPTS=Tetris,TetrisBoard` (comma/semicolon/whitespace separated), or use F# full names like `Game.TetrisImpl`.
+- MSBuild property (recommended in CI or local builds):
+  - `FSharpShimsRegenerate=all` (or `*`) to regenerate all scripts in-place.
+  - `FSharpShimsRegenerate=Tetris,TetrisBoard` (comma/semicolon/whitespace separated), or use F# full names like `Game.TetrisImpl`.
+- Environment variable (equivalent):
+  - `SHIMGEN_REGENERATE_SCRIPTS=all` or a comma-separated list.
 
 Notes:
 
 - When regenerating in-place and a prior generated file is found, the generator overwrites that exact path rather than relocating. This keeps the same UID next to the file.
 - If no previous file is found for a script, it falls back to the normal output path under `Scripts/Generated`.
+- Close the Godot editor before regeneration on Windows to avoid file locks under `Scripts/Generated`. (Sporadical Error)
 
 ## Local development
 
