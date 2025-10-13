@@ -11,6 +11,7 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <VSTestTestAdapterPath>none</VSTestTestAdapterPath>
     <TestFramework>GdUnit4</TestFramework>
+  <GdUnitKillStaleTestHosts>true</GdUnitKillStaleTestHosts>
     </PropertyGroup>
 
   <ItemGroup>
@@ -53,5 +54,6 @@
   <PropertyGroup Condition="'$(GodotTargetPlatform)'!='windows-editor'">
     <DefineConstants>$(DefineConstants);GDUNIT4NET_API_V5</DefineConstants>
   </PropertyGroup>
+
 </Project>
 

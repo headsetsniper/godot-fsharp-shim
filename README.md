@@ -155,16 +155,15 @@ Example excerpt from a working `.runsettings`:
 dotnet test ExampleProject/FsharpWithShim.csproj -c Debug
 ```
 
-If Godot is already running, close it to avoid file locks or port binding conflicts. The `.runsettings` is picked up automatically via the csproj property.
+The Godot editor can remain running; transient "Failed to bind socket. Error: 3." messages during rebuild are expected and harmless. The `.runsettings` is picked up automatically via the csproj property.
 
-Stability tip (Windows): if a run hangs or the adapter reports an unexpected status code, kill lingering test hosts and Godot before retrying:
+Stability tip (Windows): enable the opt‑in pre‑test cleanup that terminates only stale testhost processes belonging to this project:
 
 ```powershell
-Get-Process testhost* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Get-Process vstest* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Get-Process datacollector* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Get-Process *Godot* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+dotnet test ExampleProject/FsharpWithShim.csproj -c Debug /p:GdUnitKillStaleTestHosts=true
 ```
+
+This is provided by the package’s buildTransitive targets and runs just before VSTest. For details, see `ShimGen/buildTransitive/Headsetsniper.Godot.FSharp.ShimGen.targets`.
 
 ## Local development
 

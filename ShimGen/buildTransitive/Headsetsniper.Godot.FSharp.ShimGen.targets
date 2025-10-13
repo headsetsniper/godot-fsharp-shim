@@ -8,6 +8,10 @@
     <FSharpShimsFallbackInclude Condition="'$(FSharpShimsFallbackInclude)'==''">true</FSharpShimsFallbackInclude>
     <!-- Optional regenerate control forwarded to the tool as SHIMGEN_REGENERATE_SCRIPTS -->
     <FSharpShimsRegenerate Condition="'$(FSharpShimsRegenerate)'==''"></FSharpShimsRegenerate>
+    <!-- Opt-in: kill only testhost processes hosting THIS project before VSTest (Windows only). -->
+    <!-- Back-compat: honor KillStaleTestHosts if provided by the project/CLI. -->
+    <GdUnitKillStaleTestHosts Condition="'$(GdUnitKillStaleTestHosts)'==''">$(KillStaleTestHosts)</GdUnitKillStaleTestHosts>
+    <GdUnitKillStaleTestHosts Condition="'$(GdUnitKillStaleTestHosts)'==''">false</GdUnitKillStaleTestHosts>
   </PropertyGroup>
 
   <!-- Resolve ShimGen tool from the restored package (robust across CI/local) -->
@@ -132,4 +136,29 @@
     <RemoveDir Directories="$(FSharpShimsOutDir)" Condition="Exists('$(FSharpShimsOutDir)')" />
   </Target>
    -->
+  <!-- Pre-VSTest cleanup (transitive): kill only testhost processes that are loading THIS test assembly/output dir (Windows only). -->
+  <Target Name="ShimGen_PrepareKillTestHostsScript" Condition="'$(GdUnitKillStaleTestHosts)'=='true' and '$(OS)'=='Windows_NT'" DependsOnTargets="Build">
+    <PropertyGroup>
+      <_KillScript>$(IntermediateOutputPath)KillStaleTestHosts.ps1</_KillScript>
+      <_TestAssemblyName>$(AssemblyName).dll</_TestAssemblyName>
+      <_OutDir>$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\</_OutDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_KillScriptLines Include="param([string]$AsmName, [string]$OutDir)" />
+      <_KillScriptLines Include="$query = &quot;Name like 'testhost%.exe' or Name = 'testhost.exe' or Name = 'dotnet.exe'&quot;" />
+      <_KillScriptLines Include="Get-CimInstance Win32_Process -Filter $query | Where-Object { $_.CommandLine -and ($_.CommandLine -like ('*' + $AsmName + '*') -or $_.CommandLine -like ($OutDir + '*')) } | ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_KillScript)" Lines="@(_KillScriptLines)" Overwrite="true" />
+    <Message Importance="High" Text="[shimgen][pre-vstest] Prepared kill script: $(_KillScript) (Asm=$(_TestAssemblyName), OutDir=$(_OutDir))" />
+  </Target>
+
+  <Target Name="ShimGen_KillTestHostsForThisProject" BeforeTargets="VSTest" Condition="'$(GdUnitKillStaleTestHosts)'=='true' and '$(OS)'=='Windows_NT'" DependsOnTargets="ShimGen_PrepareKillTestHostsScript">
+    <PropertyGroup>
+      <_KillScript>$(IntermediateOutputPath)KillStaleTestHosts.ps1</_KillScript>
+      <_TestAssemblyName>$(AssemblyName).dll</_TestAssemblyName>
+      <_OutDir>$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\</_OutDir>
+    </PropertyGroup>
+    <Message Importance="High" Text="[shimgen][pre-vstest] Killing stale testhosts for $(AssemblyName) in $(_OutDir)" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_KillScript)&quot; -AsmName &quot;$(_TestAssemblyName)&quot; -OutDir &quot;$(_OutDir)&quot;" />
+  </Target>
 </Project>
