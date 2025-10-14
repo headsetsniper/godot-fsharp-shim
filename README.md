@@ -22,6 +22,8 @@ This repository lets you write gameplay in F# and auto-generate C# shims that Go
   - [Autoconnect](#autoconnect)
 - [Configuration](#configuration)
 - [Testing with gdUnit4](#testing-with-gdunit4)
+- [Testing with gdUnit4](#testing-with-gdunit4)
+- [F# test shims (Tests mode)](#f-test-shims-tests-mode)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap](#roadmap)
 - [Roslyn generator](#roslyn-generator)
@@ -365,6 +367,125 @@ dotnet test ExampleProject/FsharpWithShim.csproj -c Debug /p:GdUnitKillStaleTest
 ```
 
 This is provided by the package’s buildTransitive targets and runs just before VSTest. For details, see `ShimGen/buildTransitive/Headsetsniper.Godot.FSharp.ShimGen.targets`.
+
+## F# test shims (Tests mode)
+
+You can author your gdUnit4 tests in F# and have the generator emit C# wrapper classes ("test shims") that the gdUnit4 C# adapter discovers.
+
+### Why
+
+gdUnit4’s .NET adapter scans C# test assemblies for classes attributed with `[TestSuite]`. F# test code compiles to IL, but placing tests directly in the gameplay assembly can cause circular references or discovery gaps. The Tests mode creates a second C# project containing only generated forwarding classes; each wrapper reflects an F# suite’s methods and invokes them via reflection (Tasks awaited synchronously).
+
+### Setup pattern
+
+1. Create an F# test project (e.g. `FSharp.Tests`) containing your F# gdUnit4 tests:
+
+```fsharp
+open GdUnit4
+[<TestSuite>]
+type MathTests() =
+   [<BeforeTest>] member _.Setup() = ()
+   [<TestCase>]  member _.Adds() = ()
+   [<AfterTest>] member _.Teardown() = ()
+```
+
+2. Create a C# project (e.g. `TestShims`) that:
+
+- References the F# test project.
+- References (or imports locally) `Headsetsniper.Godot.FSharp.ShimGen` targets.
+- Sets `FSharpShimsMode=Tests` and a distinct output directory (e.g. `Scripts/GeneratedTests`).
+- Optionally sets `FSharpShimsTestAssemblyName` to filter which referenced F# assembly is scanned.
+
+3. Build the C# project. The generator runs with `SHIMGEN_MODE=Tests` and emits one shim per discovered suite: `SuiteName_TestsShim.cs`.
+4. Run `dotnet test` on the C# project; gdUnit4 discovers the shim classes (they have `[TestSuite]`). Each shim method obtains a `MethodInfo` on the F# implementation instance and invokes it (awaiting Tasks).
+
+### Discovery heuristics
+
+An F# type is treated as a test suite if ANY of the following are true:
+
+- Has `[TestSuite]` attribute (full name match or short name).
+- Assembly name ends with `.Tests` AND the type name ends with `Tests`.
+- Assembly name ends with `.Tests` AND it has at least one method whose name contains `Test` OR has an attribute whose type name ends with `TestCaseAttribute`.
+
+Compiler generated F# artifacts (names starting with `<` or `$`) are ignored.
+
+### Generated shim shape
+
+```
+namespace GeneratedTests;
+[TestSuite]
+public class MySuite_TestsShim {
+  private readonly SampleTests.MySuite _impl = new();
+  [BeforeTest] public void Setup() { /* reflection invoke */ }
+  [TestCase]  public void Adds() { /* reflection invoke (await Task) */ }
+  [AfterTest] public void Teardown() { /* reflection invoke */ }
+}
+```
+
+### MSBuild properties (Tests mode)
+
+| Property                      | Purpose                                                      | Default                                                    |
+| ----------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------- |
+| `FSharpShimsMode`             | Set to `Tests` to enable test shim generation                | `Scripts`                                                  |
+| `FSharpShimsOutDir`           | Output directory for generated test shims                    | `Scripts/Generated` (override to `Scripts/GeneratedTests`) |
+| `FSharpShimsTestAssemblyName` | Restrict scanning to a specific F# test assembly base name   | (empty)                                                    |
+| `FSharpShimsVerbose`          | Verbose logging (`[shimgen]`)                                | `false`                                                    |
+| `FSharpShimsRegenerate`       | Forwarded to `SHIMGEN_REGENERATE_SCRIPTS` (see regeneration) | (empty)                                                    |
+
+### Environment variables
+
+| Variable                                | Meaning                                           |
+| --------------------------------------- | ------------------------------------------------- |
+| `SHIMGEN_MODE=Tests`                    | Forces Tests mode (also set via MSBuild property) |
+| `SHIMGEN_REGENERATE_SCRIPTS=all`        | Regenerate all shims in place                     |
+| `SHIMGEN_TEST_SUITES=Pattern1,Pattern2` | (Planned) Filter to matching suite names          |
+
+### Caching (planned)
+
+Future optimization: skip regeneration when all existing shim files are newer than the F# test assembly timestamp unless `SHIMGEN_REGENERATE_SCRIPTS` is set. This keeps incremental test runs fast.
+
+### Troubleshooting
+
+| Symptom                                                     | Likely Cause                                                            | Fix                                                                  |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| No `[shimgen] mode=Tests` log                               | Property/Env not set or older ShimGen DLL                               | Rebuild ShimGen; ensure `FSharpShimsMode=Tests` before `CoreCompile` |
+| Shim file generated then disappears                         | Pruning (disabled in Tests mode in recent versions)                     | Update package / ensure pruning disabled for Tests                   |
+| `$Name_TestsShim.cs` invalid file                           | Compiler generated F# nested type got through                           | Update package (filter added)                                        |
+| Duplicate gdUnit4 warnings                                  | Including adapter sources twice                                         | Condition inclusion or disable addon sources in TestShims            |
+| Crash (AccessViolation) running TestShims via `dotnet test` | Godot engine not initialized; native ResourceLoader static ctor invoked | Use headless Godot runner script or run through Godot CLI            |
+
+### Headless Godot test runs
+
+Engine-driven F# gdUnit4 tests (those that touch APIs requiring an initialized engine: `ResourceLoader`, scene loading, nodes) must execute under a Godot process. Running `dotnet test` directly on `FsharpWithShim.TestShims.csproj` loads the shim assembly in a plain test host and can crash with an access violation.
+
+Use the helper script added in `ExampleProject/TestShims/Run-GodotTests.ps1`:
+
+```powershell
+cd ExampleProject/TestShims
+./Run-GodotTests.ps1 -Configuration Debug -GodotBin "C:\Path\To\Godot.exe"
+```
+
+Parameters:
+
+- `-Configuration` (default Debug)
+- `-GodotBin` path to Godot Mono executable (falls back to `$env:GODOT_BIN` or `Godot/godot.exe` under repo root)
+- `-SkipBuild` to reuse existing build
+- `-Verbose` adds `GDUNIT_VERBOSE=1`
+
+What the script does:
+
+1. Builds the TestShims project (unless `-SkipBuild`).
+2. Locates `FsharpWithShim.TestShims.dll` under `.godot/mono/temp/bin/<Configuration>`.
+3. Launches Godot headless with the gdUnit4 runner (`res://addons/gdUnit4/runners/GdUnit4.dll -a`).
+4. Streams output and returns non-zero on failure.
+
+Planned: suite filtering via `SHIMGEN_TEST_SUITES` or a script parameter that maps to gdUnit4 `-suites=...` argument.
+
+Recommendation: reserve `dotnet test ShimGen.Tests` for generator tests; use the headless script (or direct Godot CLI) for gameplay tests.
+
+### Source control
+
+Do not commit `Scripts/GeneratedTests`; treat them like normal build outputs. Regenerate deterministically on CI.
 
 ## Troubleshooting
 

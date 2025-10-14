@@ -6,11 +6,24 @@ namespace Headsetsniper.Godot.FSharp.ShimGen;
 
 internal static partial class Program
 {
+    private enum GenerationMode { Scripts, Tests }
+
     private static (bool ok, string asmPath, string outDir, string? fsDir, bool dryRun) ParseOptions(string[] args)
     {
         if (args is null) return (false, string.Empty, string.Empty, null, false);
         bool dryRun = args.Any(a => string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase));
-        var positional = args.Where(a => !string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase)).ToArray();
+        // Accept optional --mode=Tests or --mode Tests
+        string? cliMode = null;
+        var cleaned = new System.Collections.Generic.List<string>();
+        for (int i = 0; i < args.Length; i++)
+        {
+            var a = args[i];
+            if (string.Equals(a, "--dry-run", StringComparison.OrdinalIgnoreCase)) continue;
+            if (a.StartsWith("--mode=", StringComparison.OrdinalIgnoreCase)) { cliMode = a.Substring(7); continue; }
+            if (string.Equals(a, "--mode", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) { cliMode = args[i + 1]; i++; continue; }
+            cleaned.Add(a);
+        }
+        var positional = cleaned.ToArray();
         if (positional.Length < 2)
             return (false, string.Empty, string.Empty, null, dryRun);
 
@@ -31,7 +44,19 @@ internal static partial class Program
             return (false, string.Empty, string.Empty, null, dryRun);
         }
 
+        if (!string.IsNullOrEmpty(cliMode))
+            Environment.SetEnvironmentVariable("SHIMGEN_MODE", cliMode);
+
         return (true, asmPath, outDir, fsDir, dryRun);
+    }
+
+    private static GenerationMode ParseMode(string? env)
+    {
+        var v = env?.Trim();
+        if (string.IsNullOrWhiteSpace(v)) return GenerationMode.Scripts;
+        if (v.Equals("tests", StringComparison.OrdinalIgnoreCase) || v.Equals("test", StringComparison.OrdinalIgnoreCase))
+            return GenerationMode.Tests;
+        return GenerationMode.Scripts;
     }
 
     private static (bool all, HashSet<string> list) ParseRegenerateTargets(string? env)

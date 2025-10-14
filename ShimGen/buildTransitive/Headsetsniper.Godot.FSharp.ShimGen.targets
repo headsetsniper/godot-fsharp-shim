@@ -2,6 +2,8 @@
   <PropertyGroup>
     <FSharpShimsEnabled Condition="'$(FSharpShimsEnabled)'==''">true</FSharpShimsEnabled>
     <FSharpShimsOutDir Condition="'$(FSharpShimsOutDir)'==''">$(MSBuildProjectDirectory)\Scripts\Generated</FSharpShimsOutDir>
+    <!-- Mode: Scripts or Tests -->
+    <FSharpShimsMode Condition="'$(FSharpShimsMode)'==''">Scripts</FSharpShimsMode>
     <!-- Controls diagnostic verbosity of [shimgen] messages and stdout during build (default: false) -->
     <FSharpShimsVerbose Condition="'$(FSharpShimsVerbose)'==''">false</FSharpShimsVerbose>
     <!-- Include generated shims as a fallback when the generator didn't add Compile items (e.g., Godot editor build) -->
@@ -107,11 +109,27 @@
     <PropertyGroup>
       <!-- Forward regenerate control to tool only when set -->
       <_ShimGenEnvVars Condition="'$(FSharpShimsRegenerate)'!=''">SHIMGEN_REGENERATE_SCRIPTS=$(FSharpShimsRegenerate)</_ShimGenEnvVars>
+      <_ShimGenEnvVars>SHIMGEN_MODE=$(FSharpShimsMode);$(_ShimGenEnvVars)</_ShimGenEnvVars>
     </PropertyGroup>
-    <Exec Command="dotnet &quot;$(_ShimGenStageDll)&quot; &quot;%(_FSharpRefs.Identity)&quot; &quot;$(FSharpShimsOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.MSBuildSourceProjectFile)'))&quot;"
-          WorkingDirectory="$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.Identity)'))"
-          EnvironmentVariables="$(_ShimGenEnvVars)"
-          StandardOutputImportance="$(_ShimGenStdOutImportance)" StandardErrorImportance="High" />
+    <!-- In Tests mode, restrict to a specific test assembly name if provided -->
+    <ItemGroup Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'!=''">
+  <_FSharpRefsFiltered Include="@(_FSharpRefs)" Condition="'%(Filename)'=='$(FSharpShimsTestAssemblyName)'" />
+    </ItemGroup>
+    <Message Text="[shimgen] Tests mode filter: $(FSharpShimsTestAssemblyName) => @(_FSharpRefsFiltered)" Importance="$(_ShimGenLogImportance)" Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'!=''" />
+
+    <!-- Exec for Tests mode with filtered refs -->
+    <Exec Condition="'$(FSharpShimsMode)'=='Tests' and '@(_FSharpRefsFiltered)'!=''"
+      Command="dotnet &quot;$(_ShimGenStageDll)&quot; &quot;%(_FSharpRefsFiltered.Identity)&quot; &quot;$(FSharpShimsOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FSharpRefsFiltered.MSBuildSourceProjectFile)'))&quot; --mode=$(FSharpShimsMode)"
+      WorkingDirectory="$([System.IO.Path]::GetDirectoryName('%(_FSharpRefsFiltered.Identity)'))"
+      EnvironmentVariables="$(_ShimGenEnvVars)"
+      StandardOutputImportance="$(_ShimGenStdOutImportance)" StandardErrorImportance="High" />
+
+    <!-- Default Exec (Scripts mode or when no filter provided/matched) -->
+    <Exec Condition="! ('$(FSharpShimsMode)'=='Tests' and '@(_FSharpRefsFiltered)'!='')"
+      Command="dotnet &quot;$(_ShimGenStageDll)&quot; &quot;%(_FSharpRefs.Identity)&quot; &quot;$(FSharpShimsOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.MSBuildSourceProjectFile)'))&quot; --mode=$(FSharpShimsMode)"
+      WorkingDirectory="$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.Identity)'))"
+      EnvironmentVariables="$(_ShimGenEnvVars)"
+      StandardOutputImportance="$(_ShimGenStdOutImportance)" StandardErrorImportance="High" />
     <ItemGroup>
       <!-- Ensure we don't end up with duplicate Compile items if included elsewhere -->
       <Compile Remove="$(FSharpShimsOutDir)\**\*.cs" />

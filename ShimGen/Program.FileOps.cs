@@ -130,24 +130,31 @@ internal static partial class Program
         {
             var dir = Path.GetFullPath(outDir);
             if (!Directory.Exists(dir)) return null;
-            foreach (var file in Directory.EnumerateFiles(dir, className + ".cs", SearchOption.AllDirectories))
+
+            string? Match(bool requireHash)
             {
-                string text; try { text = File.ReadAllText(file); } catch { continue; }
-                if (!IsGeneratedHeader(text)) continue;
-                var tfn = ExtractSourceTypeFullName(text);
-                if (!string.IsNullOrEmpty(sourceTypeFullName) && !string.Equals(tfn, sourceTypeFullName, StringComparison.Ordinal))
-                    continue;
-                if (!string.IsNullOrEmpty(currentHash))
+                foreach (var file in Directory.EnumerateFiles(dir, className + ".cs", SearchOption.AllDirectories))
                 {
-                    var oldHash = ExtractHash(text);
-                    if (!string.Equals(oldHash, currentHash, StringComparison.Ordinal))
+                    string text; try { text = File.ReadAllText(file); } catch { continue; }
+                    if (!IsGeneratedHeader(text)) continue;
+                    var tfn = ExtractSourceTypeFullName(text);
+                    if (!string.IsNullOrEmpty(sourceTypeFullName) && !string.Equals(tfn, sourceTypeFullName, StringComparison.Ordinal))
                         continue;
+                    if (requireHash && !string.IsNullOrEmpty(currentHash))
+                    {
+                        var oldHash = ExtractHash(text);
+                        if (!string.Equals(oldHash, currentHash, StringComparison.Ordinal))
+                            continue;
+                    }
+                    return file;
                 }
-                return file;
+                return null;
             }
+
+            // First try strict (hash) match. If that fails, fall back to any prior generated file for this class+type.
+            return Match(requireHash: true) ?? Match(requireHash: false);
         }
-        catch { }
-        return null;
+        catch { return null; }
     }
 
     private static (string? rel, string? hash) TryGetSourceInfo(string dir, Type type)

@@ -24,6 +24,6 @@ enabled=PackedStringArray("res://addons/gd-plug-ui/plugin.cfg", "res://addons/gd
 
 [gdunit4]
 
-settings/test/test_lookup_folder="Scripts"
+settings/test/test_lookup_folder="GeneratedTests"
 settings/test/test_discovery=true
 ui/toolbar/run_overall=true

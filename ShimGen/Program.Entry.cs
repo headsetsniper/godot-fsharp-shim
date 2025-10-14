@@ -8,6 +8,7 @@ internal static partial class Program
 {
     public static int Main(string[] args)
     {
+        try { Console.Error.WriteLine("[shimgen] entered Main (pre-parse)"); } catch { }
         var (ok, asmPath, outDir, fsDir, dryRun) = ParseOptions(args);
         if (!ok) return PrintUsageAndExit();
         return RunPipeline(asmPath, outDir, fsDir, dryRun);
@@ -27,16 +28,27 @@ internal static partial class Program
         {
             lc = PrepareLoadContext(asmPath);
             var asm = LoadAssembly(lc, asmPath);
-            var types = SafeGetTypes(asm);
-            var (regenAll, regenSet) = ParseRegenerateTargets(Environment.GetEnvironmentVariable("SHIMGEN_REGENERATE_SCRIPTS"));
-
-            var (plan, liveTypes) = GenerateForTypes(types, outDir, fsDir, dryRun, regenAll, regenSet);
-
-            if (!string.IsNullOrEmpty(fsDir))
-                PruneOrphans(outDir, fsDir!, liveTypes, dryRun, plan.PlannedDeletes);
-
-            PrintSummary(plan, dryRun);
-            return 0;
+            var mode = ParseMode(Environment.GetEnvironmentVariable("SHIMGEN_MODE"));
+            try { Console.Error.WriteLine($"[shimgen] mode={mode}"); } catch { }
+            LogInfo($"[shimgen] Mode={mode}");
+            if (mode == GenerationMode.Tests)
+            {
+                var (plan, liveTypes) = GenerateTestShims(asm, outDir, fsDir, dryRun);
+                // Do NOT prune in Tests mode; test shim file names do not map 1:1 to F# source file layout
+                // and pruning logic based on source roots could erroneously delete freshly generated test shims.
+                PrintSummary(plan, dryRun);
+                return 0;
+            }
+            else
+            {
+                var types = SafeGetTypes(asm);
+                var (regenAll, regenSet) = ParseRegenerateTargets(Environment.GetEnvironmentVariable("SHIMGEN_REGENERATE_SCRIPTS"));
+                var (plan, liveTypes) = GenerateForTypes(types, outDir, fsDir, dryRun, regenAll, regenSet);
+                if (!string.IsNullOrEmpty(fsDir))
+                    PruneOrphans(outDir, fsDir!, liveTypes, dryRun, plan.PlannedDeletes);
+                PrintSummary(plan, dryRun);
+                return 0;
+            }
         }
         catch (Exception ex)
         {
