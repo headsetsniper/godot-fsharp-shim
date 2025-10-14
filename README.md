@@ -11,240 +11,37 @@ This repository lets you write gameplay in F# and auto-generate C# shims that Go
 - [Projects](#projects)
 - [Quick start](#quick-start)
 - [Features](#features)
-  - [GlobalClass and Icon](#globalclass-and-icon)
+  - [GlobalClass and icon](#globalclass-and-icon)
   - [Tool scripts](#tool-scripts)
   - [Constructor injection (DI)](#constructor-injection-di)
-  - [Lifecycle forwarding (EnterTree/ExitTree)](#lifecycle-forwarding-entertreeexittree)
-  - [NodePath auto‑wiring in \_Ready](#nodepath-auto-wiring-in-_ready)
+  - [Lifecycle forwarding](#lifecycle-forwarding)
+  - [NodePath auto-wiring](#nodepath-auto-wiring)
   - [Editor hints](#editor-hints)
+  - [Option and preload semantics](#option-and-preload-semantics)
   - [Signals](#signals)
   - [Autoconnect](#autoconnect)
 - [Configuration](#configuration)
 - [Testing with gdUnit4](#testing-with-gdunit4)
+- [Troubleshooting](#troubleshooting)
+- [Roadmap](#roadmap)
+- [Roslyn generator](#roslyn-generator)
 - [Local development](#local-development)
-- [Todo](#todo)
 
 ## Projects
 
-- `Annotations` (NuGet: Headsetsniper.Godot.FSharp.Annotations)
-  - Provides `[GodotScript]` and `[GodotTool]` attributes used in F#.
-  - Provides `IGdScript<'TNode>` which lets your F# impl receive its Godot node.
-- `FSharp`
-  - Your F# gameplay logic referencing `Annotations`.
-- `ShimGen` (NuGet: Headsetsniper.Godot.FSharp.ShimGen)
-  - Console runner + MSBuild buildTransitive target to generate shims into `Scripts/Generated`.
-  - Mirrors your F# folder structure under the output. Moves/renames are followed and old files pruned.
-- `Scenes`, `Scripts`
-  - Your Godot project code.
+- `Annotations/`: F# attributes and interfaces packaged as `Headsetsniper.Godot.FSharp.Annotations`.
+- `ShimGen/`: shim generator CLI plus buildTransitive targets published as `Headsetsniper.Godot.FSharp.ShimGen`.
+- `FSharp/`: sample gameplay logic written in F#.
+- `ExampleProject/`: Godot C# project that consumes generated shims and demonstrates gdUnit4 testing.
 
 ## Quick start
 
-1. In your F# project:
-
-- Install `Headsetsniper.Godot.FSharp.Annotations`.
-- Annotate classes with `[<GodotScript>]` (gameplay) or `[<GodotTool>]` (editor tools).
-- Prefer constructor injection for gameplay: first parameter is the Godot base type; subsequent parameters bind to NodePath/Preload by name or unique type.
-
-```fsharp
-open Godot
-open Headsetsniper.Godot.FSharp.Annotations
-
-[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D")>]
-type FooImpl(node: Node2D) =
-  // Optional: still implement IGdScript<'T> if you want Node on the interface too
-  interface IGdScript<Node2D> with
-    member _.Node with get() = node and set _ = ()
-
-  member _.Ready() =
-    let sprite = new Sprite2D()
-    sprite.Texture <- ResourceLoader.Load("res://icon.svg") :?> Texture2D
-    node.AddChild(sprite)
-```
-
-For editor tools, use `[<GodotTool>]` and a parameterless constructor:
-
-```fsharp
-[<GodotTool(ClassName = "TetrisUiBoard", BaseTypeName = "Godot.Control")>]
-type TetrisUiBoardImpl() =
-  interface IGdScript<Control> with
-    member val Node = Unchecked.defaultof<Control> with get, set
-  member _.Ready() = ()
-```
-
-2. In your Godot C# project:
-
-- Install `Headsetsniper.Godot.FSharp.ShimGen`.
-- Add a `ProjectReference` to your F# project(s).
-- Build. Shims appear under `Scripts/Generated` and are compiled.
-- Shims include headers with SourceFile and SourceHash. The generator relocates outputs on moves/renames and prunes orphans.
-
-## Configuration
-
-- FSharpShimsEnabled (true by default)
-  - Master switch to enable/disable shim generation.
-- FSharpShimsOutDir (default `Scripts/Generated`)
-  - Output folder for generated C# shims; path stability helps keep Godot UIDs stable.
-- FSharpShimsVerbose (false by default)
-  - When `true`, increases `[shimgen]` log verbosity and prints tool stdout at Normal importance.
-- FSharpShimsRegenerate (empty by default)
-  - Forwarded to the generator as the `SHIMGEN_REGENERATE_SCRIPTS` environment variable when set. Examples:
-    - `FSharpShimsRegenerate=all` (or `*`) — regenerate all shims in-place.
-    - `FSharpShimsRegenerate=Tetris,TetrisBoard` — regenerate the listed scripts.
-- FSharpShimsFallbackInclude (true by default)
-  - Automatically includes `$(FSharpShimsOutDir)/**/*.cs` at compile time when the generator hasn’t added them (e.g., Godot/editor-driven builds). Inclusion is idempotent and avoids duplicate source warnings.
-
-Notes
-
-- Consumers do NOT need to manually include or exclude `Scripts/Generated/**/*.cs` in their project files. The buildTransitive targets add them when the generator runs and fall back to including existing files when it doesn’t.
-- Command-line runner supports `--dry-run` to print planned writes/moves/deletes without changes.
-
-### In-place regeneration (preserve Godot UIDs)
-
-You can set regeneration either via MSBuild property or environment variable. Both map to the same behavior.
-
-- MSBuild property (recommended in CI or local builds):
-  - `FSharpShimsRegenerate=all` (or `*`) to regenerate all scripts in-place.
-  - `FSharpShimsRegenerate=Tetris,TetrisBoard` (comma/semicolon/whitespace separated), or use F# full names like `Game.TetrisImpl`.
-- Environment variable (equivalent):
-  - `SHIMGEN_REGENERATE_SCRIPTS=all` or a comma-separated list.
-
-Notes:
-
-- When regenerating in-place and a prior generated file is found, the generator overwrites that exact path rather than relocating. This keeps the same UID next to the file.
-- If no previous file is found for a script, it falls back to the normal output path under `Scripts/Generated`.
-- Close the Godot editor before regeneration on Windows to avoid file locks under `Scripts/Generated`. (Sporadical Error)
-
-## Testing with gdUnit4
-
-The example project is wired to run gdUnit4 tests directly via `dotnet test` using a `.runsettings` file and minimal csproj configuration.
-
-### Project setup (ExampleProject)
-
-- In `FsharpWithShim.csproj`:
-
-  - Set `RunSettingsFilePath` to `$(MSBuildProjectDirectory)\​.runsettings` so `dotnet test` picks it up automatically.
-  - Disable MSTest adapter discovery: `<VSTestTestAdapterPath>none</VSTestTestAdapterPath>`
-  - Select the test framework: `<TestFramework>GdUnit4</TestFramework>`
-  - Reference required packages (known-good pairing):
-    - `Microsoft.NET.Test.Sdk` (tested with 18.0.0)
-    - `gdUnit4.api` 5.0.0
-    - `gdUnit4.test.adapter` 3.0.0
-    - `gdUnit4.analyzers`
-  - Include adapter sources:
-    - `Compile Include="gdunit4_testadapter_v5\**\*.cs"`
-    - `Compile Include="addons\gdUnit4\src\dotnet\**\*.cs" Visible="false" Condition="'$(GodotTargetPlatform)'!='windows-editor'"`
-  - ShimGen targets handle generated files; no manual include/exclude for `Scripts/Generated` is needed.
-  - Keep the gdUnit4 editor plugin enabled in `project.godot` to ensure discovery works the same locally and on CI.
-
-- `.runsettings` (in `ExampleProject/.runsettings`):
-  - Point `GODOT_BIN` to your Godot Mono executable.
-  - Use stable runtime parameters (Windows-friendly): `-d -v --headless --audio-driver Dummy --rendering-driver opengl3 --screen 0`
-    - Avoid `--quit` and DAP/LSP flags in test runs; they can break the test adapter’s handshake.
-  - Increase compile timeout for editor-driven rebuilds and disable “no tests” as error for smoother CI/local runs.
-
-Example excerpt from a working `.runsettings`:
-
-- GODOT_BIN set to your local Godot 4.5 Mono executable path
-- Parameters: `-d -v --headless --audio-driver Dummy --rendering-driver opengl3 --screen 0`
-- Capture standard output/logs enabled
-- Extended timeouts for initial editor-driven compile
-
-### Run tests
-
-```powershell
-dotnet test ExampleProject/FsharpWithShim.csproj -c Debug
-```
-
-The Godot editor can remain running; transient "Failed to bind socket. Error: 3." messages during rebuild are expected and harmless. The `.runsettings` is picked up automatically via the csproj property.
-
-Stability tip (Windows): enable the opt‑in pre‑test cleanup that terminates only stale testhost processes belonging to this project:
-
-```powershell
-dotnet test ExampleProject/FsharpWithShim.csproj -c Debug /p:GdUnitKillStaleTestHosts=true
-```
-
-This is provided by the package’s buildTransitive targets and runs just before VSTest. For details, see `ShimGen/buildTransitive/Headsetsniper.Godot.FSharp.ShimGen.targets`.
-
-## Local development
-
-1. Pack the two NuGet packages locally
-
-- Annotations: provides the `[GodotScript]` attribute
-- ShimGen: buildTransitive target that auto-runs the shim generator and includes `Scripts/Generated/**/*.cs` at evaluation
-
-```powershell
-# From the repo root
-dotnet pack Annotations\Headsetsniper.Godot.FSharp.Annotations.csproj -c Release
-dotnet pack ShimGen\Headsetsniper.Godot.FSharp.ShimGen.csproj -c Release
-mkdir -Force .nupkgs
-Copy-Item Annotations\bin\Release\*.nupkg .nupkgs\
-Copy-Item ShimGen\bin\Release\*.nupkg .nupkgs\
-```
-
-2. Use the included NuGet.Config
-
-A solution-level `NuGet.Config` is included that adds a local source at `.nupkgs` alongside nuget.org. If you need to re-create it, it should look like:
-
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <packageSources>
-    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-    <add key="local" value="$(SolutionDir).nupkgs" />
-  </packageSources>
-</configuration>
-```
-
-3. Build the main project
-
-```powershell
-dotnet restore FsharpWithShim.csproj
-dotnet build FsharpWithShim.csproj -v:n
-```
-
-- During build, the package’s `GenerateFSharpShims` target runs before `CoreCompile`, scans the referenced F# project(s), and writes shims into `Scripts/Generated`. Those shims are then included at evaluation time by the package’s buildTransitive target.
-  It mirrors folder structure relative to your F# root. If you move/rename source files or classes, the generator will move the corresponding shims and remove old ones. Use `--dry-run` with the console runner to preview actions.
-
-## Development
-
-- Run tests: `dotnet test ShimGen.Tests`
-  - The generator uses Roslyn exclusively now. No flags or env variables are required or supported to switch modes.
-- Pack packages:
-
-  - `dotnet pack Annotations -c Release`
-  - `dotnet pack ShimGen -c Release`
-
-## Try it (example project)
-
-From the repo root, you can build and run the included example Godot project that consumes the F# implementation:
-
-```powershell
-dotnet restore ExampleProject/FsharpWithShim.csproj
-dotnet build ExampleProject/FsharpWithShim.csproj -c Debug
-dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Debug
-```
+1. Add `Headsetsniper.Godot.FSharp.Annotations` to your F# gameplay project.
+2. In your Godot C# project, add a project reference to the F# project and reference `Headsetsniper.Godot.FSharp.ShimGen`.
+3. Decorate your F# classes with `[<GodotScript(ClassName = "MyScript", BaseTypeName = "Godot.Node2D")>]` and optional attributes like `[<NodePath>]`, `[<Export>]`, or `[<Signal>]`.
+4. Build the Godot project. The generator emits C# shims under `Scripts/Generated`, which Godot discovers automatically.
 
 ## Features
-
-The generator and annotations now support these capabilities out of the box:
-
-### GlobalClass and Icon
-
-- Shims are emitted with `[GlobalClass]` automatically so the script shows up in the Godot editor.
-- Provide an editor icon by setting `Icon` on `GodotScript`.
-- F#: `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D", Icon = "res://icon.svg")>]`
-- Notes:
-  - `Icon` should be a Godot resource path (e.g., `res://...` or `uid://...`).
-  - The asset must exist in the project and be imported by Godot for the icon to appear.
-  - `ClassName` controls the name of the generated shim/script visible in the editor; defaults to the F# type name if omitted.
-
-### Tool scripts
-
-- Mark editor-time scripts with `[<GodotTool(... )>]` or by setting `Tool = true` on `[<GodotScript>]`.
-- F# examples:
-  - Tool attribute: `[<GodotTool(ClassName = "Board", BaseTypeName = "Godot.Control")>]`
-  - Legacy flag: `[<GodotScript(ClassName = "Board", BaseTypeName = "Godot.Control", Tool = true)>]`
-- DI is disabled for tool scripts. The shim sets `IGdScript<T>.Node` and runs wiring in `_Ready()`; avoid relying on `EnterTree` for injected state in tools.
 
 ### Constructor injection (DI)
 
@@ -268,7 +65,7 @@ Gameplay scripts can opt into DI by defining a single public constructor:
 
 Preload with Option<'T>: DI still injects the concrete resource type and will fail fast if the resource is missing. Prefer non-Option types for Preload targets to reflect this guarantee.
 
-### Lifecycle forwarding (EnterTree/ExitTree)
+### Lifecycle forwarding
 
 - Implement `EnterTree()` or `ExitTree()` in your F# type to receive those callbacks.
 - `_Ready`, `_Process`, `_PhysicsProcess`, `_Input`, `_UnhandledInput`, `_Notification` are also supported when present.
@@ -301,9 +98,9 @@ The shim forwards callbacks when your F# implementation exposes matching methods
 | Control                     | \_MakeCustomTooltip(string)     | `member _.MakeCustomTooltip(text: string) : Control`     | `public override Control _MakeCustomTooltip(string)`  | Custom tooltip control                                                |
 | Control                     | \_GetTooltip(Vector2)           | `member _.GetTooltip(p: Vector2) : string`               | `public override string _GetTooltip(Vector2)`         | Tooltip text                                                          |
 
-### NodePath auto‑wiring in \_Ready
+### NodePath auto-wiring
 
-- Decorate fields/properties with `[NodePath]` to auto‑resolve nodes before calling `Ready()`.
+- Decorate fields/properties with `[NodePath]` to auto-resolve nodes before calling `Ready()`.
 - Default path is `nameof(Member)`; override with `Path = "Some/Child"`. For optional references use `OptionalNodePath` on an `Option<'T>` member; `NodePath` is required and will throw if missing.
 - F# example:
 
@@ -320,6 +117,19 @@ The shim forwards callbacks when your F# implementation exposes matching methods
   - Runtime wiring semantics:
     - When DI is active: NodePaths required by the constructor are resolved before construction; missing required nodes throw and prevent construction.
     - When DI is not active: `[NodePath]` throws on missing and assigns the resolved node; `[OptionalNodePath]` assigns `None` when missing and `Some node` when found.
+
+### GlobalClass and icon
+
+- Set `ClassName` on `[<GodotScript>]` to control the name that appears in the Godot editor; it defaults to the F# type name.
+- Provide `Icon = "res://path/to/icon.svg"` (or `GodotScript.IconPath`) and ensure the asset is imported so the generated shim can apply `[GlobalClass]` with the icon.
+
+### Tool scripts
+
+- Mark editor-time scripts with `[<GodotTool(... )>]` or by setting `Tool = true` on `[<GodotScript>]`.
+- F# examples:
+  - Tool attribute: `[<GodotTool(ClassName = "Board", BaseTypeName = "Godot.Control")>]`
+  - Legacy flag: `[<GodotScript(ClassName = "Board", BaseTypeName = "Godot.Control", Tool = true)>]`
+- DI is disabled for tool scripts. The shim sets `IGdScript<T>.Node` and runs wiring in `_Ready()`; avoid relying on `EnterTree` for injected state in tools.
 
 ### Editor hints
 
@@ -368,7 +178,7 @@ Notes
 - The shim sets `IGdScript<TNode>.Node = this` inside `_Ready()` before invoking your `Ready()`.
 - NodePath wiring also runs inside `_Ready()` prior to `Ready()`.
 
-### F# Option<'T> and Preload semantics
+### Option and preload semantics
 
 - Why: Godot/C# uses nullable reference types, while F# favors non-null. To bridge this, the shim understands `Option<'T>`.
 
@@ -386,7 +196,7 @@ Notes
 - Preload
   - For `[<Preload(...)]` members whose type is a Godot Resource (e.g., `Texture2D`, `PackedScene`): the shim always attempts to load and will throw `InvalidOperationException` when the resource is missing.
   - With DI: constructor parameters receive concrete resources; missing assets throw before construction.
-  - With property wiring: members are assigned after load. Prefer plain non-Option types to reflect the guarantee.
+  - With property wiring: members are assigned after load. Prefer non-Option types to reflect the guarantee.
   - For non-preloadable references (e.g., NodePath, arbitrary references not covered by Preload), keep using `Option<'T>` when the reference may be absent.
 
 Examples
@@ -469,7 +279,105 @@ member val Icon : Texture2D = Unchecked.defaultof<_> with get, set
   - Method parameters must match the signal's argument types and order.
   - You can stack multiple `[<AutoConnect ...>]` attributes on the same method to connect several nodes/signals.
 
-## Todo
+## Configuration
+
+- FSharpShimsEnabled (true by default)
+  - Master switch to enable/disable shim generation.
+- FSharpShimsOutDir (default `Scripts/Generated`)
+  - Output folder for generated C# shims; path stability helps keep Godot UIDs stable.
+- FSharpShimsVerbose (false by default)
+  - When `true`, increases `[shimgen]` log verbosity and prints tool stdout at Normal importance.
+- FSharpShimsRegenerate (empty by default)
+  - Forwarded to the generator as the `SHIMGEN_REGENERATE_SCRIPTS` environment variable when set. Examples:
+    - `FSharpShimsRegenerate=all` (or `*`) — regenerate all shims in-place.
+    - `FSharpShimsRegenerate=Tetris,TetrisBoard` — regenerate the listed scripts.
+- FSharpShimsFallbackInclude (true by default)
+  - Automatically includes `$(FSharpShimsOutDir)/**/*.cs` at compile time when the generator hasn’t added them (e.g., Godot/editor-driven builds). Inclusion is idempotent and avoids duplicate source warnings.
+
+Notes
+
+- Consumers do NOT need to manually include or exclude `Scripts/Generated/**/*.cs` in their project files. The buildTransitive targets add them when the generator runs and fall back to including existing files when it doesn’t.
+- Command-line runner supports `--dry-run` to print planned writes/moves/deletes without changes.
+
+### In-place regeneration (preserve Godot UIDs)
+
+You can set regeneration either via MSBuild property or environment variable. Both map to the same behavior.
+
+- MSBuild property (recommended in CI or local builds):
+  - `FSharpShimsRegenerate=all` (or `*`) to regenerate all scripts in-place.
+  - `FSharpShimsRegenerate=Tetris,TetrisBoard` (comma/semicolon/whitespace separated), or use F# full names like `Game.TetrisImpl`.
+- Environment variable (equivalent):
+  - `SHIMGEN_REGENERATE_SCRIPTS=all` or a comma-separated list.
+
+Notes:
+
+- When regenerating in-place and a prior generated file is found, the generator overwrites that exact path rather than relocating. This keeps the same UID next to the file.
+- If no previous file is found for a script, it falls back to the normal output path under `Scripts/Generated`.
+- Close the Godot editor before regeneration on Windows to avoid file locks under `Scripts/Generated`. (Sporadical Error)
+
+## Testing with gdUnit4
+
+The example project is wired to run gdUnit4 tests directly via `dotnet test` using a `.runsettings` file and minimal csproj configuration.
+
+### Project setup (ExampleProject)
+
+- In `FsharpWithShim.csproj`:
+
+  - Set `RunSettingsFilePath` to `$(MSBuildProjectDirectory)\​.runsettings` so `dotnet test` picks it up automatically.
+  - Disable MSTest adapter discovery: `<VSTestTestAdapterPath>none</VSTestTestAdapterPath>`
+  - Select the test framework: `<TestFramework>GdUnit4</TestFramework>`
+  - Reference required packages (known-good pairing):
+    - `Microsoft.NET.Test.Sdk` (tested with 18.0.0)
+    - `gdUnit4.api` 5.0.0
+    - `gdUnit4.test.adapter` 3.0.0
+    - `gdUnit4.analyzers`
+  - Include adapter sources:
+    - `Compile Include="gdunit4_testadapter_v5\**\*.cs"`
+    - `Compile Include="addons\gdUnit4\src\dotnet\**\*.cs" Visible="false" Condition="'$(GodotTargetPlatform)'!='windows-editor'"`
+  - ShimGen targets handle generated files; no manual include/exclude for `Scripts/Generated` is needed.
+  - Keep the gdUnit4 editor plugin enabled in `project.godot` to ensure discovery works the same locally and on CI.
+
+- `.runsettings` (in `ExampleProject/.runsettings`):
+  - Point `GODOT_BIN` to your Godot Mono executable.
+  - Use stable runtime parameters (Windows-friendly): `-d -v --headless --audio-driver Dummy --rendering-driver opengl3 --screen 0`
+    - Avoid `--quit` and DAP/LSP flags in test runs; they can break the test adapter’s handshake.
+  - Increase compile timeout for editor-driven rebuilds and disable “no tests” as error for smoother CI/local runs.
+
+Example excerpt from a working `.runsettings`:
+
+- GODOT_BIN set to your local Godot 4.5 Mono executable path
+- Parameters: `-d -v --headless --audio-driver Dummy --rendering-driver opengl3 --screen 0`
+- Capture standard output/logs enabled
+- Extended timeouts for initial editor-driven compile
+
+### Run tests
+
+```powershell
+dotnet test ExampleProject/FsharpWithShim.csproj -c Debug
+```
+
+The Godot editor can remain running; transient "Failed to bind socket. Error: 3." messages during rebuild are expected and harmless. The `.runsettings` is picked up automatically via the csproj property.
+
+Stability tip (Windows): enable the opt-in pre-test cleanup that terminates only stale testhost processes belonging to this project:
+
+```powershell
+dotnet test ExampleProject/FsharpWithShim.csproj -c Debug /p:GdUnitKillStaleTestHosts=true
+```
+
+This is provided by the package’s buildTransitive targets and runs just before VSTest. For details, see `ShimGen/buildTransitive/Headsetsniper.Godot.FSharp.ShimGen.targets`.
+
+## Troubleshooting
+
+- Icon doesn’t show in the editor
+  - Ensure `Icon` points to a valid Godot resource path (e.g., `res://icon.svg`) and the asset is imported by Godot.
+- Generated files aren’t picked up by the build
+  - The generator runs before `CoreCompile` and includes `Scripts/Generated/**/*.cs` at evaluation. Check build output for `[shimgen]` logs; verify the package is installed in the Godot C# project (not the F# one).
+- Autoconnect didn’t wire my signal
+  - Confirm the `Path` resolves (node exists). The shim uses `GetNodeOrNull` and skips if missing. Ensure your method parameters match the signal’s signature.
+- Tests can’t locate assemblies
+  - If running tests outside the repo, ensure the stub Godot types are used only within the test project; no runtime Godot dependency is required for generation-time tests.
+
+## Roadmap
 
 Planned work to reach comprehensive Godot capability support in F# via shims.
 
@@ -514,8 +422,8 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 
 - Resources and custom types
 
-  - Custom Resources: allow F# classes to inherit Resource; support [GlobalClass] and exports within resources.
-  - Script icons/editor meta: allow icon and editor metadata decoration from F#.
+  - Custom Resources: allow F# classes to inherit Resource; support [GlobalClass] V and exports within resources.
+  - Script icons/editor meta: allow icon and editor metadata decoration from F#. V
 
 - Error handling and diagnostics
 
@@ -536,35 +444,60 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
 
 - Documentation and samples
 
-  - Cookbook: examples for exports with hints, signals, RPC, NodePath wiring, tool scripts, resources.
+  - Cookbook: examples for exports with hints, signals, RPC, NodePath wiring, tool scripts, resources. V
   - Templates: ready-to-use Godot+F# project template using this package.
 
 - Test coverage
-  - Add tests for export hints and types, UI callbacks, RPC attributes/invocation, NodePath wiring, Option/DU/records marshalling, resources/global classes, tool scripts behavior, autoconnect.
+  - Add tests for export hints V and types V, UI callbacks V, RPC attributes/invocation, NodePath wiring V, Option/DU/records marshalling, resources/global V classes, tool scripts behavior V, autoconnect V.
   - Cross-platform: validate generation on Windows/Linux/macOS.
 
-Priorities
+## Local development
 
-- P0: Export hints parity; NodePath auto-wiring; complete lifecycle callbacks; GlobalClass/Tool.
-- P1: RPC attributes and sync vars; custom resources; Option/DU/records marshalling.
-- P2: Autoconnect signals; async helpers; editor plugin patterns; expanded docs/templates.
+These steps help when you want to iterate on the packages locally before publishing.
 
-## Troubleshooting
+### Build local packages
 
-- Icon doesn’t show in the editor
-  - Ensure `Icon` points to a valid Godot resource path (e.g., `res://icon.svg`) and the asset is imported by Godot.
-- Generated files aren’t picked up by the build
-  - The generator runs before `CoreCompile` and includes `Scripts/Generated/**/*.cs` at evaluation. Check build output for `[shimgen]` logs; verify the package is installed in the Godot C# project (not the F# one).
-- Autoconnect didn’t wire my signal
-  - Confirm the `Path` resolves (node exists). The shim uses `GetNodeOrNull` and skips if missing. Ensure your method parameters match the signal’s signature.
-- Tests can’t locate assemblies
-  - If running tests outside the repo, ensure the stub Godot types are used only within the test project; no runtime Godot dependency is required for generation-time tests.
+```powershell
+# From the repo root
+dotnet pack Annotations\Headsetsniper.Godot.FSharp.Annotations.csproj -c Release
+dotnet pack ShimGen\Headsetsniper.Godot.FSharp.ShimGen.csproj -c Release
+mkdir -Force .nupkgs
+Copy-Item Annotations\bin\Release\*.nupkg .nupkgs\
+Copy-Item ShimGen\bin\Release\*.nupkg .nupkgs\
+```
 
-## Roslyn generator
+### Local NuGet feed
 
-ShimGen includes a Roslyn-based generator alongside the classic string-based one. The classic path remains available, but the test suite exercises the Roslyn path by default.
+The solution-level `NuGet.Config` already points to `.nupkgs`. If you need to recreate it, use:
 
-- Force a mode when invoking the console runner:
-  - The generator is Roslyn-only; no mode switches are needed.
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+    <add key="local" value="$(SolutionDir).nupkgs" />
+  </packageSources>
+</configuration>
+```
 
-When using the MSBuild buildTransitive path, the Example project can resolve Roslyn’s assemblies (deps.json is staged). If you force regeneration with `SHIMGEN_REGENERATE_SCRIPTS`, close the Godot editor first to avoid Windows file locks under `Scripts/Generated`.
+### Build the sample solution
+
+```powershell
+dotnet restore FsharpWithShim.csproj
+dotnet build FsharpWithShim.csproj -v:n
+```
+
+During this build the `GenerateFSharpShims` target scans referenced F# projects and writes shims into `Scripts/Generated`, mirroring your F# folder structure. Use the console runner’s `--dry-run` switch to preview file moves.
+
+### Run the test suite
+
+```powershell
+dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Debug
+```
+
+### Pack release artifacts
+
+```powershell
+dotnet pack Annotations -c Release
+dotnet pack ShimGen -c Release
+```
