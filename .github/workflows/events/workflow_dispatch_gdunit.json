@@ -1,0 +1,14 @@
+{
+  "ref": "refs/heads/main",
+  "repository": {
+    "full_name": "headsetsniper/godot-fsharp-shim",
+    "owner": {
+      "login": "headsetsniper"
+    },
+    "name": "godot-fsharp-shim"
+  },
+  "workflow": {
+    "name": "gdunit-tests"
+  },
+  "inputs": {}
+}

@@ -1,0 +1,45 @@
+name: gdunit-tests
+
+on:
+  pull_request:
+    paths:
+      - 'ExampleProject/**'
+      - 'FSharp/**'
+      - 'ShimGen/**'
+      - 'Annotations/**'
+      - '.github/workflows/gdunit-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'ExampleProject/**'
+      - '.github/workflows/gdunit-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gdunit:
+    name: Run gdUnit4 GDScript Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure local NuGet feed
+        run: mkdir -p .nupkgs
+
+      - name: Run gdUnit4 tests
+        uses: MikeSchulze/gdunit4-action@v1.1.6
+        with:
+          godot-version: '4.5'
+          godot-net: false
+          godot-force-mono: true
+          project_dir: './ExampleProject/'
+          paths: |
+            res://Scripts/Tests
+          timeout: 20
+          warnings-as-errors: true
+          publish-report: false
+          upload-report: false
+          dotnet-version: 'net9.0'

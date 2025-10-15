@@ -317,7 +317,16 @@ Notes:
 
 ## Testing with gdUnit4
 
-The example project is wired to run gdUnit4 tests directly via `dotnet test` using a `.runsettings` file and minimal csproj configuration.
+The example project now ships gdUnit4 GDScript suites under `ExampleProject/Scripts/Tests`. They run in CI via `.github/workflows/gdunit-tests.yml`, which uses `MikeSchulze/gdunit4-action@v1` to execute the tests headlessly. You can reproduce the same run locally with `act`:
+
+```powershell
+act workflow_dispatch -P ubuntu-latest=catthehacker/ubuntu:act-latest -j gdunit
+# pass a real PAT as -s GITHUB_TOKEN=... if the workflow needs API access
+```
+
+Inside Godot you can trigger the suites from the gdUnit4 panel, or call the action directly on GitHub (`Run workflow`).
+
+The .NET harness remains configured so `dotnet test` can execute managed suites if you add any, thanks to the `.runsettings` file and csproj configuration.
 
 ### Project setup (ExampleProject)
 
@@ -352,19 +361,8 @@ Example excerpt from a working `.runsettings`:
 
 ### Run tests
 
-```powershell
-dotnet test ExampleProject/FsharpWithShim.csproj -c Debug
-```
-
-The Godot editor can remain running; transient "Failed to bind socket. Error: 3." messages during rebuild are expected and harmless. The `.runsettings` is picked up automatically via the csproj property.
-
-Stability tip (Windows): enable the opt-in pre-test cleanup that terminates only stale testhost processes belonging to this project:
-
-```powershell
-dotnet test ExampleProject/FsharpWithShim.csproj -c Debug /p:GdUnitKillStaleTestHosts=true
-```
-
-This is provided by the package’s buildTransitive targets and runs just before VSTest. For details, see `ShimGen/buildTransitive/Headsetsniper.Godot.FSharp.ShimGen.targets`.
+- **Dotnet harness (managed suites):** still available if you add C# or F# gdUnit4 tests.
+- **GDScript suites:** use Godot’s gdUnit4 panel, or the workflow/`act` command above for headless runs.
 
 ## Troubleshooting
 
