@@ -2,12 +2,99 @@ param(
     [string]$Configuration = "Debug",
     [string]$GodotBin,
     [switch]$SkipBuild,
-    [switch]$Verbose
+    [switch]$Quiet
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $testShimsProj = Join-Path $PSScriptRoot 'FsharpWithShim.TestShims.csproj'
+
+function Stop-StaleProcesses {
+    param(
+        [string[]]$Names
+    )
+
+    foreach ($name in $Names) {
+        $processes = Get-Process -Name $name -ErrorAction SilentlyContinue
+        foreach ($proc in $processes) {
+            try {
+                if ($proc.HasExited) { continue }
+            }
+            catch {
+                continue
+            }
+
+            $summary = "${($proc.ProcessName)} (Id=$($proc.Id))"
+            try {
+                Write-Host "[shimgen][tests] Killing stale process $summary" -ForegroundColor DarkYellow
+                $proc.Kill()
+                $null = $proc.WaitForExit(5000)
+            }
+            catch {
+                Write-Warning "[shimgen][tests] Failed to kill $summary : $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
+function Get-LatestGdUnitReport {
+    param(
+        [string]$ReportsRoot
+    )
+
+    if (-not (Test-Path $ReportsRoot)) { return $null }
+
+    Get-ChildItem -Path $ReportsRoot -Filter 'results.xml' -Recurse -File |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+}
+
+function Write-GdUnitReportSummary {
+    param(
+        [System.IO.FileInfo]$ReportFile,
+        [switch]$Verbose
+    )
+
+    if (-not $ReportFile) { return }
+
+    try {
+        [xml]$report = Get-Content -Path $ReportFile.FullName
+    }
+    catch {
+        Write-Warning "[shimgen][tests] Failed to read report $($ReportFile.FullName): $($_.Exception.Message)"
+        return
+    }
+
+    $root = $report.testsuites
+    if (-not $root) { return }
+
+    $total = [int]$root.tests
+    $failures = [int]$root.failures
+    $skipped = [int]$root.skipped
+    $time = [double]$root.time
+    $summaryColor = if ($failures -gt 0) { 'Red' } else { 'Green' }
+
+    Write-Host ([string]::Format('[shimgen][tests] Report: {0}', $ReportFile.DirectoryName)) -ForegroundColor $summaryColor
+    Write-Host ([string]::Format('[shimgen][tests] Total={0} Failures={1} Skipped={2} Time={3}s', $total, $failures, $skipped, $time)) -ForegroundColor $summaryColor
+
+    if (-not $Verbose) { return }
+
+    foreach ($suite in @($root.testsuite)) {
+        if (-not $suite) { continue }
+        $suiteFailures = [int]$suite.failures + [int]$suite.errors
+        $suiteColor = if ($suiteFailures -gt 0) { 'Red' } else { 'Cyan' }
+        Write-Host ([string]::Format('  Suite {0}: Tests={1} Failures={2} Skipped={3} Time={4}s', $suite.name, $suite.tests, $suiteFailures, $suite.skipped, $suite.time)) -ForegroundColor $suiteColor
+        foreach ($case in @($suite.testcase)) {
+            if (-not $case) { continue }
+            if ($case.failure -or $case.error) {
+                Write-Warning ([string]::Format('    FAIL {0}', $case.name))
+            }
+            elseif ($Verbose) {
+                Write-Host ([string]::Format('    ok {0}', $case.name)) -ForegroundColor DarkGray
+            }
+        }
+    }
+}
 
 if (-not $GodotBin) { $GodotBin = $env:GODOT_BIN }
 if (-not $GodotBin) {
@@ -17,6 +104,11 @@ if (-not $GodotBin) {
 if (-not $GodotBin -or -not (Test-Path $GodotBin)) {
     Write-Error "Godot executable not found. Provide -GodotBin or set GODOT_BIN environment variable."
 }
+
+$isVerbose = -not $Quiet
+
+$processKillList = @('godot', 'godot*', 'testhost', 'testhost*', 'vstest*')
+Stop-StaleProcesses -Names $processKillList
 
 # Build to ensure F# tests + shims current
 if (-not $SkipBuild) {
@@ -41,16 +133,22 @@ $godotArgs = @('--headless', '--quit', '--audio-driver', 'Dummy', '--rendering-d
 $projectDir = Split-Path $PSScriptRoot
 Push-Location $projectDir
 try {
-    Write-Host "[shimgen][tests] Running Godot headless: $GodotBin $($godotArgs -join ' ')" -ForegroundColor Yellow
+    $joinedArgs = [string]::Join(' ', $godotArgs)
+    Write-Host ([string]::Format('[shimgen][tests] Running Godot headless: {0} {1}', $GodotBin, $joinedArgs)) -ForegroundColor Yellow
     $pinfo = New-Object System.Diagnostics.ProcessStartInfo
     $pinfo.FileName = $GodotBin
-    $pinfo.ArgumentList.AddRange($godotArgs)
+    if ($pinfo.PSObject.Properties.Match('ArgumentList').Count -gt 0 -and $null -ne $pinfo.ArgumentList) {
+        $pinfo.ArgumentList.AddRange($godotArgs)
+    }
+    else {
+        $pinfo.Arguments = [string]::Join(' ', $godotArgs)
+    }
     $pinfo.RedirectStandardOutput = $true
     $pinfo.RedirectStandardError = $true
     $pinfo.UseShellExecute = $false
     $pinfo.Environment['GODOT_BIN'] = $GodotBin
     # Provide a hint for suite filtering in future; can pass patterns as env
-    if ($Verbose) { $pinfo.Environment['GDUNIT_VERBOSE'] = '1' }
+    if ($isVerbose) { $pinfo.Environment['GDUNIT_VERBOSE'] = '1' }
 
     $p = [System.Diagnostics.Process]::Start($pinfo)
     $stdOut = $p.StandardOutput.ReadToEnd()
@@ -64,9 +162,18 @@ try {
         Write-Error "Godot test run failed (exit code $($p.ExitCode))"
     }
     else {
-        Write-Host "[shimgen][tests] Godot test run succeeded" -ForegroundColor Green
+        Write-Host '[shimgen][tests] Godot test run succeeded' -ForegroundColor Green
+        $reportsRoot = Join-Path $projectDir 'reports'
+        $latestReport = Get-LatestGdUnitReport -ReportsRoot $reportsRoot
+        if ($latestReport) {
+            Write-GdUnitReportSummary -ReportFile $latestReport -Verbose:$isVerbose
+        }
+        else {
+            Write-Warning ([string]::Format('[shimgen][tests] No gdUnit4 report found under {0}', $reportsRoot))
+        }
     }
 }
 finally {
+    Stop-StaleProcesses -Names $processKillList
     Pop-Location
 }
