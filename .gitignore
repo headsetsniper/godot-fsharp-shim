@@ -65,3 +65,4 @@ paket-files/
 *.orig
 *.tmp
 .nuget
+.env
