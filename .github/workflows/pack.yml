@@ -82,15 +82,17 @@ jobs:
           git rev-parse HEAD
           git describe --tags --always || true
 
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
       - name: Setup .NET 9
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
+
+      - name: Install ICU (act and CI)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends libicu-dev
 
       # Use official GitVersion Action to calculate version from history/commits
       - name: Install GitVersion
@@ -179,9 +181,69 @@ jobs:
         timeout-minutes: 15
         run: dotnet build ExampleProject/FsharpWithShim.csproj -c Release --no-restore -p:ShimGenPackageVersion=${{ env.PKG_VERSION }}
 
+      - name: Workaround SDK extension dep (act only)
+        if: env.ACT == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VER="6.0.0"
+          PKG_URL="https://www.nuget.org/api/v2/package/Microsoft.Bcl.AsyncInterfaces/${VER}"
+          TMP_DIR="/tmp/bcl_async"
+          mkdir -p "$TMP_DIR"
+          echo "Downloading Microsoft.Bcl.AsyncInterfaces $VER"
+          curl -sSL "$PKG_URL" -o "$TMP_DIR/pkg.nupkg"
+          echo "Extracting package"
+          unzip -q "$TMP_DIR/pkg.nupkg" -d "$TMP_DIR/unzipped"
+          DLL_PATH=$(find "$TMP_DIR/unzipped/lib" -type f -name Microsoft.Bcl.AsyncInterfaces.dll | head -n1 || true)
+          if [ -z "${DLL_PATH:-}" ] || [ ! -f "$DLL_PATH" ]; then
+            echo "ERROR: Could not find Microsoft.Bcl.AsyncInterfaces.dll in downloaded package" >&2
+            exit 1
+          fi
+          EXT_DIR=$(find /usr/share/dotnet/sdk -maxdepth 2 -type d -name Extensions | head -n1 || true)
+          if [ -z "${EXT_DIR:-}" ] || [ ! -d "$EXT_DIR" ]; then
+            echo "ERROR: Could not locate dotnet SDK Extensions directory" >&2
+            exit 1
+          fi
+          echo "Copying $DLL_PATH -> $EXT_DIR/Microsoft.Bcl.AsyncInterfaces.dll"
+          sudo cp "$DLL_PATH" "$EXT_DIR/Microsoft.Bcl.AsyncInterfaces.dll"
+          ls -la "$EXT_DIR/Microsoft.Bcl.AsyncInterfaces.dll" || true
+
       - name: Test (Release)
         timeout-minutes: 15
-        run: dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release --verbosity normal
+        env:
+          VSTEST_CONNECTION_TIMEOUT: '30'
+          # Use named pipes instead of TCP sockets for vstest <-> testhost communication
+          VSTEST_CONNECTION_MODE: 'ipc'
+          # Ensure default adapters are skipped even if runsettings isn't picked up
+          VSTEST_SKIP_DEFAULT_ADAPTERS: '1'
+        run: |
+          set -euo pipefail
+          mkdir -p ./reports/vstest
+          if [ "${ACT:-}" = "true" ]; then
+            echo "Running tests via NUnitLite self-host (act only)"
+            # Restore test project dependencies before building with NUnitLite
+            dotnet restore ShimGen.Tests/ShimGen.Tests.csproj
+            dotnet build ShimGen.Tests/ShimGen.Tests.csproj -c Release -p:UseNUnitLite=true --no-restore
+            testBin="ShimGen.Tests/bin/Release/net9.0/"$( [ -f ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests ] && echo "ShimGen.Tests" || echo "ShimGen.Tests.dll" )
+            # Prefer running as a framework-dependent app
+            if [ -f "ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests" ]; then
+              chmod +x "ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests" || true
+              ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests --workers=1 --result=./reports/vstest/TestResult.trx;format=trx
+            else
+              dotnet "${testBin}" --workers=1 --result=./reports/vstest/TestResult.trx;format=trx
+            fi
+          else
+            dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release --verbosity detailed --settings ShimGen.Tests/tests.runsettings --diag ./reports/vstest/diag.log
+          fi
+
+      - name: Dump VSTest diag on failure
+        if: failure()
+        run: |
+          echo "--- VSTest diag tail ---"
+          tail -n 400 ./reports/vstest/diag.log || true
+          echo "--- Host diag logs (if any) ---"
+          ls -la ./reports/vstest || true
+          tail -n 200 ./reports/vstest/diag.host.*.log 2>/dev/null || true
 
       - name: Verify packages produced
         shell: bash
@@ -234,10 +296,10 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Setup .NET 8
+      - name: Setup .NET 9
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '9.0.x'
 
       - name: Download artifacts
         uses: actions/download-artifact@v4

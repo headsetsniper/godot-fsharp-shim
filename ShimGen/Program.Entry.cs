@@ -8,7 +8,7 @@ internal static partial class Program
 {
     public static int Main(string[] args)
     {
-        try { Console.Error.WriteLine("[shimgen] entered Main (pre-parse)"); } catch { }
+        try { Console.WriteLine("[shimgen] entered Main (pre-parse)"); } catch { }
         var (ok, asmPath, outDir, fsDir, dryRun) = ParseOptions(args);
         if (!ok) return PrintUsageAndExit();
         return RunPipeline(asmPath, outDir, fsDir, dryRun);
@@ -29,7 +29,7 @@ internal static partial class Program
             lc = PrepareLoadContext(asmPath);
             var asm = LoadAssembly(lc, asmPath);
             var mode = ParseMode(Environment.GetEnvironmentVariable("SHIMGEN_MODE"));
-            try { Console.Error.WriteLine($"[shimgen] mode={mode}"); } catch { }
+            try { Console.WriteLine($"[shimgen] mode={mode}"); } catch { }
             LogInfo($"[shimgen] Mode={mode}");
             if (mode == GenerationMode.Tests)
             {

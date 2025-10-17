@@ -85,7 +85,7 @@ public class TestsModeGenerationTests
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(code, new CSharpParseOptions(LanguageVersion.Preview));
         var refs = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location) && File.Exists(a.Location))
             .Select(a => MetadataReference.CreateFromFile(a.Location))
             .ToList();
         var compilation = CSharpCompilation.Create(

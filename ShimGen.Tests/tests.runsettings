@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RunSettings>
   <RunConfiguration>
-    <MaxCpuCount>8</MaxCpuCount>
+    <MaxCpuCount>1</MaxCpuCount>
+    <SkipDefaultAdapters>true</SkipDefaultAdapters>
   </RunConfiguration>
   <LoggerRunSettings>
     <Loggers>
@@ -13,6 +14,6 @@
     </Loggers>
   </LoggerRunSettings>
   <NUnit>
-    <NumberOfTestWorkers>8</NumberOfTestWorkers>
+    <NumberOfTestWorkers>1</NumberOfTestWorkers>
   </NUnit>
 </RunSettings>
