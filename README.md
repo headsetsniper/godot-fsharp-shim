@@ -393,7 +393,7 @@ type MathTests() =
 - References the F# test project.
 - References (or imports locally) `Headsetsniper.Godot.FSharp.ShimGen` targets.
 - Sets `FSharpShimsMode=Tests` and a distinct output directory (e.g. `Scripts/GeneratedTests`).
-- Optionally sets `FSharpShimsTestAssemblyName` when multiple F# assemblies are referenced (recommended for clarity).
+- Optionally sets `FSharpShimsTestAssemblyName` when you need to override the default (we auto-pick the first referenced F# assembly whose name ends with `Tests`).
 
 Minimal `FsharpWithShim.TestShims.csproj` example:
 
@@ -405,7 +405,6 @@ Minimal `FsharpWithShim.TestShims.csproj` example:
     <!-- Enable Tests mode and separate output folder for generated test shims -->
     <FSharpShimsMode>Tests</FSharpShimsMode>
     <FSharpShimsOutDir>Scripts/GeneratedTests</FSharpShimsOutDir>
-    <FSharpShimsTestAssemblyName>FSharp.Tests</FSharpShimsTestAssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -420,7 +419,7 @@ Minimal `FsharpWithShim.TestShims.csproj` example:
 </Project>
 ```
 
-3. Build the C# project. The shared buildTransitive target invokes ShimGen in `Tests` mode and emits one shim per discovered suite: `SuiteName_TestsShim.cs`. No extra MSBuild targets or manual generator calls are required.
+3. Build the C# project. The shared buildTransitive target invokes ShimGen in `Tests` mode and emits one shim per discovered suite: `SuiteName_TestsShim.cs`. No extra MSBuild targets or manual generator calls are required, and the generator automatically focuses on the first referenced `*.Tests` assembly unless you override `FSharpShimsTestAssemblyName`.
 4. Run `dotnet test` on the C# project; gdUnit4 discovers the shim classes (they have `[TestSuite]`). Each shim method obtains a `MethodInfo` on the F# implementation instance and invokes it (awaiting Tasks).
 
 ### Discovery heuristics
@@ -452,7 +451,7 @@ public class MySuite_TestsShim {
 | ----------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------- |
 | `FSharpShimsMode`             | Set to `Tests` to enable test shim generation                | `Scripts`                                                  |
 | `FSharpShimsOutDir`           | Output directory for generated test shims                    | `Scripts/Generated` (override to `Scripts/GeneratedTests`) |
-| `FSharpShimsTestAssemblyName` | Restrict scanning to a specific F# test assembly base name   | (empty)                                                    |
+| `FSharpShimsTestAssemblyName` | Restrict scanning to a specific F# test assembly base name   | Auto-detects first referenced `*.Tests`                    |
 | `FSharpShimsVerbose`          | Verbose logging (`[shimgen]`)                                | `false`                                                    |
 | `FSharpShimsRegenerate`       | Forwarded to `SHIMGEN_REGENERATE_SCRIPTS` (see regeneration) | (empty)                                                    |
 

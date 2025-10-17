@@ -11,7 +11,6 @@
     <!-- Generate test shims into this project under Scripts/GeneratedTests -->
     <FSharpShimsMode>Tests</FSharpShimsMode>
     <FSharpShimsOutDir>$(MSBuildProjectDirectory)\Scripts\GeneratedTests</FSharpShimsOutDir>
-    <FSharpShimsTestAssemblyName>FSharp.Tests</FSharpShimsTestAssemblyName>
     <!-- Prefer local ShimGen targets during repo development -->
     <UseLocalShimGen Condition="Exists('..\..\ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets')">true</UseLocalShimGen>
     <FSharpShimsVerbose>true</FSharpShimsVerbose>

@@ -112,8 +112,19 @@
       <_ShimGenEnvVars>SHIMGEN_MODE=$(FSharpShimsMode);$(_ShimGenEnvVars)</_ShimGenEnvVars>
     </PropertyGroup>
     <!-- In Tests mode, restrict to a specific test assembly name if provided -->
+    <ItemGroup Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'==''">
+      <_FSharpRefsTestCandidate Include="@(_FSharpRefs)" Condition="$([System.String]::Copy('%(Filename)').EndsWith('Tests', System.StringComparison.OrdinalIgnoreCase))" />
+    </ItemGroup>
+    <PropertyGroup Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'=='' and '@(_FSharpRefsTestCandidate)'!=''">
+      <_ShimGenTestCandidateList>@(_FSharpRefsTestCandidate->'%(Filename)')</_ShimGenTestCandidateList>
+      <_ShimGenTestCandidateSep>$([System.String]::Copy('$(_ShimGenTestCandidateList)').IndexOf(';'))</_ShimGenTestCandidateSep>
+      <FSharpShimsTestAssemblyName>$(_ShimGenTestCandidateList)</FSharpShimsTestAssemblyName>
+      <FSharpShimsTestAssemblyName Condition="$(_ShimGenTestCandidateSep) &gt;= 0">$([System.String]::Copy('$(_ShimGenTestCandidateList)').Substring(0,$(_ShimGenTestCandidateSep)))</FSharpShimsTestAssemblyName>
+    </PropertyGroup>
+    <Message Text="[shimgen] Tests mode auto-selected FSharpShimsTestAssemblyName=$(FSharpShimsTestAssemblyName)" Importance="$(_ShimGenLogImportance)" Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'!='' and '@(_FSharpRefsTestCandidate)'!=''" />
+
     <ItemGroup Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'!=''">
-  <_FSharpRefsFiltered Include="@(_FSharpRefs)" Condition="'%(Filename)'=='$(FSharpShimsTestAssemblyName)'" />
+      <_FSharpRefsFiltered Include="@(_FSharpRefs)" Condition="'%(Filename)'=='$(FSharpShimsTestAssemblyName)'" />
     </ItemGroup>
     <Message Text="[shimgen] Tests mode filter: $(FSharpShimsTestAssemblyName) => @(_FSharpRefsFiltered)" Importance="$(_ShimGenLogImportance)" Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'!=''" />
 
