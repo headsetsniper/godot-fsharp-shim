@@ -19,15 +19,18 @@
 
   <PropertyGroup>
     <FSharpShimsDefaultTestsOutDir>$(MSBuildProjectDirectory)\Scripts\GeneratedTests</FSharpShimsDefaultTestsOutDir>
-    <FSharpShimsOutDir Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsOutDir)'=='$(FSharpShimsDefaultScriptsOutDir)'">$(FSharpShimsDefaultTestsOutDir)</FSharpShimsOutDir>
+    <FSharpShimsOutDir Condition="'$(FSharpShimsMode)'=='Tests' and $([System.String]::Equals('$(FSharpShimsOutDir)','$(FSharpShimsDefaultScriptsOutDir)', System.StringComparison.OrdinalIgnoreCase))">$(FSharpShimsDefaultTestsOutDir)</FSharpShimsOutDir>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <FSharpShimsLogImportance Condition="'$(FSharpShimsLogImportance)'=='' and '$(FSharpShimsVerbose)'=='true'">High</FSharpShimsLogImportance>
+    <FSharpShimsLogImportance Condition="'$(FSharpShimsLogImportance)'==''">Low</FSharpShimsLogImportance>
+    <FSharpShimsStdOutImportance Condition="'$(FSharpShimsStdOutImportance)'=='' and '$(FSharpShimsVerbose)'=='true'">Normal</FSharpShimsStdOutImportance>
+    <FSharpShimsStdOutImportance Condition="'$(FSharpShimsStdOutImportance)'==''">Low</FSharpShimsStdOutImportance>
   </PropertyGroup>
 
   <!-- Resolve ShimGen tool from the restored package (robust across CI/local) -->
   <Target Name="ResolveShimGenToolPath" BeforeTargets="RunShimGen" Condition=" '$(FSharpShimsEnabled)' != 'false' ">
-    <PropertyGroup>
-      <_ShimGenLogImportance Condition="'$(FSharpShimsVerbose)'=='true'">High</_ShimGenLogImportance>
-      <_ShimGenLogImportance Condition="'$(_ShimGenLogImportance)'==''">Low</_ShimGenLogImportance>
-    </PropertyGroup>
     <ItemGroup>
       <_ShimGenPkg Include="@(PackageReference)" Condition="'%(PackageReference.Identity)' == 'Headsetsniper.Godot.FSharp.ShimGen'" />
     </ItemGroup>
@@ -51,36 +54,26 @@
   <!-- Prefer local bin if available during repo/dev builds; this helps stage deps.json for Roslyn tooling. -->
   <_ShimGenTool Condition="'$(MSBuildThisFileDirectory)' != '' and Exists('$(_ShimGenLocalBin)')">$(_ShimGenLocalBin)</_ShimGenTool>
     </PropertyGroup>
-    <Message Text="[shimgen] Tool candidates: pkg=$(_ShimGenToolFromPkg)[exists=$([System.IO.File]::Exists('$(_ShimGenToolFromPkg)'))] localBin=$(_ShimGenLocalBin)[exists=$([System.IO.File]::Exists('$(_ShimGenLocalBin)'))] libNext=$(_ShimGenLibNextToTargets)[exists=$([System.IO.File]::Exists('$(_ShimGenLibNextToTargets)'))]" Importance="$(_ShimGenLogImportance)" />
+    <Message Text="[shimgen] Tool candidates: pkg=$(_ShimGenToolFromPkg)[exists=$([System.IO.File]::Exists('$(_ShimGenToolFromPkg)'))] localBin=$(_ShimGenLocalBin)[exists=$([System.IO.File]::Exists('$(_ShimGenLocalBin)'))] libNext=$(_ShimGenLibNextToTargets)[exists=$([System.IO.File]::Exists('$(_ShimGenLibNextToTargets)'))]" Importance="$(FSharpShimsLogImportance)" />
   </Target>
 
   <!-- Collect F# outputs via ReferencePath (populated by ResolveReferences) -->
   <Target Name="CollectFSharpOutputs" AfterTargets="ResolveReferences" BeforeTargets="RunShimGen" Condition=" '$(FSharpShimsEnabled)' != 'false' ">
-    <PropertyGroup>
-      <_ShimGenLogImportance Condition="'$(FSharpShimsVerbose)'=='true'">High</_ShimGenLogImportance>
-      <_ShimGenLogImportance Condition="'$(_ShimGenLogImportance)'==''">Low</_ShimGenLogImportance>
-    </PropertyGroup>
     <ItemGroup>
       <_FSharpRefs Include="@(ReferencePath)" Condition="$([System.String]::Copy('%(ReferencePath.MSBuildSourceProjectFile)').EndsWith('.fsproj', System.StringComparison.OrdinalIgnoreCase))" />
       <!-- Try to find the Annotations assembly among resolved references -->
       <_AnnRef Include="@(ReferencePath)"
                Condition="$([System.String]::Copy('%(ReferencePath.Identity)').EndsWith('Headsetsniper.Godot.FSharp.Annotations.dll', System.StringComparison.OrdinalIgnoreCase))" />
     </ItemGroup>
-    <Message Text="[shimgen] F# ReferencePath count=@(_FSharpRefs->Count())" Importance="$(_ShimGenLogImportance)" />
-    <Message Text="[shimgen] Annotations ref: @(_AnnRef)" Importance="$(_ShimGenLogImportance)" Condition="'@(_AnnRef)' != ''" />
+    <Message Text="[shimgen] F# ReferencePath count=@(_FSharpRefs->Count())" Importance="$(FSharpShimsLogImportance)" />
+    <Message Text="[shimgen] Annotations ref: @(_AnnRef)" Importance="$(FSharpShimsLogImportance)" Condition="'@(_AnnRef)' != ''" />
   </Target>
 
   <!-- Run generator and include outputs in same compile -->
   <Target Name="RunShimGen" AfterTargets="ResolveReferences" BeforeTargets="CoreCompile;Compile" Condition=" '$(FSharpShimsEnabled)' != 'false' and '@(_FSharpRefs)' != '' and Exists('$(_ShimGenTool)') ">
     <MakeDir Directories="$(FSharpShimsOutDir)" Condition="!Exists('$(FSharpShimsOutDir)')" />
-    <PropertyGroup>
-      <_ShimGenLogImportance Condition="'$(FSharpShimsVerbose)'=='true'">High</_ShimGenLogImportance>
-      <_ShimGenLogImportance Condition="'$(_ShimGenLogImportance)'==''">Low</_ShimGenLogImportance>
-      <_ShimGenStdOutImportance Condition="'$(FSharpShimsVerbose)'=='true'">Normal</_ShimGenStdOutImportance>
-      <_ShimGenStdOutImportance Condition="'$(_ShimGenStdOutImportance)'==''">Low</_ShimGenStdOutImportance>
-    </PropertyGroup>
-    <Message Text="[shimgen] Using tool: $(_ShimGenTool)" Importance="$(_ShimGenLogImportance)" />
-    <Message Text="[shimgen] F# assemblies: @(_FSharpRefs)" Importance="$(_ShimGenLogImportance)" />
+    <Message Text="[shimgen] Using tool: $(_ShimGenTool)" Importance="$(FSharpShimsLogImportance)" />
+    <Message Text="[shimgen] F# assemblies: @(_FSharpRefs)" Importance="$(FSharpShimsLogImportance)" />
     <!-- Stage the tool in obj with any required runtime dependencies so 'dotnet' can resolve compile-time references -->
     <PropertyGroup>
       <_ShimGenStageDir>$([System.IO.Path]::Combine('$(IntermediateOutputPath)', 'shimgen_tool_stage', '$(TargetFramework)'))</_ShimGenStageDir>
@@ -111,7 +104,7 @@
     "rollForward": "LatestMajor"
   }
 }' />
-    <Message Text="[shimgen] Staged tool at $(_ShimGenStageDll) (ann=@(_AnnRef->'%(Filename)%(Extension)'))" Importance="$(_ShimGenLogImportance)" />
+    <Message Text="[shimgen] Staged tool at $(_ShimGenStageDll) (ann=@(_AnnRef->'%(Filename)%(Extension)'))" Importance="$(FSharpShimsLogImportance)" />
     <PropertyGroup>
       <!-- Forward regenerate control to tool only when set -->
       <_ShimGenEnvVars Condition="'$(FSharpShimsRegenerate)'!=''">SHIMGEN_REGENERATE_SCRIPTS=$(FSharpShimsRegenerate)</_ShimGenEnvVars>
@@ -122,31 +115,28 @@
       <_FSharpRefsTestCandidate Include="@(_FSharpRefs)" Condition="$([System.String]::Copy('%(Filename)').EndsWith('Tests', System.StringComparison.OrdinalIgnoreCase))" />
     </ItemGroup>
     <PropertyGroup Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'=='' and '@(_FSharpRefsTestCandidate)'!=''">
-      <_ShimGenTestCandidateList>@(_FSharpRefsTestCandidate->'%(Filename)')</_ShimGenTestCandidateList>
-      <_ShimGenTestCandidateSep>$([System.String]::Copy('$(_ShimGenTestCandidateList)').IndexOf(';'))</_ShimGenTestCandidateSep>
-      <FSharpShimsTestAssemblyName>$(_ShimGenTestCandidateList)</FSharpShimsTestAssemblyName>
-      <FSharpShimsTestAssemblyName Condition="$(_ShimGenTestCandidateSep) &gt;= 0">$([System.String]::Copy('$(_ShimGenTestCandidateList)').Substring(0,$(_ShimGenTestCandidateSep)))</FSharpShimsTestAssemblyName>
+      <FSharpShimsTestAssemblyName>$([System.String]::Copy('@(_FSharpRefsTestCandidate->'%(Filename)')').Split(';')[0])</FSharpShimsTestAssemblyName>
     </PropertyGroup>
-    <Message Text="[shimgen] Tests mode auto-selected FSharpShimsTestAssemblyName=$(FSharpShimsTestAssemblyName)" Importance="$(_ShimGenLogImportance)" Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'!='' and '@(_FSharpRefsTestCandidate)'!=''" />
+    <Message Text="[shimgen] Tests mode auto-selected FSharpShimsTestAssemblyName=$(FSharpShimsTestAssemblyName)" Importance="$(FSharpShimsLogImportance)" Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'!='' and '@(_FSharpRefsTestCandidate)'!=''" />
 
     <ItemGroup Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'!=''">
       <_FSharpRefsFiltered Include="@(_FSharpRefs)" Condition="'%(Filename)'=='$(FSharpShimsTestAssemblyName)'" />
     </ItemGroup>
-    <Message Text="[shimgen] Tests mode filter: $(FSharpShimsTestAssemblyName) => @(_FSharpRefsFiltered)" Importance="$(_ShimGenLogImportance)" Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'!=''" />
+    <Message Text="[shimgen] Tests mode filter: $(FSharpShimsTestAssemblyName) => @(_FSharpRefsFiltered)" Importance="$(FSharpShimsLogImportance)" Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestAssemblyName)'!=''" />
 
     <!-- Exec for Tests mode with filtered refs -->
     <Exec Condition="'$(FSharpShimsMode)'=='Tests' and '@(_FSharpRefsFiltered)'!=''"
       Command="dotnet &quot;$(_ShimGenStageDll)&quot; &quot;%(_FSharpRefsFiltered.Identity)&quot; &quot;$(FSharpShimsOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FSharpRefsFiltered.MSBuildSourceProjectFile)'))&quot; --mode=$(FSharpShimsMode)"
       WorkingDirectory="$([System.IO.Path]::GetDirectoryName('%(_FSharpRefsFiltered.Identity)'))"
       EnvironmentVariables="$(_ShimGenEnvVars)"
-      StandardOutputImportance="$(_ShimGenStdOutImportance)" StandardErrorImportance="High" />
+      StandardOutputImportance="$(FSharpShimsStdOutImportance)" StandardErrorImportance="High" />
 
     <!-- Default Exec (Scripts mode or when no filter provided/matched) -->
     <Exec Condition="! ('$(FSharpShimsMode)'=='Tests' and '@(_FSharpRefsFiltered)'!='')"
       Command="dotnet &quot;$(_ShimGenStageDll)&quot; &quot;%(_FSharpRefs.Identity)&quot; &quot;$(FSharpShimsOutDir)&quot; &quot;$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.MSBuildSourceProjectFile)'))&quot; --mode=$(FSharpShimsMode)"
       WorkingDirectory="$([System.IO.Path]::GetDirectoryName('%(_FSharpRefs.Identity)'))"
       EnvironmentVariables="$(_ShimGenEnvVars)"
-      StandardOutputImportance="$(_ShimGenStdOutImportance)" StandardErrorImportance="High" />
+      StandardOutputImportance="$(FSharpShimsStdOutImportance)" StandardErrorImportance="High" />
     <ItemGroup>
       <!-- Ensure we don't end up with duplicate Compile items if included elsewhere -->
       <Compile Remove="$(FSharpShimsOutDir)\**\*.cs" />
