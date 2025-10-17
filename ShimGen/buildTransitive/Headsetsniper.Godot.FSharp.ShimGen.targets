@@ -1,7 +1,8 @@
 <Project>
   <PropertyGroup>
     <FSharpShimsEnabled Condition="'$(FSharpShimsEnabled)'==''">true</FSharpShimsEnabled>
-    <FSharpShimsOutDir Condition="'$(FSharpShimsOutDir)'==''">$(MSBuildProjectDirectory)\Scripts\Generated</FSharpShimsOutDir>
+    <FSharpShimsDefaultScriptsOutDir>$(MSBuildProjectDirectory)\Scripts\Generated</FSharpShimsDefaultScriptsOutDir>
+    <FSharpShimsOutDir Condition="'$(FSharpShimsOutDir)'==''">$(FSharpShimsDefaultScriptsOutDir)</FSharpShimsOutDir>
     <!-- Mode: Scripts or Tests -->
     <FSharpShimsMode Condition="'$(FSharpShimsMode)'==''">Scripts</FSharpShimsMode>
     <!-- Controls diagnostic verbosity of [shimgen] messages and stdout during build (default: false) -->
@@ -14,6 +15,11 @@
     <!-- Back-compat: honor KillStaleTestHosts if provided by the project/CLI. -->
     <GdUnitKillStaleTestHosts Condition="'$(GdUnitKillStaleTestHosts)'==''">$(KillStaleTestHosts)</GdUnitKillStaleTestHosts>
     <GdUnitKillStaleTestHosts Condition="'$(GdUnitKillStaleTestHosts)'==''">false</GdUnitKillStaleTestHosts>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <FSharpShimsDefaultTestsOutDir>$(MSBuildProjectDirectory)\Scripts\GeneratedTests</FSharpShimsDefaultTestsOutDir>
+    <FSharpShimsOutDir Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsOutDir)'=='$(FSharpShimsDefaultScriptsOutDir)'">$(FSharpShimsDefaultTestsOutDir)</FSharpShimsOutDir>
   </PropertyGroup>
 
   <!-- Resolve ShimGen tool from the restored package (robust across CI/local) -->
