@@ -22,7 +22,6 @@ This repository lets you write gameplay in F# and auto-generate C# shims that Go
   - [Autoconnect](#autoconnect)
 - [Configuration](#configuration)
 - [Testing with gdUnit4](#testing-with-gdunit4)
-- [Testing with gdUnit4](#testing-with-gdunit4)
 - [F# test shims (Tests mode)](#f-test-shims-tests-mode)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap](#roadmap)
@@ -396,6 +395,32 @@ type MathTests() =
 - Sets `FSharpShimsMode=Tests` and a distinct output directory (e.g. `Scripts/GeneratedTests`).
 - Optionally sets `FSharpShimsTestAssemblyName` to filter which referenced F# assembly is scanned.
 
+Minimal `FsharpWithShim.TestShims.csproj` example:
+
+```xml
+<Project Sdk="Godot.NET.Sdk/4.5.0">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Enable Tests mode and separate output folder for generated test shims -->
+    <FSharpShimsMode>Tests</FSharpShimsMode>
+    <FSharpShimsOutDir>Scripts/GeneratedTests</FSharpShimsOutDir>
+    <!-- Optional: restrict scanning to this F# tests assembly name (without .dll) -->
+    <!-- <FSharpShimsTestAssemblyName>FSharp.Tests</FSharpShimsTestAssemblyName> -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Your F# test project reference -->
+    <ProjectReference Include="..\..\FSharp.Tests\FSharp.Tests.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The generator that emits C# test shims this project compiles -->
+    <PackageReference Include="Headsetsniper.Godot.FSharp.ShimGen" Version="$(ShimGenPackageVersion)" />
+  </ItemGroup>
+</Project>
+```
+
 3. Build the C# project. The generator runs with `SHIMGEN_MODE=Tests` and emits one shim per discovered suite: `SuiteName_TestsShim.cs`.
 4. Run `dotnet test` on the C# project; gdUnit4 discovers the shim classes (they have `[TestSuite]`). Each shim method obtains a `MethodInfo` on the F# implementation instance and invokes it (awaiting Tasks).
 
@@ -470,18 +495,35 @@ Parameters:
 - `-Configuration` (default Debug)
 - `-GodotBin` path to Godot Mono executable (falls back to `$env:GODOT_BIN` or `Godot/godot.exe` under repo root)
 - `-SkipBuild` to reuse existing build
-- `-Verbose` adds `GDUNIT_VERBOSE=1`
+- `-Quiet` suppresses detailed per-suite/test output (verbose is the default)
+- `-ShowWindow` runs tests with a window (default is headless with Dummy audio)
+- `-CleanupOnly` kills stale `godot`/`testhost`/`vstest` processes and exits (no build/run)
 
 What the script does:
 
 1. Builds the TestShims project (unless `-SkipBuild`).
 2. Locates `FsharpWithShim.TestShims.dll` under `.godot/mono/temp/bin/<Configuration>`.
-3. Launches Godot headless with the gdUnit4 runner (`res://addons/gdUnit4/runners/GdUnit4.dll -a`).
-4. Streams output and returns non-zero on failure.
+3. Launches Godot with the gdUnit4 runner (`res://addons/gdUnit4/runners/GdUnit4.dll -a`) in headless mode by default or windowed with `-ShowWindow`.
+4. Kills stale `godot`/`testhost`/`vstest` processes pre/post run, streams output, and summarizes the latest gdUnit4 XML report.
 
 Planned: suite filtering via `SHIMGEN_TEST_SUITES` or a script parameter that maps to gdUnit4 `-suites=...` argument.
 
 Recommendation: reserve `dotnet test ShimGen.Tests` for generator tests; use the headless script (or direct Godot CLI) for gameplay tests.
+
+Windowed test runs (useful for diagnostics):
+
+```powershell
+cd ExampleProject/TestShims
+./Run-GodotTests.ps1 -GodotBin "C:\Path\To\Godot.exe" -ShowWindow
+```
+
+Cleanup only (then run your own dotnet test):
+
+```powershell
+cd ExampleProject/TestShims
+./Run-GodotTests.ps1 -CleanupOnly
+dotnet test
+```
 
 ### Source control
 

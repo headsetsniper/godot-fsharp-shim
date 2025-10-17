@@ -3,7 +3,8 @@ param(
     [string]$GodotBin,
     [switch]$SkipBuild,
     [switch]$Quiet,
-    [switch]$ShowWindow
+    [switch]$ShowWindow,
+    [switch]$CleanupOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -98,19 +99,26 @@ function Write-GdUnitReportSummary {
     }
 }
 
-if (-not $GodotBin) { $GodotBin = $env:GODOT_BIN }
-if (-not $GodotBin) {
-    $defaultCandidate = Join-Path $repoRoot 'Godot' 'godot.exe'
-    if (Test-Path $defaultCandidate) { $GodotBin = $defaultCandidate }
-}
-if (-not $GodotBin -or -not (Test-Path $GodotBin)) {
-    Write-Error "Godot executable not found. Provide -GodotBin or set GODOT_BIN environment variable."
+if (-not $CleanupOnly) {
+    if (-not $GodotBin) { $GodotBin = $env:GODOT_BIN }
+    if (-not $GodotBin) {
+        $defaultCandidate = Join-Path $repoRoot 'Godot' 'godot.exe'
+        if (Test-Path $defaultCandidate) { $GodotBin = $defaultCandidate }
+    }
+    if (-not $GodotBin -or -not (Test-Path $GodotBin)) {
+        Write-Error "Godot executable not found. Provide -GodotBin or set GODOT_BIN environment variable."
+    }
 }
 
 $isVerbose = -not $Quiet
 
 $processKillList = @('godot', 'godot*', 'testhost', 'testhost*', 'vstest*')
 Stop-StaleProcesses -Names $processKillList
+
+if ($CleanupOnly) {
+    Write-Host "[shimgen][tests] Cleanup-only: terminated stale processes, exiting without build/run." -ForegroundColor Cyan
+    return
+}
 
 # Build to ensure F# tests + shims current
 if (-not $SkipBuild) {
