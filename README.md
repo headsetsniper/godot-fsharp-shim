@@ -393,7 +393,7 @@ type MathTests() =
 - References the F# test project.
 - References (or imports locally) `Headsetsniper.Godot.FSharp.ShimGen` targets.
 - Sets `FSharpShimsMode=Tests` and a distinct output directory (e.g. `Scripts/GeneratedTests`).
-- Optionally sets `FSharpShimsTestAssemblyName` to filter which referenced F# assembly is scanned.
+- Optionally sets `FSharpShimsTestAssemblyName` when multiple F# assemblies are referenced (recommended for clarity).
 
 Minimal `FsharpWithShim.TestShims.csproj` example:
 
@@ -405,8 +405,7 @@ Minimal `FsharpWithShim.TestShims.csproj` example:
     <!-- Enable Tests mode and separate output folder for generated test shims -->
     <FSharpShimsMode>Tests</FSharpShimsMode>
     <FSharpShimsOutDir>Scripts/GeneratedTests</FSharpShimsOutDir>
-    <!-- Optional: restrict scanning to this F# tests assembly name (without .dll) -->
-    <!-- <FSharpShimsTestAssemblyName>FSharp.Tests</FSharpShimsTestAssemblyName> -->
+    <FSharpShimsTestAssemblyName>FSharp.Tests</FSharpShimsTestAssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -421,7 +420,7 @@ Minimal `FsharpWithShim.TestShims.csproj` example:
 </Project>
 ```
 
-3. Build the C# project. The generator runs with `SHIMGEN_MODE=Tests` and emits one shim per discovered suite: `SuiteName_TestsShim.cs`.
+3. Build the C# project. The shared buildTransitive target invokes ShimGen in `Tests` mode and emits one shim per discovered suite: `SuiteName_TestsShim.cs`. No extra MSBuild targets or manual generator calls are required.
 4. Run `dotnet test` on the C# project; gdUnit4 discovers the shim classes (they have `[TestSuite]`). Each shim method obtains a `MethodInfo` on the F# implementation instance and invokes it (awaiting Tasks).
 
 ### Discovery heuristics

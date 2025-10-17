@@ -11,11 +11,11 @@
     <!-- Generate test shims into this project under Scripts/GeneratedTests -->
     <FSharpShimsMode>Tests</FSharpShimsMode>
     <FSharpShimsOutDir>$(MSBuildProjectDirectory)\Scripts\GeneratedTests</FSharpShimsOutDir>
-  <FSharpShimsTestAssemblyName>FSharp.Tests</FSharpShimsTestAssemblyName>
+    <FSharpShimsTestAssemblyName>FSharp.Tests</FSharpShimsTestAssemblyName>
     <!-- Prefer local ShimGen targets during repo development -->
     <UseLocalShimGen Condition="Exists('..\..\ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets')">true</UseLocalShimGen>
-      <FSharpShimsVerbose>true</FSharpShimsVerbose>
-      <FSharpShimsRegenerate>all</FSharpShimsRegenerate>
+    <FSharpShimsVerbose>true</FSharpShimsVerbose>
+    <FSharpShimsRegenerate>all</FSharpShimsRegenerate>
   </PropertyGroup>
 
   <ItemGroup>
@@ -58,37 +58,4 @@
   <PropertyGroup Condition="'$(GodotTargetPlatform)'!='windows-editor'">
     <DefineConstants>$(DefineConstants);GDUNIT4NET_API_V5</DefineConstants>
   </PropertyGroup>
-
-  <!-- Local fallback: explicitly run ShimGen in Tests mode against the FSharp.Tests assembly to ensure wrappers are generated -->
-  <PropertyGroup>
-    <_LocalShimGenDll>$(MSBuildProjectDirectory)\..\..\ShimGen\bin\$(Configuration)\$(TargetFramework)\Headsetsniper.Godot.FSharp.ShimGen.dll</_LocalShimGenDll>
-    <_FSharpTestsDll>$(MSBuildProjectDirectory)\..\..\FSharp.Tests\.godot\mono\temp\bin\$(Configuration)\FSharp.Tests.dll</_FSharpTestsDll>
-  </PropertyGroup>
-  <Target Name="ForceGenerateTestShims"
-          AfterTargets="BuildProjectReferences;ResolveReferences"
-          BeforeTargets="CoreCompile"
-          Condition="Exists('$(_LocalShimGenDll)')">
-    <Message Importance="High" Text="[shimgen][tests][force] tool=$(_LocalShimGenDll) testAsm=$(_FSharpTestsDll) toolExists=$(Exists('$(_LocalShimGenDll)')) testAsmExists=$(Exists('$(_FSharpTestsDll)')) out=$(FSharpShimsOutDir)" />
-    <MakeDir Directories="$(FSharpShimsOutDir)" Condition="!Exists('$(FSharpShimsOutDir)')" />
-    <Exec Condition="Exists('$(_FSharpTestsDll)')"
-          Command='dotnet &quot;$(_LocalShimGenDll)&quot; &quot;$(_FSharpTestsDll)&quot; &quot;$(FSharpShimsOutDir)&quot; &quot;$(MSBuildProjectDirectory)\..\..\FSharp.Tests&quot; --mode=Tests'
-          EnvironmentVariables="SHIMGEN_MODE=Tests;SHIMGEN_QUIET=0"
-          StandardOutputImportance="Normal" StandardErrorImportance="High" />
-    <Message Condition="!Exists('$(_FSharpTestsDll)')" Importance="High" Text="[shimgen][tests][force][skip] test assembly missing at $(_FSharpTestsDll)" />
-    <ItemGroup>
-      <Compile Remove="$(FSharpShimsOutDir)\**\*.cs" />
-      <Compile Include="$(FSharpShimsOutDir)\**\*.cs" Visible="false" />
-    </ItemGroup>
-  </Target>
-  <Target Name="DiagReferencePaths" AfterTargets="ResolveReferences" BeforeTargets="ForceGenerateTestShims">
-    <Message Importance="High" Text="[shimgen][tests][diag] ReferencePath count=@(ReferencePath->Count())" />
-    <Message Importance="High" Text="[shimgen][tests][diag] ReferencePath=@(ReferencePath)" />
-  </Target>
-  <Target Name="CleanInvalidGeneratedTestShims" BeforeTargets="CoreCompile">
-    <ItemGroup>
-      <_InvalidShim Include="$(FSharpShimsOutDir)\$*.cs" />
-    </ItemGroup>
-    <Message Importance="High" Text="[shimgen][tests][clean] Removing invalid shims: @_InvalidShim" Condition="'@(_InvalidShim)'!=''" />
-    <Delete Files="@(_InvalidShim)" Condition="'@(_InvalidShim)'!=''" />
-  </Target>
 </Project>
