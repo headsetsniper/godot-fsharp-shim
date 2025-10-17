@@ -9,17 +9,9 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
     <PackageReference Include="NUnit" Version="3.14.0" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
-    <PackageReference Include="NUnitLite" Version="3.14.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="9.0.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
   </ItemGroup>
-  
-  <!-- Allow switching this test project to a self-running NUnitLite executable when needed (CI/act) -->
-  <PropertyGroup Condition="'$(UseNUnitLite)' == 'true'">
-    <OutputType>Exe</OutputType>
-    <StartupObject>ShimGen.Tests.Program</StartupObject>
-    <GenerateProgramFile>false</GenerateProgramFile>
-  </PropertyGroup>
 
   <ItemGroup>
   <ProjectReference Include="..\ShimGen\Headsetsniper.Godot.FSharp.ShimGen.csproj" />
