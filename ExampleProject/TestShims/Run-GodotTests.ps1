@@ -2,12 +2,14 @@ param(
     [string]$Configuration = "Debug",
     [string]$GodotBin,
     [switch]$SkipBuild,
-    [switch]$Quiet
+    [switch]$Quiet,
+    [switch]$ShowWindow
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $testShimsProj = Join-Path $PSScriptRoot 'FsharpWithShim.TestShims.csproj'
+$projectDir = (Resolve-Path (Split-Path $PSScriptRoot)).ProviderPath
 
 function Stop-StaleProcesses {
     param(
@@ -123,18 +125,31 @@ if (-not (Test-Path $testAsm)) {
     Write-Error "Compiled test assembly not found at $testAsm (build may have failed)."
 }
 
-# gdUnit4 CLI arguments (headless)
-$godotArgs = @('--headless', '--quit', '--audio-driver', 'Dummy', '--rendering-driver', 'opengl3', '--', '-s', 'res://addons/gdUnit4/runners/GdUnit4.dll', '-a')
+# gdUnit4 CLI arguments; default to headless mode unless -ShowWindow is supplied
+$godotArgs = @()
+if (-not $ShowWindow) {
+    $godotArgs += '--headless'
+    $godotArgs += '--audio-driver'
+    $godotArgs += 'Dummy'
+}
+$godotArgs += '--quit'
+$godotArgs += '--rendering-driver'
+$godotArgs += 'opengl3'
+$godotArgs += '--'
+$godotArgs += '-s'
+$godotArgs += 'res://addons/gdUnit4/runners/GdUnit4.dll'
+$godotArgs += '-a'
 # Notes:
-#  - '--quit' ensures exit after tests.
-#  - '-a' : run all suites; filtering could be added later.
+#  - '-ShowWindow' runs Godot with the normal window for diagnosing test issues.
+#  - '--quit' ensures exit after tests complete.
+#  - '-a' : forwarded to gdUnit4 runner to execute all suites.
 #  - To restrict to specific suites, add: '-suites=SuiteName1,SuiteName2'
 
-$projectDir = Split-Path $PSScriptRoot
 Push-Location $projectDir
 try {
     $joinedArgs = [string]::Join(' ', $godotArgs)
-    Write-Host ([string]::Format('[shimgen][tests] Running Godot headless: {0} {1}', $GodotBin, $joinedArgs)) -ForegroundColor Yellow
+    $modeLabel = if ($ShowWindow) { 'windowed' } else { 'headless' }
+    Write-Host ([string]::Format('[shimgen][tests] Running Godot {0}: {1} {2}', $modeLabel, $GodotBin, $joinedArgs)) -ForegroundColor Yellow
     $pinfo = New-Object System.Diagnostics.ProcessStartInfo
     $pinfo.FileName = $GodotBin
     if ($pinfo.PSObject.Properties.Match('ArgumentList').Count -gt 0 -and $null -ne $pinfo.ArgumentList) {
