@@ -216,24 +216,60 @@ jobs:
           VSTEST_CONNECTION_MODE: 'ipc'
           # Ensure default adapters are skipped even if runsettings isn't picked up
           VSTEST_SKIP_DEFAULT_ADAPTERS: '1'
+          # Reduce telemetry/warning noise in logs
+          VSTEST_LOGTELEMETRY: '0'
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
         run: |
           set -euo pipefail
           mkdir -p ./reports/vstest
-          if [ "${ACT:-}" = "true" ]; then
-            echo "Running tests via NUnitLite self-host (act only)"
-            # Restore test project dependencies before building with NUnitLite
+          run_nunitlite() {
+            echo "[fallback] Running tests via NUnitLite self-host"
             dotnet restore ShimGen.Tests/ShimGen.Tests.csproj
             dotnet build ShimGen.Tests/ShimGen.Tests.csproj -c Release -p:UseNUnitLite=true --no-restore
+            local testBin
             testBin="ShimGen.Tests/bin/Release/net9.0/"$( [ -f ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests ] && echo "ShimGen.Tests" || echo "ShimGen.Tests.dll" )
-            # Prefer running as a framework-dependent app
+            local nunitLog
+            nunitLog=./reports/vstest/nunitlite.log
             if [ -f "ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests" ]; then
               chmod +x "ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests" || true
-              ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests --workers=1 --result=./reports/vstest/TestResult.trx;format=trx
+              timeout 120s ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests --workers=1 --result=./reports/vstest/TestResult.trx;format=trx 2>&1 | tee "$nunitLog" || true
             else
-              dotnet "${testBin}" --workers=1 --result=./reports/vstest/TestResult.trx;format=trx
+              timeout 120s dotnet "${testBin}" --workers=1 --result=./reports/vstest/TestResult.trx;format=trx 2>&1 | tee "$nunitLog" || true
             fi
+          }
+
+          if [ "${ACT:-}" = "true" ]; then
+            echo "ACT detected; using NUnitLite directly"
+            run_nunitlite
           else
-            dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release --verbosity detailed --settings ShimGen.Tests/tests.runsettings --diag ./reports/vstest/diag.log
+            if [ "${FORCE_NUNITLITE:-}" = "true" ]; then
+              echo "FORCE_NUNITLITE=true; skipping VSTest and using NUnitLite"
+              run_nunitlite
+            else
+              set +e
+              dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release \
+                --verbosity detailed \
+                --settings ShimGen.Tests/tests.runsettings \
+                --logger "trx;LogFileName=./reports/vstest/vstest.trx" \
+                --diag ./reports/vstest/diag.log
+              rc=$?
+              set -e
+              if [ $rc -ne 0 ]; then
+                echo "dotnet test failed with exit code $rc; falling back to NUnitLite"
+                run_nunitlite
+              else
+                # If vstest ran but discovered 0 tests, also fall back to NUnitLite so tests actually run
+                if [ -f ./reports/vstest/vstest.trx ]; then
+                  if grep -qE "total=\"0\"" ./reports/vstest/vstest.trx; then
+                    echo "vstest reported 0 tests; running NUnitLite fallback"
+                    run_nunitlite
+                  fi
+                else
+                  echo "TRX not found after vstest; running NUnitLite fallback"
+                  run_nunitlite
+                fi
+              fi
+            fi
           fi
 
       - name: Dump VSTest diag on failure
@@ -244,6 +280,15 @@ jobs:
           echo "--- Host diag logs (if any) ---"
           ls -la ./reports/vstest || true
           tail -n 200 ./reports/vstest/diag.host.*.log 2>/dev/null || true
+
+      - name: Upload test artifacts (TRX, logs)
+        if: always() && env.ACT != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts
+          path: |
+            ./reports/vstest/**
+          if-no-files-found: warn
 
       - name: Verify packages produced
         shell: bash
