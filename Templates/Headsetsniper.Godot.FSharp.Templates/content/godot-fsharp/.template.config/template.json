@@ -1,0 +1,61 @@
+{
+    "$schema": "http://json.schemastore.org/template",
+    "author": "headsetsniper",
+    "classifications": [
+        "Godot",
+        "F#",
+        "Game"
+    ],
+    "tags": {
+        "language": "F#",
+        "type": "project"
+    },
+    "identity": "Headsetsniper.Godot.FSharp.Project",
+    "groupIdentity": "Headsetsniper.Godot.FSharp",
+    "name": "Godot F# Gameplay Project",
+    "description": "Scaffold a Godot gameplay assembly written in F# with optional gdUnit4 test project.",
+    "shortName": "godot-fsharp",
+    "sourceName": "MyGodotFSharp",
+    "defaultName": "MyGodotFSharp",
+    "preferNameDirectory": true,
+    "primaryOutputs": [
+        {
+            "path": "src/MyGodotFSharp.fsproj"
+        },
+        {
+            "path": "tests/MyGodotFSharp.Tests.fsproj",
+            "condition": "IncludeTests"
+        }
+    ],
+    "symbols": {
+        "AnnotationsVersion": {
+            "type": "parameter",
+            "datatype": "string",
+            "defaultValue": "0.*",
+            "replaces": "HEADSETSNIPER_ANNOTATIONS_VERSION",
+            "displayName": "Annotations package version",
+            "description": "Version or version range of Headsetsniper.Godot.FSharp.Annotations to reference."
+        },
+        "IncludeTests": {
+            "type": "parameter",
+            "datatype": "bool",
+            "defaultValue": "false",
+            "description": "Include a GdUnit4-powered test project scaffold.",
+            "displayName": "Include tests"
+        }
+    },
+    "sources": [
+        {
+            "source": "./",
+            "target": "./",
+            "modifiers": [
+                {
+                    "condition": "!IncludeTests",
+                    "exclude": [
+                        "tests/**"
+                    ]
+                }
+            ]
+        }
+    ]
+}

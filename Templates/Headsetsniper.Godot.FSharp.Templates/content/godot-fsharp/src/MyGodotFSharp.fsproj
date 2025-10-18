@@ -1,0 +1,15 @@
+<Project Sdk="Godot.NET.Sdk/4.5.0">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Scripts\GameScript.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Headsetsniper.Godot.FSharp.Annotations" Version="HEADSETSNIPER_ANNOTATIONS_VERSION" />
+  </ItemGroup>
+</Project>

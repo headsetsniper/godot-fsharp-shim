@@ -211,14 +211,14 @@ jobs:
       - name: Test (Release)
         timeout-minutes: 15
         env:
-          VSTEST_CONNECTION_TIMEOUT: '30'
+          VSTEST_CONNECTION_TIMEOUT: '60'
           # Use named pipes instead of TCP sockets for vstest <-> testhost communication
           VSTEST_CONNECTION_MODE: 'ipc'
           # Ensure default adapters are skipped even if runsettings isn't picked up
           VSTEST_SKIP_DEFAULT_ADAPTERS: '1'
           # Reduce telemetry/warning noise in logs
           VSTEST_LOGTELEMETRY: '0'
-          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+          DOTNET_CLI_TELEMETRY_OPTOUT: '0'
         run: |
           set -euo pipefail
           mkdir -p ./reports/vstest

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <PackageId>Headsetsniper.Godot.FSharp.Templates</PackageId>
+    <Title>Godot F# Templates</Title>
+    <Authors>headsetsniper</Authors>
+    <Description>dotnet new templates for Godot gameplay authored in F# with optional GdUnit4 test scaffolding.</Description>
+    <PackageVersion>0.1.0</PackageVersion>
+    <PackageType>Template</PackageType>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoBuild>true</NoBuild>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="content\**\*" Pack="true" PackagePath="content/" />
+  </ItemGroup>
+</Project>

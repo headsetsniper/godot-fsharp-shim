@@ -34,6 +34,7 @@ This repository lets you write gameplay in F# and auto-generate C# shims that Go
 - `ShimGen/`: shim generator CLI plus buildTransitive targets published as `Headsetsniper.Godot.FSharp.ShimGen`.
 - `FSharp/`: sample gameplay logic written in F#.
 - `ExampleProject/`: Godot C# project that consumes generated shims and demonstrates gdUnit4 testing.
+- `Templates/`: `dotnet new` templates that scaffold an F# gameplay project with optional gdUnit4 tests.
 
 ## Quick start
 
@@ -41,6 +42,19 @@ This repository lets you write gameplay in F# and auto-generate C# shims that Go
 2. In your Godot C# project, add a project reference to the F# project and reference `Headsetsniper.Godot.FSharp.ShimGen`.
 3. Decorate your F# classes with `[<GodotScript(ClassName = "MyScript", BaseTypeName = "Godot.Node2D")>]` and optional attributes like `[<NodePath>]`, `[<Export>]`, or `[<Signal>]`.
 4. Build the Godot project. The generator emits C# shims under `Scripts/Generated`, which Godot discovers automatically.
+
+## Templates
+
+Use the local templates to bootstrap a fresh gameplay project:
+
+```powershell
+dotnet new install Templates/Headsetsniper.Godot.FSharp.Templates
+dotnet new godot-fsharp -n MyGameFSharp --includeTests true
+```
+
+- `--includeTests` adds a gdUnit4-ready test project; omit or set to `false` to generate only the gameplay project.
+- `--annotationsVersion` accepts any NuGet version expression (defaults to `0.*`).
+- Generated projects target `net9.0` and reference `Headsetsniper.Godot.FSharp.Annotations`; the optional test project mirrors the repo's gdUnit4 configuration, including a `.runsettings` stub (`GODOT_BIN` must be updated).
 
 ## Features
 
