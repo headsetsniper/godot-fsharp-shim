@@ -27,6 +27,10 @@
     <FSharpShimsLogImportance Condition="'$(FSharpShimsLogImportance)'==''">Low</FSharpShimsLogImportance>
     <FSharpShimsStdOutImportance Condition="'$(FSharpShimsStdOutImportance)'=='' and '$(FSharpShimsVerbose)'=='true'">Normal</FSharpShimsStdOutImportance>
     <FSharpShimsStdOutImportance Condition="'$(FSharpShimsStdOutImportance)'==''">Low</FSharpShimsStdOutImportance>
+    <FSharpShimsTestsScriptEnabled Condition="'$(FSharpShimsTestsScriptEnabled)'==''">true</FSharpShimsTestsScriptEnabled>
+    <FSharpShimsTestsScriptPath Condition="'$(FSharpShimsTestsScriptPath)'==''">$(MSBuildProjectDirectory)\Run-GodotTests.ps1</FSharpShimsTestsScriptPath>
+    <FSharpShimsTestsScriptOverwrite Condition="'$(FSharpShimsTestsScriptOverwrite)'==''">false</FSharpShimsTestsScriptOverwrite>
+    <FSharpShimsTestsScriptSource Condition="'$(FSharpShimsTestsScriptSource)'==''">$(MSBuildThisFileDirectory)Run-GodotTests.ps1</FSharpShimsTestsScriptSource>
   </PropertyGroup>
 
   <!-- Resolve ShimGen tool from the restored package (robust across CI/local) -->
@@ -142,6 +146,25 @@
       <Compile Remove="$(FSharpShimsOutDir)\**\*.cs" />
       <Compile Include="$(FSharpShimsOutDir)\**\*.cs" Visible="false" />
       <FileWrites Include="$(FSharpShimsOutDir)\**\*.cs" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="ShimGen_WriteGodotTestsRunnerScript"
+          AfterTargets="RunShimGen"
+          Condition="'$(FSharpShimsMode)'=='Tests' and '$(FSharpShimsTestsScriptEnabled)'!='false' and Exists('$(FSharpShimsTestsScriptSource)')">
+    <PropertyGroup>
+      <_ShimGenScriptTargetDir>$([System.IO.Path]::GetDirectoryName('$(FSharpShimsTestsScriptPath)'))</_ShimGenScriptTargetDir>
+      <_ShimGenScriptNeedsCopy Condition="'$(FSharpShimsTestsScriptOverwrite)'=='true'">true</_ShimGenScriptNeedsCopy>
+      <_ShimGenScriptNeedsCopy Condition="'$(_ShimGenScriptNeedsCopy)'=='' and !Exists('$(FSharpShimsTestsScriptPath)')">true</_ShimGenScriptNeedsCopy>
+    </PropertyGroup>
+    <Message Text="[shimgen] Tests runner script already present at $(FSharpShimsTestsScriptPath)" Importance="$(FSharpShimsLogImportance)" Condition="'$(_ShimGenScriptNeedsCopy)'!='true'" />
+    <MakeDir Directories="$(_ShimGenScriptTargetDir)" Condition="'$(_ShimGenScriptNeedsCopy)'=='true' and '$(_ShimGenScriptTargetDir)'!='' and !Exists('$(_ShimGenScriptTargetDir)')" />
+    <Copy SourceFiles="$(FSharpShimsTestsScriptSource)"
+          DestinationFiles="$(FSharpShimsTestsScriptPath)"
+          SkipUnchangedFiles="true"
+          Condition="'$(_ShimGenScriptNeedsCopy)'=='true'" />
+    <ItemGroup Condition="'$(_ShimGenScriptNeedsCopy)'=='true'">
+      <FileWrites Include="$(FSharpShimsTestsScriptPath)" />
     </ItemGroup>
   </Target>
 

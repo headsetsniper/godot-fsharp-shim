@@ -422,6 +422,8 @@ Minimal `FsharpWithShim.TestShims.csproj` example:
 3. Build the C# project. The shared buildTransitive target invokes ShimGen in `Tests` mode and emits one shim per discovered suite: `SuiteName_TestsShim.cs`. No extra MSBuild targets or manual generator calls are required, and the generator automatically focuses on the first referenced `*.Tests` assembly unless you override `FSharpShimsTestAssemblyName`.
 4. Run `dotnet test` on the C# project; gdUnit4 discovers the shim classes (they have `[TestSuite]`). Each shim method obtains a `MethodInfo` on the F# implementation instance and invokes it (awaiting Tasks).
 
+The targets also emit a ready-to-use `Run-GodotTests.ps1` script next to your test shim project (enabled by default). Override `FSharpShimsTestsScriptPath` to place it elsewhere, or disable generation via `FSharpShimsTestsScriptEnabled=false` if you prefer to supply your own runner.
+
 ### Discovery heuristics
 
 An F# type is treated as a test suite if ANY of the following are true:
@@ -447,13 +449,16 @@ public class MySuite_TestsShim {
 
 ### MSBuild properties (Tests mode)
 
-| Property                      | Purpose                                                      | Default                                                                        |
-| ----------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| `FSharpShimsMode`             | Set to `Tests` to enable test shim generation                | `Scripts`                                                                      |
-| `FSharpShimsOutDir`           | Output directory for generated test shims                    | `Scripts/Generated` (or `Scripts/GeneratedTests` when `FSharpShimsMode=Tests`) |
-| `FSharpShimsTestAssemblyName` | Restrict scanning to a specific F# test assembly base name   | Auto-detects first referenced `*.Tests`                                        |
-| `FSharpShimsVerbose`          | Verbose logging (`[shimgen]`)                                | `false`                                                                        |
-| `FSharpShimsRegenerate`       | Forwarded to `SHIMGEN_REGENERATE_SCRIPTS` (see regeneration) | (empty)                                                                        |
+| Property                          | Purpose                                                      | Default                                                                        |
+| --------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `FSharpShimsMode`                 | Set to `Tests` to enable test shim generation                | `Scripts`                                                                      |
+| `FSharpShimsOutDir`               | Output directory for generated test shims                    | `Scripts/Generated` (or `Scripts/GeneratedTests` when `FSharpShimsMode=Tests`) |
+| `FSharpShimsTestAssemblyName`     | Restrict scanning to a specific F# test assembly base name   | Auto-detects first referenced `*.Tests`                                        |
+| `FSharpShimsVerbose`              | Verbose logging (`[shimgen]`)                                | `false`                                                                        |
+| `FSharpShimsRegenerate`           | Forwarded to `SHIMGEN_REGENERATE_SCRIPTS` (see regeneration) | (empty)                                                                        |
+| `FSharpShimsTestsScriptEnabled`   | Emit `Run-GodotTests.ps1` alongside the test shim project    | `true`                                                                         |
+| `FSharpShimsTestsScriptPath`      | Destination path for the emitted PowerShell runner           | `$(MSBuildProjectDirectory)\Run-GodotTests.ps1`                                |
+| `FSharpShimsTestsScriptOverwrite` | Force regeneration of the script even when it already exists | `false`                                                                        |
 
 ### Environment variables
 

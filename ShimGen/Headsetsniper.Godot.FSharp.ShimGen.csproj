@@ -29,5 +29,6 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
     <None Include="buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="buildTransitive\Run-GodotTests.ps1" Pack="true" PackagePath="buildTransitive/" />
   </ItemGroup>
 </Project>
