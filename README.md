@@ -56,6 +56,23 @@ dotnet new godot-fsharp -n MyGameFSharp --includeTests true
 - `--annotationsVersion` accepts any NuGet version expression (defaults to `0.*`).
 - Generated projects target `net9.0` and reference `Headsetsniper.Godot.FSharp.Annotations`; the optional test project mirrors the repo's gdUnit4 configuration, including a `.runsettings` stub (`GODOT_BIN` must be updated).
 
+### Install via GitHub URL
+
+You can install the template straight from GitHub without cloning the repo:
+
+```powershell
+dotnet new install https://github.com/headsetsniper/godot-fsharp-shim::Templates/Headsetsniper.Godot.FSharp.Templates
+```
+
+- Pin to a release/tag to keep installs reproducible, for example:
+
+  ```powershell
+  dotnet new install https://github.com/headsetsniper/godot-fsharp-shim.git#v0.9.4::Templates/Headsetsniper.Godot.FSharp.Templates
+  ```
+
+- After installation, run `dotnet new godot-fsharp -n MyGameFSharp` (with optional switches above) from any directory.
+- Update with `dotnet new update` or reinstall using a newer tag when we publish template changes.
+
 ## Features
 
 ### Constructor injection (DI)
