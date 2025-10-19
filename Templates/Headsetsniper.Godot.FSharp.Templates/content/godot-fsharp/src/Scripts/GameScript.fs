@@ -47,7 +47,7 @@ type ClickCounterControl(node: Control, clickLabel: Label option) =
         owner.MouseFilter <- Control.MouseFilterEnum.Stop
         this.UpdateLabel()
 
-    interface IGdScript<Control> with
+    interface IGdToolScript<Control> with
         member _.Node
             with get () = owner
             and set value = owner <- value

@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisTickRelayImpl
 // SourceFile: TetrisTickRelay.fs
-// SourceHash: dba2c6512eb09111c96d037f7d42cb5a2817fae11bd67c00747898166431c490
+// SourceHash: bff8f661dee3934299e0355bb12cdc9f39b713c6b8ef19915900da45d955148f
 // </auto-generated>
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
@@ -19,8 +19,6 @@ namespace Generated
         public override void _Ready()
         {
             EnsureImpl();
-            if (_impl is IGdScript<Godot.Node> gd)
-                gd.Node = this;
             GetNodeOrNull<Node>(new NodePath("../DropTimer"))?.Connect("timeout", Callable.From(() => _impl.OnTimeout()));
             _impl.Ready();
         }

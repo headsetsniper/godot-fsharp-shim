@@ -8,6 +8,7 @@ internal readonly record struct ScriptSpec(
     string BaseTypeName,
     PropertyInfo[] Exports,
     bool Tool,
+    bool ImplementsToolInterface,
     string? Icon,
     bool UseCtorInjection,
     CtorParamBinding[] CtorParams,

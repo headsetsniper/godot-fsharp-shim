@@ -18,8 +18,6 @@ namespace Generated
         public override void _Ready()
         {
             EnsureImpl();
-            if (_impl is IGdScript<Godot.Control> gd)
-                gd.Node = this;
             _impl.Ready();
         }
 

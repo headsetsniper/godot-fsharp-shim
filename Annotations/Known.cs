@@ -21,7 +21,7 @@ public static class Known
     {
         public static readonly string GodotScriptAttribute = typeof(GodotScriptAttribute).FullName!;
         public static readonly string GodotToolAttribute = typeof(GodotToolAttribute).FullName!;
-        public static readonly string IGdScript = typeof(IGdScript<>).FullName!.Split('`')[0];
+        public static readonly string IGdToolScript = typeof(IGdToolScript<>).FullName!.Split('`')[0];
 
         public static readonly string NodePathAttribute = typeof(NodePathAttribute).FullName!;
         public static readonly string OptionalNodePathAttribute = typeof(OptionalNodePathAttribute).FullName!;

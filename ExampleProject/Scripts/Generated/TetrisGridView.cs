@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisGridViewImpl
 // SourceFile: TetrisGridView.fs
-// SourceHash: 3fa5651b7c24ce65ac541536963227c953f04b6d3830af712b3d7d6259b8a792
+// SourceHash: 48e9e27ef33ae89542aa90f390f0f4b49af6851c5ce7420b0ec13e135a97f3ec
 // </auto-generated>
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
@@ -22,7 +22,7 @@ namespace Generated
         public override void _Ready()
         {
             EnsureImpl();
-            if (_impl is IGdScript<Godot.Control> gd)
+            if (_impl is IGdToolScript<Godot.Control> gd)
                 gd.Node = this;
             var __n_Board = GetNodeOrNull<Godot.Node>(new NodePath("../"));
             if (__n_Board == null)

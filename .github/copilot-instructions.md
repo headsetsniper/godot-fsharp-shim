@@ -2,7 +2,7 @@
 
 This repo lets you write Godot gameplay in F# and auto-generate C# shims that Godot recognizes.
 
-- Annotations (`Annotations/`): attributes and interfaces for F# (e.g., `GodotScriptAttribute`, `IGdScript<'TNode>`). NuGet: `Headsetsniper.Godot.FSharp.Annotations`.
+- Annotations (`Annotations/`): attributes and interfaces for F# (e.g., `GodotScriptAttribute`, `IGdToolScript<'TNode>`). NuGet: `Headsetsniper.Godot.FSharp.Annotations`.
 - Shim generator (`ShimGen/`): console runner + buildTransitive targets that generate shims into `Scripts/Generated`. NuGet: `Headsetsniper.Godot.FSharp.ShimGen`.
 - Example projects: `FSharp/` (logic) + `ExampleProject/` (Godot C# consumer).
 
@@ -21,7 +21,7 @@ This repo lets you write Godot gameplay in F# and auto-generate C# shims that Go
 
 - Reference `Headsetsniper.Godot.FSharp.Annotations` in your F# project.
 - Decorate a class: `[<GodotScript(ClassName = "Foo", BaseTypeName = "Godot.Node2D")>]`.
-- Optionally implement `IGdScript<Node2D>`; the shim sets `Node` in `_Ready()` then calls your `Ready()`.
+- Runtime scripts rely on constructor injection. Only implement `IGdToolScript<Node2D>` on `[<GodotTool>]` scripts that need the node instance assigned in `_Ready()`.
 - In the Godot C# project: add a ProjectReference to the F# project and a PackageReference to `Headsetsniper.Godot.FSharp.ShimGen`. No extra targets/imports needed.
 
 ## Developer workflows (commands)
@@ -65,7 +65,7 @@ This repo lets you write Godot gameplay in F# and auto-generate C# shims that Go
 
 ## Key files/directories
 
-- `Annotations/GodotScriptAttribute.cs`, `Annotations/IGdScript.cs`
+- `Annotations/GodotScriptAttribute.cs`, `Annotations/IGdToolScript.cs`
 - `ShimGen/buildTransitive/Headsetsniper.Godot.FSharp.ShimGen.targets`
 - `ShimGen/Program.cs`, `ShimGen/ScriptSpec.cs`
 - `ShimGen.Tests/` (integration tests for generator behavior)

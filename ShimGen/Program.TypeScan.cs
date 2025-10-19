@@ -18,12 +18,19 @@ internal static partial class Program
         var autoConnects = CollectAutoConnects(t);
         var (useCtorInjection, ctorParams) = ComputeConstructorInjection(t, meta.BaseTypeName, nodePaths, preloads, meta.Tool);
 
+        var implementsToolInterface = ImplementsGenericInterface(t, Annotations.Known.Types.IGdToolScript);
+        if (!meta.Tool && implementsToolInterface)
+            LogWarn($"[shimgen][warn] {t.FullName}: IGdToolScript<TNode> is reserved for [GodotTool] scripts. Constructor injection now provides the node for gameplay scripts.");
+        if (meta.Tool && !implementsToolInterface)
+            LogWarn($"[shimgen][warn] {t.FullName}: Tool scripts should implement IGdToolScript<{meta.BaseTypeName}> to receive the node instance in _Ready().");
+
         return new ScriptSpec(
             t,
             meta.ClassName,
             meta.BaseTypeName,
             exports,
             meta.Tool,
+            implementsToolInterface,
             meta.Icon,
             useCtorInjection,
             ctorParams,
@@ -396,5 +403,21 @@ internal static partial class Program
         }
         catch { }
         return (false, null);
+    }
+
+    private static bool ImplementsGenericInterface(Type t, string genericInterfaceFullName)
+    {
+        try
+        {
+            foreach (var iface in t.GetInterfaces())
+            {
+                var fullName = iface.IsGenericType ? iface.GetGenericTypeDefinition().FullName : iface.FullName;
+                if (fullName is null) continue;
+                var prefix = fullName.Split('`')[0];
+                if (prefix == genericInterfaceFullName) return true;
+            }
+        }
+        catch { }
+        return false;
     }
 }

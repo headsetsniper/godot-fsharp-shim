@@ -89,7 +89,7 @@ Gameplay scripts can opt into DI by defining a single public constructor:
   - Exactly one public constructor.
 - When DI is active:
   - The shim constructs your F# implementation in `_Ready()` after resolving NodePaths/Preloads.
-  - `IGdScript<T>.Node` is then set, and your `Ready()` is invoked.
+  - For `[GodotTool]` scripts, implementing `IGdToolScript<T>` still assigns `Node = this` inside `_Ready()` before `Ready()` runs.
   - No property wiring is performed for NodePath/Preload (they are provided via constructor args).
 - When DI is not active (tool script, multiple ctors, or missing bindings):
   - The shim falls back to eager construction and property wiring in `_Ready()`.
@@ -108,27 +108,27 @@ Preload with Option<'T>: DI still injects the concrete resource type and will fa
 
 The shim forwards callbacks when your F# implementation exposes matching methods. It also respects base type capabilities (e.g., Control-only methods).
 
-| Base type                   | Godot callback                  | F# method to implement                                   | Shim override emitted                                 | Notes                                                                 |
-| --------------------------- | ------------------------------- | -------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------- |
-| Node                        | \_EnterTree                     | `member _.EnterTree()`                                   | `public override void _EnterTree()`                   |                                                                       |
-| Node                        | \_Ready                         | `member _.Ready()`                                       | `public override void _Ready()`                       | Injects `IGdScript<T>.Node` and runs NodePath wiring before `Ready()` |
-| Node                        | \_ExitTree                      | `member _.ExitTree()`                                    | `public override void _ExitTree()`                    |                                                                       |
-| Node                        | \_Process(double)               | `member _.Process(delta: double)`                        | `public override void _Process(double)`               |                                                                       |
-| Node                        | \_PhysicsProcess(double)        | `member _.PhysicsProcess(delta: double)`                 | `public override void _PhysicsProcess(double)`        |                                                                       |
-| Node                        | \_Input(InputEvent)             | `member _.Input(ev: InputEvent)`                         | `public override void _Input(InputEvent)`             |                                                                       |
-| Node                        | \_UnhandledInput(InputEvent)    | `member _.UnhandledInput(ev: InputEvent)`                | `public override void _UnhandledInput(InputEvent)`    |                                                                       |
-| Node                        | \_Notification(long)            | `member _.Notification(what: int64)`                     | `public override void _Notification(long)`            |                                                                       |
-| CanvasItem (Node2D/Control) | \_Draw                          | `member _.Draw()`                                        | `public override void _Draw()`                        |                                                                       |
-| Control                     | \_GuiInput(InputEvent)          | `member _.GuiInput(ev: InputEvent)`                      | `public override void _GuiInput(InputEvent)`          | Godot 4.5                                                             |
-| Control                     | \_ShortcutInput(InputEvent)     | `member _.ShortcutInput(ev: InputEvent)`                 | `public override void _ShortcutInput(InputEvent)`     | Godot 4.5                                                             |
-| Control                     | \_UnhandledKeyInput(InputEvent) | `member _.UnhandledKeyInput(ev: InputEvent)`             | `public override void _UnhandledKeyInput(InputEvent)` | Godot 4.5                                                             |
-| Control                     | \_CanDropData(Vector2, Variant) | `member _.CanDropData(p: Vector2, data: Variant) : bool` | `public override bool _CanDropData(Vector2, Variant)` | Drag & drop                                                           |
-| Control                     | \_DropData(Vector2, Variant)    | `member _.DropData(p: Vector2, data: Variant)`           | `public override void _DropData(Vector2, Variant)`    | Drag & drop                                                           |
-| Control                     | \_GetDragData(Vector2)          | `member _.GetDragData(p: Vector2) : obj`                 | `public override Variant _GetDragData(Vector2)`       | Shim casts returned object to `Variant`                               |
-| Control                     | \_HasPoint(Vector2)             | `member _.HasPoint(p: Vector2) : bool`                   | `public override bool _HasPoint(Vector2)`             | Hit testing                                                           |
-| Control                     | \_GetMinimumSize()              | `member _.GetMinimumSize() : Vector2`                    | `public override Vector2 _GetMinimumSize()`           | Layout                                                                |
-| Control                     | \_MakeCustomTooltip(string)     | `member _.MakeCustomTooltip(text: string) : Control`     | `public override Control _MakeCustomTooltip(string)`  | Custom tooltip control                                                |
-| Control                     | \_GetTooltip(Vector2)           | `member _.GetTooltip(p: Vector2) : string`               | `public override string _GetTooltip(Vector2)`         | Tooltip text                                                          |
+| Base type                   | Godot callback                  | F# method to implement                                   | Shim override emitted                                 | Notes                                                                            |
+| --------------------------- | ------------------------------- | -------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Node                        | \_EnterTree                     | `member _.EnterTree()`                                   | `public override void _EnterTree()`                   |                                                                                  |
+| Node                        | \_Ready                         | `member _.Ready()`                                       | `public override void _Ready()`                       | Tool scripts implementing `IGdToolScript<T>` receive `Node = this` before wiring |
+| Node                        | \_ExitTree                      | `member _.ExitTree()`                                    | `public override void _ExitTree()`                    |                                                                                  |
+| Node                        | \_Process(double)               | `member _.Process(delta: double)`                        | `public override void _Process(double)`               |                                                                                  |
+| Node                        | \_PhysicsProcess(double)        | `member _.PhysicsProcess(delta: double)`                 | `public override void _PhysicsProcess(double)`        |                                                                                  |
+| Node                        | \_Input(InputEvent)             | `member _.Input(ev: InputEvent)`                         | `public override void _Input(InputEvent)`             |                                                                                  |
+| Node                        | \_UnhandledInput(InputEvent)    | `member _.UnhandledInput(ev: InputEvent)`                | `public override void _UnhandledInput(InputEvent)`    |                                                                                  |
+| Node                        | \_Notification(long)            | `member _.Notification(what: int64)`                     | `public override void _Notification(long)`            |                                                                                  |
+| CanvasItem (Node2D/Control) | \_Draw                          | `member _.Draw()`                                        | `public override void _Draw()`                        |                                                                                  |
+| Control                     | \_GuiInput(InputEvent)          | `member _.GuiInput(ev: InputEvent)`                      | `public override void _GuiInput(InputEvent)`          | Godot 4.5                                                                        |
+| Control                     | \_ShortcutInput(InputEvent)     | `member _.ShortcutInput(ev: InputEvent)`                 | `public override void _ShortcutInput(InputEvent)`     | Godot 4.5                                                                        |
+| Control                     | \_UnhandledKeyInput(InputEvent) | `member _.UnhandledKeyInput(ev: InputEvent)`             | `public override void _UnhandledKeyInput(InputEvent)` | Godot 4.5                                                                        |
+| Control                     | \_CanDropData(Vector2, Variant) | `member _.CanDropData(p: Vector2, data: Variant) : bool` | `public override bool _CanDropData(Vector2, Variant)` | Drag & drop                                                                      |
+| Control                     | \_DropData(Vector2, Variant)    | `member _.DropData(p: Vector2, data: Variant)`           | `public override void _DropData(Vector2, Variant)`    | Drag & drop                                                                      |
+| Control                     | \_GetDragData(Vector2)          | `member _.GetDragData(p: Vector2) : obj`                 | `public override Variant _GetDragData(Vector2)`       | Shim casts returned object to `Variant`                                          |
+| Control                     | \_HasPoint(Vector2)             | `member _.HasPoint(p: Vector2) : bool`                   | `public override bool _HasPoint(Vector2)`             | Hit testing                                                                      |
+| Control                     | \_GetMinimumSize()              | `member _.GetMinimumSize() : Vector2`                    | `public override Vector2 _GetMinimumSize()`           | Layout                                                                           |
+| Control                     | \_MakeCustomTooltip(string)     | `member _.MakeCustomTooltip(text: string) : Control`     | `public override Control _MakeCustomTooltip(string)`  | Custom tooltip control                                                           |
+| Control                     | \_GetTooltip(Vector2)           | `member _.GetTooltip(p: Vector2) : string`               | `public override string _GetTooltip(Vector2)`         | Tooltip text                                                                     |
 
 ### NodePath auto-wiring
 
@@ -161,7 +161,8 @@ The shim forwards callbacks when your F# implementation exposes matching methods
 - F# examples:
   - Tool attribute: `[<GodotTool(ClassName = "Board", BaseTypeName = "Godot.Control")>]`
   - Legacy flag: `[<GodotScript(ClassName = "Board", BaseTypeName = "Godot.Control", Tool = true)>]`
-- DI is disabled for tool scripts. The shim sets `IGdScript<T>.Node` and runs wiring in `_Ready()`; avoid relying on `EnterTree` for injected state in tools.
+- DI is disabled for tool scripts. Implement `IGdToolScript<T>` so the shim assigns `Node = this` in `_Ready()`. Avoid relying on `EnterTree` for injected state in tools.
+- Gameplay scripts should use constructor injection to access their node and must not implement `IGdToolScript<T>`; the generator now emits a warning and skips the wiring in that case.
 
 ### Editor hints
 
@@ -207,7 +208,7 @@ The shim forwards callbacks when your F# implementation exposes matching methods
 
 Notes
 
-- The shim sets `IGdScript<TNode>.Node = this` inside `_Ready()` before invoking your `Ready()`.
+- For `[GodotTool]` scripts, implementing `IGdToolScript<TNode>` causes the shim to assign `Node = this` inside `_Ready()` before invoking your `Ready()`.
 - NodePath wiring also runs inside `_Ready()` prior to `Ready()`.
 
 ### Option and preload semantics

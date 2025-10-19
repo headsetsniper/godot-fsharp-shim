@@ -172,22 +172,42 @@ type TreeGuyImpl() =
     }
 
     [Test]
-    [FsCase("GdInject", """
-namespace Game
-
-open Godot
-open Headsetsniper.Godot.FSharp.Annotations
-[<GodotScript(ClassName="GdInject", BaseTypeName="Godot.Node2D")>]
-type GdInjectImpl() =
-    member _.Ready() = ()
-""")]
-    public void Ready_Sets_IGdScript_Node_Before_Forwarding()
+    public void Runtime_Scripts_Do_Not_Emit_Tool_Interface_Wiring()
     {
         var outDir = FsBatch.GetOutDir<LifecycleAndMetadataTests>();
-        var path = Directory.EnumerateFiles(outDir!, "GdInject.cs", SearchOption.AllDirectories).FirstOrDefault();
-        Assert.That(path, Is.Not.Null, "GdInject.cs not generated");
+        var fooPath = Directory.EnumerateFiles(outDir!, "Foo.cs", SearchOption.AllDirectories).First();
+        var src = File.ReadAllText(fooPath);
+        StringAssert.DoesNotContain("IGdToolScript", src);
+    }
+
+    [Test]
+    [FsCase("GdToolInject", """
+namespace Game
+
+open System
+open Godot
+open Headsetsniper.Godot.FSharp.Annotations
+[<GodotTool(ClassName="GdToolInject", BaseTypeName="Godot.Node2D")>]
+type GdToolInjectImpl() =
+    let mutable nodeOpt: Node2D option = None
+
+    interface IGdToolScript<Node2D> with
+        member _.Node
+            with get() =
+                match nodeOpt with
+                | Some n -> n
+                | None -> raise (InvalidOperationException "Node not set")
+            and set value = nodeOpt <- Some value
+
+    member _.Ready() = ()
+""")]
+    public void Ready_Sets_IGdToolScript_Node_Before_Forwarding()
+    {
+        var outDir = FsBatch.GetOutDir<LifecycleAndMetadataTests>();
+        var path = Directory.EnumerateFiles(outDir!, "GdToolInject.cs", SearchOption.AllDirectories).FirstOrDefault();
+        Assert.That(path, Is.Not.Null, "GdToolInject.cs not generated");
         var src = File.ReadAllText(path!);
-        StringAssert.Contains($"if (_impl is IGdScript<{KnownGodot.Node2D}> gd)", src);
+        StringAssert.Contains($"if (_impl is IGdToolScript<{KnownGodot.Node2D}> gd)", src);
         StringAssert.Contains("gd.Node = this;", src);
         StringAssert.Contains("_impl.Ready();", src);
     }

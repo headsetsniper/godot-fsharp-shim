@@ -10,7 +10,7 @@ type TetrisGridViewImpl() =
     let mutable printedReady = false
     let mutable printedDraw = false
 
-    interface IGdScript<Control> with
+    interface IGdToolScript<Control> with
         member _.Node
             with get () =
                 match nodeOpt with

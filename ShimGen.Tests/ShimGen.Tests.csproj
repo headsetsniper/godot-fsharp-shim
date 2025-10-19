@@ -24,4 +24,8 @@
   <ProjectReference Include="..\ShimGen\Headsetsniper.Godot.FSharp.ShimGen.csproj" />
   <ProjectReference Include="..\Annotations\Headsetsniper.Godot.FSharp.Annotations.csproj" />
   </ItemGroup>
+
+  <ItemGroup Condition="'$(UseNUnitLite)' != 'true'">
+    <Compile Remove="Program.NUnitLite.cs" />
+  </ItemGroup>
 </Project>

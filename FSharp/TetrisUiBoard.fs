@@ -80,7 +80,7 @@ type TetrisUiBoardImpl() =
 
     // No custom Godot signals; we drive redraws directly on views
 
-    interface IGdScript<Control> with
+    interface IGdToolScript<Control> with
         member _.Node
             with get () =
                 match nodeOpt with

@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisBagPreviewImpl
 // SourceFile: TetrisBagPreview.fs
-// SourceHash: 52768399b030f65806431ee13e85ef41656a7fe3d05c9f566dea540f1469774b
+// SourceHash: aaded74ac6c06413e5095bb402ca46b4a8fee8c30f3a9fac23641340cec432db
 // </auto-generated>
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
@@ -22,7 +22,7 @@ namespace Generated
         public override void _Ready()
         {
             EnsureImpl();
-            if (_impl is IGdScript<Godot.Control> gd)
+            if (_impl is IGdToolScript<Godot.Control> gd)
                 gd.Node = this;
             var __n_BoardOpt = GetNodeOrNull<Godot.Node>(new NodePath("../Board"));
             _impl.BoardOpt = __n_BoardOpt == null ? Microsoft.FSharp.Core.FSharpOption<Godot.Node>.None : Microsoft.FSharp.Core.FSharpOption<Godot.Node>.Some(__n_BoardOpt);

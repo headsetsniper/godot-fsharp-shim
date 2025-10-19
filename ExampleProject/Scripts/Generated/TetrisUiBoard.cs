@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisUiBoardImpl
 // SourceFile: TetrisUiBoard.fs
-// SourceHash: 9d559c4fae067fb758f264209c085e9818391ade7c2e4b7df366821c571749ad
+// SourceHash: 54e1cb00acf1556ddeb83c3e69b441ff3a8db519bcd890e4fd814f878fb40c8d
 // </auto-generated>
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
@@ -56,7 +56,7 @@ namespace Generated
         public override void _Ready()
         {
             EnsureImpl();
-            if (_impl is IGdScript<Godot.Control> gd)
+            if (_impl is IGdToolScript<Godot.Control> gd)
                 gd.Node = this;
             var __n_TickRelay = GetNodeOrNull<Godot.Node>(new NodePath("../TickRelay"));
             if (__n_TickRelay == null)

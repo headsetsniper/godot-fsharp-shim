@@ -9,7 +9,7 @@ type TetrisBagPreviewImpl() =
     let mutable nodeOpt: Control option = None
     let mutable printedReady = false
 
-    interface IGdScript<Control> with
+    interface IGdToolScript<Control> with
         member _.Node
             with get () =
                 match nodeOpt with
