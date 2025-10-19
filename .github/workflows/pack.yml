@@ -222,11 +222,62 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ./reports/vstest
-          dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release \
-            --verbosity detailed \
-            --settings ShimGen.Tests/tests.runsettings \
-            --logger "trx;LogFileName=./reports/vstest/vstest.trx" \
-            --diag ./reports/vstest/diag.log
+          run_nunitlite() {
+            echo "[shimgen][tests] Running fallback NUnitLite executable"
+            dotnet restore ShimGen.Tests/ShimGen.Tests.csproj
+            dotnet build ShimGen.Tests/ShimGen.Tests.csproj -c Release -p:UseNUnitLite=true --no-restore
+            local testBin
+            if [ -f ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests ]; then
+              chmod +x ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests 2>/dev/null || true
+              testBin="ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests"
+            else
+              testBin="ShimGen.Tests/bin/Release/net9.0/ShimGen.Tests.dll"
+            fi
+            local resultPath="./reports/vstest/nunitlite.xml"
+            local logPath="./reports/vstest/nunitlite.log"
+            : > "${logPath}"
+            local exitCode
+            set +e
+            if [ -f "${testBin}" ] && [ -x "${testBin}" ]; then
+              timeout 120s "${testBin}" --workers=1 --result="${resultPath};format=nunit3" >"${logPath}" 2>&1
+              exitCode=$?
+            else
+              timeout 120s dotnet "${testBin}" --workers=1 --result="${resultPath};format=nunit3" >"${logPath}" 2>&1
+              exitCode=$?
+            fi
+            set -e
+            cat "${logPath}" || true
+            return ${exitCode:-1}
+          }
+
+          if [ "${ACT:-}" = "true" ]; then
+            echo "ACT detected; using NUnitLite self-host"
+            run_nunitlite
+          else
+            set +e
+            dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Release \
+              --verbosity detailed \
+              --settings ShimGen.Tests/tests.runsettings \
+              --logger "trx;LogFileName=./reports/vstest/vstest.trx" \
+              --diag ./reports/vstest/diag.log
+            rc=$?
+            set -e
+            if [ $rc -ne 0 ]; then
+              echo "dotnet test failed with exit code $rc; running NUnitLite fallback"
+              run_nunitlite
+              rc=$?
+              if [ $rc -ne 0 ]; then
+                exit $rc
+              fi
+            elif [ ! -f ./reports/vstest/vstest.trx ] || grep -qE 'total="0"' ./reports/vstest/vstest.trx; then
+              echo "vstest did not produce results; running NUnitLite fallback"
+              run_nunitlite
+              rc=$?
+              if [ $rc -ne 0 ]; then
+                exit $rc
+              fi
+            fi
+          fi
 
       - name: Dump VSTest diag on failure
         if: failure()
