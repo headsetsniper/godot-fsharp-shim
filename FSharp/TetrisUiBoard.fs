@@ -90,6 +90,9 @@ type TetrisUiBoardImpl() =
                 node <- v
                 nodeOpt <- Some v
 
+    [<NodePath(Path = "../TickRelay")>]
+    member val TickRelay: Node = Unchecked.defaultof<_> with get, set
+
     [<ExportRange(8.0, 64.0, 1.0, true)>]
     member val CellSize: float32 = 24.0f with get, set
 
@@ -441,10 +444,7 @@ type TetrisUiBoardImpl() =
         this.DrawUi()
 
         // Connect to TickRelay.Tick after ensuring signal exists
-        let tr =
-            match nodeOpt with
-            | None -> null
-            | Some n -> n.GetNodeOrNull<Node>(new NodePath "../TickRelay")
+        let tr = this.TickRelay
 
         if obj.ReferenceEquals(tr, null) then
             ()

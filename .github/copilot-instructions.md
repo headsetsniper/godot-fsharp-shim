@@ -30,6 +30,7 @@ This repo lets you write Godot gameplay in F# and auto-generate C# shims that Go
   - `dotnet build ExampleProject/FsharpWithShim.csproj -c Debug`
 - Run tests:
   - `dotnet test ShimGen.Tests/ShimGen.Tests.csproj -c Debug`
+  - Use `ExampleProject/TestShims/Run-GodotTests.ps1 -Configuration Debug -GodotBin <path>` when asked for end-to-end tests or F# test suite runs; this script builds the TestShims project and executes gdUnit4 headlessly.
 - Pack local nupkgs (manual dev flow):
   - `dotnet pack Annotations/Headsetsniper.Godot.FSharp.Annotations.csproj -c Release`
   - `dotnet pack ShimGen/Headsetsniper.Godot.FSharp.ShimGen.csproj -c Release`

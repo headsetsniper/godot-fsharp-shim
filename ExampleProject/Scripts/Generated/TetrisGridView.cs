@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisGridViewImpl
 // SourceFile: TetrisGridView.fs
-// SourceHash: 7cebf444d78f1fada113279f1c82f7132ea498c74534805e18a0d3eda9a973d2
+// SourceHash: 3fa5651b7c24ce65ac541536963227c953f04b6d3830af712b3d7d6259b8a792
 // </auto-generated>
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
@@ -24,8 +24,10 @@ namespace Generated
             EnsureImpl();
             if (_impl is IGdScript<Godot.Control> gd)
                 gd.Node = this;
-            var __n_BoardOpt = GetNodeOrNull<Godot.Node>(new NodePath("../"));
-            _impl.BoardOpt = __n_BoardOpt == null ? Microsoft.FSharp.Core.FSharpOption<Godot.Node>.None : Microsoft.FSharp.Core.FSharpOption<Godot.Node>.Some(__n_BoardOpt);
+            var __n_Board = GetNodeOrNull<Godot.Node>(new NodePath("../"));
+            if (__n_Board == null)
+                throw new System.InvalidOperationException("[shimgen][TetrisGridView] Missing required NodePath for Board on Game.TetrisGridViewImpl");
+            _impl.Board = __n_Board;
             _impl.Ready();
         }
 

@@ -5,7 +5,7 @@ open Godot
 open Headsetsniper.Godot.FSharp.Annotations
 
 [<GodotScript(ClassName = "TetrisTickRelay", BaseTypeName = "Godot.Node")>]
-type TetrisTickRelayImpl() =
+type TetrisTickRelayImpl(_node: Node) =
     let mutable nodeOpt: Node option = None
 
     interface IGdScript<Node> with

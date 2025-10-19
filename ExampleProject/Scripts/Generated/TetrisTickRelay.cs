@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisTickRelayImpl
 // SourceFile: TetrisTickRelay.fs
-// SourceHash: 9bac626d636415a1e50dd7710a11fbe77b0269110fd48ed41fa811f5a4518e91
+// SourceHash: dba2c6512eb09111c96d037f7d42cb5a2817fae11bd67c00747898166431c490
 // </auto-generated>
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
@@ -14,7 +14,7 @@ namespace Generated
     [GlobalClass]
     public partial class TetrisTickRelay : Godot.Node
     {
-        private Game.TetrisTickRelayImpl _impl = new Game.TetrisTickRelayImpl();
+        private Game.TetrisTickRelayImpl _impl;
         public override void _EnterTree() => _impl.EnterTree();
         public override void _Ready()
         {
@@ -29,7 +29,7 @@ namespace Generated
         {
             if (_impl != null)
                 return;
-            _impl = new Game.TetrisTickRelayImpl();
+            _impl = new Game.TetrisTickRelayImpl(this);
         }
     }
 }

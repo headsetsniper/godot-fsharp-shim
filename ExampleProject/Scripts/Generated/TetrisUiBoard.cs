@@ -4,7 +4,7 @@
 // ShimGenVersion: 1.0.0
 // Source F# type: Game.TetrisUiBoardImpl
 // SourceFile: TetrisUiBoard.fs
-// SourceHash: 126bdd9d21cf379b6e4182cba8c047b3e3e90598445c619dcd217abda7ad903f
+// SourceHash: 9d559c4fae067fb758f264209c085e9818391ade7c2e4b7df366821c571749ad
 // </auto-generated>
 using Godot;
 using Headsetsniper.Godot.FSharp.Annotations;
@@ -58,6 +58,10 @@ namespace Generated
             EnsureImpl();
             if (_impl is IGdScript<Godot.Control> gd)
                 gd.Node = this;
+            var __n_TickRelay = GetNodeOrNull<Godot.Node>(new NodePath("../TickRelay"));
+            if (__n_TickRelay == null)
+                throw new System.InvalidOperationException("[shimgen][TetrisUiBoard] Missing required NodePath for TickRelay on Game.TetrisUiBoardImpl");
+            _impl.TickRelay = __n_TickRelay;
             _impl.Ready();
         }
 
