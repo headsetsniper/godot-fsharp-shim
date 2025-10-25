@@ -92,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends libicu-dev
+          sudo apt-get install -y --no-install-recommends libicu-dev zip unzip
 
       # Use official GitVersion Action to calculate version from history/commits
       - name: Install GitVersion
@@ -165,12 +165,43 @@ jobs:
 
       # Phase 1: Create local feed by packing the dependency projects first
       - name: Pack Annotations (bootstrap local feed)
+        env:
+          MSBUILDTERMINALLOGGER: off
         timeout-minutes: 5
         run: dotnet pack Annotations/Headsetsniper.Godot.FSharp.Annotations.csproj -c Release -o ./.nupkgs /p:Version=${{ env.PKG_VERSION }}
 
       - name: Pack ShimGen (bootstrap local feed)
+        env:
+          MSBUILDTERMINALLOGGER: off
         timeout-minutes: 5
         run: dotnet pack ShimGen/Headsetsniper.Godot.FSharp.ShimGen.csproj -c Release -o ./.nupkgs /p:Version=${{ env.PKG_VERSION }}
+
+      - name: Pack Templates (bootstrap local feed)
+        env:
+          MSBUILDTERMINALLOGGER: off
+        timeout-minutes: 5
+        run: dotnet pack Templates/Headsetsniper.Godot.FSharp.Templates/Headsetsniper.Godot.FSharp.Templates.csproj -c Release -o ./.nupkgs /p:PackageVersion=${{ env.PKG_VERSION }}
+
+      - name: Create dotnet new template zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip_name="Headsetsniper.Godot.FSharp.Template-${PKG_VERSION}.zip"
+          rm -f "./.nupkgs/${zip_name}"
+          pushd Templates/Headsetsniper.Godot.FSharp.Templates/content/godot-fsharp >/dev/null
+          zip -r "../../../../.nupkgs/${zip_name}" . -x "*/bin/*" "*/obj/*"
+          popd >/dev/null
+
+      - name: Validate template zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip_name="Headsetsniper.Godot.FSharp.Template-${PKG_VERSION}.zip"
+          tmp_dir=$(mktemp -d)
+          unzip -q "./.nupkgs/${zip_name}" -d "$tmp_dir"
+          dotnet new install "$tmp_dir"
+          dotnet new uninstall "$tmp_dir"
+          rm -rf "$tmp_dir"
 
       # Phase 2: Restore/build/test the rest using the local feed + nuget.org
       - name: Restore main project
@@ -303,9 +334,14 @@ jobs:
           set -euo pipefail
           echo "Resolved version: ${{ env.PKG_VERSION }}"
           echo "Listing ./.nupkgs contents:" && ls -la ./.nupkgs || true
-          count=$(ls -1 ./.nupkgs/*.nupkg 2>/dev/null | wc -l | xargs)
-          if [ "$count" = "0" ]; then
+          pkg_count=$(ls -1 ./.nupkgs/*.nupkg 2>/dev/null | wc -l | xargs)
+          if [ "$pkg_count" = "0" ]; then
             echo "ERROR: No .nupkg files were produced in ./.nupkgs" >&2
+            exit 1
+          fi
+          zip_count=$(ls -1 ./.nupkgs/*.zip 2>/dev/null | wc -l | xargs)
+          if [ "$zip_count" = "0" ]; then
+            echo "ERROR: No template zip files were produced in ./.nupkgs" >&2
             exit 1
           fi
 
@@ -388,7 +424,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists; skipping."
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes
+            gh release create "$TAG" ./.nupkgs/*.nupkg ./.nupkgs/*.zip --title "$TAG" --generate-notes
           fi
 
   # Optional: Publish to GitHub Packages (NuGet)

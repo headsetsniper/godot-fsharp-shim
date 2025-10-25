@@ -61,6 +61,29 @@ dotnet new godot-fsharp -n MyGameFSharp --IncludeTests
   dotnet new uninstall Templates/Headsetsniper.Godot.FSharp.Templates
   ```
 
+### Install from the release template zip
+
+- Download `Headsetsniper.Godot.FSharp.Template-<version>.zip` from the matching GitHub release.
+- Extract the archive (any folder works). The root contains `.template.config/`, `src/`, and `tests/`.
+- Install/uninstall using the extracted folder:
+
+  ```powershell
+  Expand-Archive -LiteralPath .\Headsetsniper.Godot.FSharp.Template-0.10.2.zip -DestinationPath .\godot-fsharp-template -Force
+  dotnet new install .\godot-fsharp-template
+  # ... use dotnet new godot-fsharp
+  dotnet new uninstall .\godot-fsharp-template
+  ```
+
+  ```bash
+  unzip Headsetsniper.Godot.FSharp.Template-0.10.2.zip -d godot-fsharp-template
+  dotnet new install ./godot-fsharp-template
+  # ... use dotnet new godot-fsharp
+  dotnet new uninstall ./godot-fsharp-template
+  ```
+
+- The release still ships the `.nupkg` if you prefer `dotnet new install <.nupkg>` directly.
+- `dotnet new install` only accepts folders or `.nupkg` files, so installing from the raw zip requires extracting it first.
+
 ### Install via GitHub URL
 
 Install from a tagged source archive without cloning:
