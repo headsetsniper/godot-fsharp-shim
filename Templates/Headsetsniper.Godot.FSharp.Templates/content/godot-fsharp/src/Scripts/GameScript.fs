@@ -12,12 +12,12 @@ module ClickCounterLogic =
             $"Clicks registered: {count}"
 
 [<GodotScript(ClassName = "ClickCounterControl", BaseTypeName = "Godot.Control")>]
-type ClickCounterControl(node: Control, clickLabel: Label option) =
+type ClickCounterControl(node: Control) =
     let mutable owner = node
     let mutable clicks = 0
 
     [<OptionalNodePath(Path = "ClickLabel")>]
-    member val ClickLabel: Label option = clickLabel with get, set
+    member val ClickLabel: Label option = None with get, set
 
     member private this.EnsureLabel() =
         match this.ClickLabel with
@@ -46,8 +46,3 @@ type ClickCounterControl(node: Control, clickLabel: Label option) =
     member this.Ready() =
         owner.MouseFilter <- Control.MouseFilterEnum.Stop
         this.UpdateLabel()
-
-    interface IGdToolScript<Control> with
-        member _.Node
-            with get () = owner
-            and set value = owner <- value

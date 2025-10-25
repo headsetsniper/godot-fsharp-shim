@@ -49,28 +49,81 @@ Use the local templates to bootstrap a fresh gameplay project:
 
 ```powershell
 dotnet new install Templates/Headsetsniper.Godot.FSharp.Templates
-dotnet new godot-fsharp -n MyGameFSharp --includeTests true
+dotnet new godot-fsharp -n MyGameFSharp --IncludeTests
 ```
 
-- `--includeTests` adds a gdUnit4-ready test project; omit or set to `false` to generate only the gameplay project.
-- `--annotationsVersion` accepts any NuGet version expression (defaults to `0.*`).
+- `--IncludeTests` (or `-I`) adds a gdUnit4-ready test project; omit or pass `false` to generate only the gameplay project.
+- `--AnnotationsVersion` (or `-A`) accepts any NuGet version expression (defaults to `0.*`).
 - Generated projects target `net9.0` and reference `Headsetsniper.Godot.FSharp.Annotations`; the optional test project mirrors the repo's gdUnit4 configuration, including a `.runsettings` stub (`GODOT_BIN` must be updated).
+- Uninstall when you no longer need the local template:
+
+  ```powershell
+  dotnet new uninstall Templates/Headsetsniper.Godot.FSharp.Templates
+  ```
 
 ### Install via GitHub URL
 
-You can install the template straight from GitHub without cloning the repo:
+Install from a tagged source archive without cloning:
 
-```powershell
-dotnet new install https://github.com/headsetsniper/godot-fsharp-shim::Templates/Headsetsniper.Godot.FSharp.Templates
-```
-
-- Pin to a release/tag to keep installs reproducible, for example:
+- **Windows (PowerShell 5.x/7.x)**
 
   ```powershell
-  dotnet new install https://github.com/headsetsniper/godot-fsharp-shim.git#v0.9.4::Templates/Headsetsniper.Godot.FSharp.Templates
+  $tag = "v0.10.0"
+  $zip = "godot-fsharp-shim-$tag.zip"
+  Invoke-WebRequest -Uri "https://github.com/headsetsniper/godot-fsharp-shim/archive/refs/tags/$tag.zip" -OutFile $zip
+  Expand-Archive $zip -DestinationPath . -Force
+
+  dotnet new install .\godot-fsharp-shim-$($tag.TrimStart('v'))\Templates\Headsetsniper.Godot.FSharp.Templates
   ```
 
-- After installation, run `dotnet new godot-fsharp -n MyGameFSharp` (with optional switches above) from any directory.
+- Replace `v0.10.0` with the tag you want. Adjust paths if you extract elsewhere.
+- Installing straight from a GitHub URL with `::Templates/...` no longer works on recent `dotnet` releases; you need the extracted folder or a packed `.nupkg`.
+- To create your own `.nupkg`, pack locally then install:
+
+  ```powershell
+  dotnet pack Templates/Headsetsniper.Godot.FSharp.Templates -c Release
+  dotnet new install .nupkgs/Headsetsniper.Godot.FSharp.Templates.*.nupkg
+  ```
+
+- After installation, scaffold a project anywhere with:
+
+  ```powershell
+  dotnet new godot-fsharp -n MyGameFSharp
+  ```
+
+- Cleanup:
+
+  - Uninstall the template when you upgrade or no longer need it (use the same path or package passed to `dotnet new install`).
+
+    ```powershell
+    dotnet new uninstall .\godot-fsharp-shim-$($tag.TrimStart('v'))\Templates\Headsetsniper.Godot.FSharp.Templates
+    ```
+
+    ```bash
+    dotnet new uninstall ./godot-fsharp-shim-${tag#v}/Templates/Headsetsniper.Godot.FSharp.Templates
+    ```
+
+  - Remove the downloaded archive and extracted folder once the template is installed:
+
+    ```powershell
+    Remove-Item $zip; Remove-Item -Recurse -Force .\godot-fsharp-shim-$($tag.TrimStart('v'))
+    ```
+
+    ```bash
+    rm "godot-fsharp-shim-$tag.zip"; rm -rf "godot-fsharp-shim-${tag#v}"
+    ```
+
+- Optional switches:
+
+  - `--IncludeTests [true|false]` (short form `-I`) toggles the gdUnit4-ready test project (default `false`; supplying the flag without a value sets it to `true`).
+  - `--AnnotationsVersion <range>` (short form `-A`) pins the `Headsetsniper.Godot.FSharp.Annotations` package version (defaults to `0.*`).
+
+- Example with tests enabled and a specific annotations version:
+
+  ```powershell
+  dotnet new godot-fsharp -n MyGameFSharp --IncludeTests --AnnotationsVersion 0.10.0
+  ```
+
 - Update with `dotnet new update` or reinstall using a newer tag when we publish template changes.
 
 ## Features
@@ -132,8 +185,8 @@ The shim forwards callbacks when your F# implementation exposes matching methods
 
 ### NodePath auto-wiring
 
-- Decorate fields/properties with `[NodePath]` to auto-resolve nodes before calling `Ready()`.
-- Default path is `nameof(Member)`; override with `Path = "Some/Child"`. For optional references use `OptionalNodePath` on an `Option<'T>` member; `NodePath` is required and will throw if missing.
+- Decorate fields/properties with `[NodePath]` so the shim resolves nodes before invoking your implementation.
+- The default lookup uses `nameof(Member)`; override with `Path = "Some/Child"`. Use `[OptionalNodePath]` on an `Option<'T>` member when the reference is optional.
 - F# example:
 
   ```fsharp
@@ -142,13 +195,11 @@ The shim forwards callbacks when your F# implementation exposes matching methods
   ```
 
 - Optional node references with Option<'T>
-  - Use `[<OptionalNodePath>]` on `Option<'TNode>` to capture presence/absence as `Some/None`.
-  - Strong intent checks at generation time:
-    - `[NodePath]` must target a non-Option type, otherwise generation fails with an error.
-    - `[OptionalNodePath]` must target `Option<'T>`, otherwise generation fails with an error.
-  - Runtime wiring semantics:
-    - When DI is active: NodePaths required by the constructor are resolved before construction; missing required nodes throw and prevent construction.
-    - When DI is not active: `[NodePath]` throws on missing and assigns the resolved node; `[OptionalNodePath]` assigns `None` when missing and `Some node` when found.
+  - `[OptionalNodePath]` requires an `Option<'TNode>` and records presence as `Some/None`.
+  - `[NodePath]` must target a non-Option type; generation fails if the source type is `Option<'T>`.
+- Runtime wiring semantics
+  - **Constructor injection active** (default for gameplay scripts): the shim resolves every required `[NodePath]`/`[Preload]` before instantiating your F# type. Missing required nodes throw before construction begins, guaranteeing that constructor parameters are satisfied.
+  - **Property wiring fallback** (tool scripts or DI-disabled scenarios): the shim creates the F# type up front, then assigns `[NodePath]` members in `_Ready()`. Required paths still throw if missing; optional paths become `None` when the node cannot be found.
 
 ### GlobalClass and icon
 
@@ -157,12 +208,11 @@ The shim forwards callbacks when your F# implementation exposes matching methods
 
 ### Tool scripts
 
-- Mark editor-time scripts with `[<GodotTool(... )>]` or by setting `Tool = true` on `[<GodotScript>]`.
-- F# examples:
-  - Tool attribute: `[<GodotTool(ClassName = "Board", BaseTypeName = "Godot.Control")>]`
-  - Legacy flag: `[<GodotScript(ClassName = "Board", BaseTypeName = "Godot.Control", Tool = true)>]`
-- DI is disabled for tool scripts. Implement `IGdToolScript<T>` so the shim assigns `Node = this` in `_Ready()`. Avoid relying on `EnterTree` for injected state in tools.
-- Gameplay scripts should use constructor injection to access their node and must not implement `IGdToolScript<T>`; the generator now emits a warning and skips the wiring in that case.
+- Mark editor-time scripts with `[<GodotTool(... )>]` when you need `_Process`/`_Draw` to run inside the editor. The old `Tool = true` flag on `[<GodotScript>]` has been removed.
+- F# example: `[<GodotTool(ClassName = "Board", BaseTypeName = "Godot.Control")>]`
+- Constructor injection is intentionally disabled for tool scripts so the shim can be created even when the Godot scene tree is incomplete. The generator falls back to property wiring in `_Ready()`.
+- Implement `IGdToolScript<TBase>` on tool scripts when you need the shim instance (the Godot node) injected. The generator assigns `Node = this` at the top of `_Ready()` before invoking your implementation.
+- Gameplay/runtime scripts must _not_ implement `IGdToolScript<T>`. If they do, the generator emits a warning and skips the assignment because constructor injection already passes `this` to your F# constructor.
 
 ### Editor hints
 
@@ -208,8 +258,8 @@ The shim forwards callbacks when your F# implementation exposes matching methods
 
 Notes
 
-- For `[GodotTool]` scripts, implementing `IGdToolScript<TNode>` causes the shim to assign `Node = this` inside `_Ready()` before invoking your `Ready()`.
-- NodePath wiring also runs inside `_Ready()` prior to `Ready()`.
+- `[GodotTool]` scripts that implement `IGdToolScript<TNode>` receive `Node = this` inside `_Ready()` before any user code runs.
+- During property wiring (tool scripts or DI-disabled flows), NodePath resolution still happens inside `_Ready()` prior to calling `Ready()`.
 
 ### Option and preload semantics
 
