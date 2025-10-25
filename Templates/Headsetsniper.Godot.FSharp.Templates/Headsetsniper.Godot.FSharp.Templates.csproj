@@ -10,9 +10,14 @@
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <NoBuild>true</NoBuild>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/headsetsniper/godot-fsharp-shim</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
     <Content Include="content\**\*" Pack="true" PackagePath="content/" />
+    <None Include="LICENSE.txt" Pack="true" PackagePath="" />
+    <None Include="README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 </Project>
