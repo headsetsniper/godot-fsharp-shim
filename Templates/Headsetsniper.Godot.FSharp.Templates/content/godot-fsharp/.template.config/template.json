@@ -25,6 +25,10 @@
         {
             "path": "tests/MyGodotFSharp.Tests.fsproj",
             "condition": "IncludeTests"
+        },
+        {
+            "path": "tests/TestShims/MyGodotFSharp.TestShims.csproj",
+            "condition": "IncludeTests"
         }
     ],
     "symbols": {

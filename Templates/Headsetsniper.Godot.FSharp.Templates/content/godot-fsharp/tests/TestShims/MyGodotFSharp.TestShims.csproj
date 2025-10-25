@@ -1,0 +1,40 @@
+<Project Sdk="Godot.NET.Sdk/4.5.0">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RunSettingsFilePath>$(MSBuildThisFileDirectory)..\.runsettings</RunSettingsFilePath>
+    <VSTestTestAdapterPath>none</VSTestTestAdapterPath>
+    <TestFramework>GdUnit4</TestFramework>
+    <GdUnitKillStaleTestHosts>true</GdUnitKillStaleTestHosts>
+    <NoWarn>$(NoWarn);0436</NoWarn>
+    <FSharpShimsMode>Tests</FSharpShimsMode>
+    <FSharpShimsOutDir>$(MSBuildProjectDirectory)\Scripts\GeneratedTests</FSharpShimsOutDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyGodotFSharp.Tests.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Headsetsniper.Godot.FSharp.ShimGen" Version="0.*">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>build;buildTransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.0" />
+    <PackageReference Include="gdUnit4.api" Version="5.0.0" />
+    <PackageReference Include="gdUnit4.test.adapter" Version="3.0.0" />
+    <PackageReference Include="gdUnit4.analyzers" Version="1.0.0">
+      <PrivateAssets>none</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="gdunit4_testadapter_v5\**\*.cs" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(GodotTargetPlatform)'!='windows-editor'">
+    <DefineConstants>$(DefineConstants);GDUNIT4NET_API_V5</DefineConstants>
+  </PropertyGroup>
+</Project>

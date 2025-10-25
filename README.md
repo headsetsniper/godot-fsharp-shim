@@ -52,7 +52,7 @@ dotnet new install Templates/Headsetsniper.Godot.FSharp.Templates
 dotnet new godot-fsharp -n MyGameFSharp --IncludeTests
 ```
 
-- `--IncludeTests` (or `-I`) adds a gdUnit4-ready test project; omit or pass `false` to generate only the gameplay project.
+- `--IncludeTests` (or `-I`) adds a gdUnit4-ready F# test project and a companion C# TestShims project wired for shim generation; omit or pass `false` to generate only the gameplay project.
 - `--AnnotationsVersion` (or `-A`) accepts any NuGet version expression (defaults to `0.*`).
 - Generated projects target `net9.0` and reference `Headsetsniper.Godot.FSharp.Annotations`; the optional test project mirrors the repo's gdUnit4 configuration, including a `.runsettings` stub (`GODOT_BIN` must be updated).
 - Uninstall when you no longer need the local template:
@@ -68,7 +68,7 @@ Install from a tagged source archive without cloning:
 - **Windows (PowerShell 5.x/7.x)**
 
   ```powershell
-  $tag = "v0.10.0"
+  $tag = "v0.10.1"
   $zip = "godot-fsharp-shim-$tag.zip"
   Invoke-WebRequest -Uri "https://github.com/headsetsniper/godot-fsharp-shim/archive/refs/tags/$tag.zip" -OutFile $zip
   Expand-Archive $zip -DestinationPath . -Force
@@ -115,7 +115,7 @@ Install from a tagged source archive without cloning:
 
 - Optional switches:
 
-  - `--IncludeTests [true|false]` (short form `-I`) toggles the gdUnit4-ready test project (default `false`; supplying the flag without a value sets it to `true`).
+  - `--IncludeTests [true|false]` (short form `-I`) toggles the gdUnit4-ready F# test project and companion C# TestShims project (default `false`; supplying the flag without a value sets it to `true`).
   - `--AnnotationsVersion <range>` (short form `-A`) pins the `Headsetsniper.Godot.FSharp.Annotations` package version (defaults to `0.*`).
 
 - Example with tests enabled and a specific annotations version:
@@ -568,7 +568,7 @@ Future optimization: skip regeneration when all existing shim files are newer th
 
 Engine-driven F# gdUnit4 tests (those that touch APIs requiring an initialized engine: `ResourceLoader`, scene loading, nodes) must execute under a Godot process. Running `dotnet test` directly on `FsharpWithShim.TestShims.csproj` loads the shim assembly in a plain test host and can crash with an access violation.
 
-Use the helper script added in `ExampleProject/TestShims/Run-GodotTests.ps1`:
+Use the helper script added in `ExampleProject/TestShims/Run-GodotTests.ps1` (the template emits the same script under `tests/TestShims/Run-GodotTests.ps1`):
 
 ```powershell
 cd ExampleProject/TestShims
