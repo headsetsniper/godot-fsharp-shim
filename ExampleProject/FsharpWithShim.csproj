@@ -31,7 +31,7 @@
 
   <ItemGroup Condition="'$(UseLocalShimGen)'!='true'">
     <PackageReference Include="Headsetsniper.Godot.FSharp.ShimGen" Version="$(ShimGenPackageVersion)">
-      <!-- Prevent any assemblies/resources from flowing into compile/runtime/output/ -->
+      <!-- Prevent any assemblies/resources from flowing into compile/runtime/output -->
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>build;buildTransitive</IncludeAssets>
     </PackageReference>
