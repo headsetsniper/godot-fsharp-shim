@@ -56,7 +56,8 @@
                 {
                     "condition": "!IncludeTests",
                     "exclude": [
-                        "tests/**"
+                        "tests/**",
+                        "TestShims/**"
                     ]
                 }
             ]

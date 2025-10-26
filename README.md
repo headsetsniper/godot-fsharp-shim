@@ -519,7 +519,7 @@ Future optimization: skip regeneration when all existing shim files are newer th
 
 Engine-driven F# gdUnit4 tests (those that touch APIs requiring an initialized engine: `ResourceLoader`, scene loading, nodes) must execute under a Godot process. Running `dotnet test` directly on `FsharpWithShim.TestShims.csproj` loads the shim assembly in a plain test host and can crash with an access violation.
 
-Use the helper script added in `ExampleProject/TestShims/Run-GodotTests.ps1` (the template emits the same script under `tests/TestShims/Run-GodotTests.ps1`):
+Use the helper script added in `ExampleProject/TestShims/Run-GodotTests.ps1` (the template emits the same script under `TestShims/Run-GodotTests.ps1`):
 
 ```powershell
 cd ExampleProject/TestShims

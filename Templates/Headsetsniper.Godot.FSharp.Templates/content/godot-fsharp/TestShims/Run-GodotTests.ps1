@@ -8,7 +8,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$repoRoot = Split-Path -Parent $PSScriptRoot
 $testShimsProj = Join-Path $PSScriptRoot 'MyGodotFSharp.TestShims.csproj'
 $projectDir = (Resolve-Path $PSScriptRoot).ProviderPath
 
