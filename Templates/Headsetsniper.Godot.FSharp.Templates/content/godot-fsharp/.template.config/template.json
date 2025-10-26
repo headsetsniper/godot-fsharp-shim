@@ -27,7 +27,7 @@
             "condition": "IncludeTests"
         },
         {
-            "path": "tests/TestShims/MyGodotFSharp.TestShims.csproj",
+            "path": "TestShims/MyGodotFSharp.TestShims.csproj",
             "condition": "IncludeTests"
         }
     ],

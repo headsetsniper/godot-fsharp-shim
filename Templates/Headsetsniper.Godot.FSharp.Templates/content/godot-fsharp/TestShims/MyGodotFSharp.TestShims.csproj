@@ -3,17 +3,17 @@
     <TargetFramework>net9.0</TargetFramework>
     <EnableDefaultItems>false</EnableDefaultItems>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <RunSettingsFilePath>$(MSBuildThisFileDirectory)..\.runsettings</RunSettingsFilePath>
+    <RunSettingsFilePath>$(MSBuildThisFileDirectory)..\tests\.runsettings</RunSettingsFilePath>
     <VSTestTestAdapterPath>none</VSTestTestAdapterPath>
     <TestFramework>GdUnit4</TestFramework>
     <GdUnitKillStaleTestHosts>true</GdUnitKillStaleTestHosts>
     <NoWarn>$(NoWarn);0436</NoWarn>
     <FSharpShimsMode>Tests</FSharpShimsMode>
-    <FSharpShimsOutDir>$(MSBuildProjectDirectory)\Scripts\GeneratedTests</FSharpShimsOutDir>
+    <FSharpShimsOutDir>$(MSBuildProjectDirectory)\GeneratedTests</FSharpShimsOutDir>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MyGodotFSharp.Tests.fsproj" />
+    <ProjectReference Include="..\tests\MyGodotFSharp.Tests.fsproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -30,124 +30,50 @@ This repository lets you write gameplay in F# and auto-generate C# shims that Go
 
 ## Projects
 
-- `Annotations/`: F# attributes and interfaces packaged as `Headsetsniper.Godot.FSharp.Annotations`.
-- `ShimGen/`: shim generator CLI plus buildTransitive targets published as `Headsetsniper.Godot.FSharp.ShimGen`.
+- `Annotations/`: F# attributes and interfaces packaged as `Headsetsniper.Godot.FSharp.Annotations` (`dotnet add package Headsetsniper.Godot.FSharp.Annotations`).
+- `ShimGen/`: shim generator CLI plus buildTransitive targets published as `Headsetsniper.Godot.FSharp.ShimGen` (`dotnet add package Headsetsniper.Godot.FSharp.ShimGen`).
 - `FSharp/`: sample gameplay logic written in F#.
 - `ExampleProject/`: Godot C# project that consumes generated shims and demonstrates gdUnit4 testing.
-- `Templates/`: `dotnet new` templates that scaffold an F# gameplay project with optional gdUnit4 tests.
+- `Templates/`: `dotnet new` templates that scaffold an F# gameplay project with optional gdUnit4 tests (`dotnet new install Headsetsniper.Godot.FSharp.Templates`).
 
 ## Quick start
 
-1. Add `Headsetsniper.Godot.FSharp.Annotations` to your F# gameplay project.
-2. In your Godot C# project, add a project reference to the F# project and reference `Headsetsniper.Godot.FSharp.ShimGen`.
-3. Decorate your F# classes with `[<GodotScript(ClassName = "MyScript", BaseTypeName = "Godot.Node2D")>]` and optional attributes like `[<NodePath>]`, `[<Export>]`, or `[<Signal>]`.
-4. Build the Godot project. The generator emits C# shims under `Scripts/Generated`, which Godot discovers automatically.
+### Scaffold a new game from the template
+
+```powershell
+dotnet new install Headsetsniper.Godot.FSharp.Templates
+dotnet new godot-fsharp -n MyGameFSharp --IncludeTests
+```
+
+Open the generated Godot solution, run `dotnet build` on the C# project, and the `Headsetsniper.Godot.FSharp.ShimGen` package will generate shims under `Scripts/Generated` automatically.
+
+### Wire the packages into an existing solution
+
+```powershell
+dotnet add FSharp/MyGame.fsproj package Headsetsniper.Godot.FSharp.Annotations
+dotnet add ExampleProject/MyGame.csproj package Headsetsniper.Godot.FSharp.ShimGen
+```
+
+Reference the F# gameplay project from the Godot C# project, decorate classes with `[<GodotScript>]` and other attributes, then build. ShimGen finds the referenced F# assembly and emits the C# shims that Godot discovers automatically.
 
 ## Templates
 
-Use the local templates to bootstrap a fresh gameplay project:
+Install the published template straight from NuGet (recommended):
 
 ```powershell
-dotnet new install Templates/Headsetsniper.Godot.FSharp.Templates
+dotnet new install Headsetsniper.Godot.FSharp.Templates
 dotnet new godot-fsharp -n MyGameFSharp --IncludeTests
 ```
 
 - `--IncludeTests` (or `-I`) adds a gdUnit4-ready F# test project and a companion C# TestShims project wired for shim generation; omit or pass `false` to generate only the gameplay project.
 - `--AnnotationsVersion` (or `-A`) accepts any NuGet version expression (defaults to `0.*`).
 - Generated projects target `net9.0` and reference `Headsetsniper.Godot.FSharp.Annotations`; the optional test project mirrors the repo's gdUnit4 configuration, including a `.runsettings` stub (`GODOT_BIN` must be updated).
-- Uninstall when you no longer need the local template:
+- Pin a specific release with `dotnet new install Headsetsniper.Godot.FSharp.Templates::0.10.2` and upgrade later via `dotnet new update`.
+- Uninstall when you no longer need the template:
 
   ```powershell
-  dotnet new uninstall Templates/Headsetsniper.Godot.FSharp.Templates
+  dotnet new uninstall Headsetsniper.Godot.FSharp.Templates
   ```
-
-### Install from the release template zip
-
-- Download `Headsetsniper.Godot.FSharp.Template-<version>.zip` from the matching GitHub release.
-- Extract the archive (any folder works). The root contains `.template.config/`, `src/`, and `tests/`.
-- Install/uninstall using the extracted folder:
-
-  ```powershell
-  Expand-Archive -LiteralPath .\Headsetsniper.Godot.FSharp.Template-0.10.2.zip -DestinationPath .\godot-fsharp-template -Force
-  dotnet new install .\godot-fsharp-template
-  # ... use dotnet new godot-fsharp
-  dotnet new uninstall .\godot-fsharp-template
-  ```
-
-  ```bash
-  unzip Headsetsniper.Godot.FSharp.Template-0.10.2.zip -d godot-fsharp-template
-  dotnet new install ./godot-fsharp-template
-  # ... use dotnet new godot-fsharp
-  dotnet new uninstall ./godot-fsharp-template
-  ```
-
-- The release still ships the `.nupkg` if you prefer `dotnet new install <.nupkg>` directly.
-- `dotnet new install` only accepts folders or `.nupkg` files, so installing from the raw zip requires extracting it first.
-
-### Install via GitHub URL
-
-Install from a tagged source archive without cloning:
-
-- **Windows (PowerShell 5.x/7.x)**
-
-  ```powershell
-  $tag = "v0.10.1"
-  $zip = "godot-fsharp-shim-$tag.zip"
-  Invoke-WebRequest -Uri "https://github.com/headsetsniper/godot-fsharp-shim/archive/refs/tags/$tag.zip" -OutFile $zip
-  Expand-Archive $zip -DestinationPath . -Force
-
-  dotnet new install .\godot-fsharp-shim-$($tag.TrimStart('v'))\Templates\Headsetsniper.Godot.FSharp.Templates
-  ```
-
-- Replace `v0.10.0` with the tag you want. Adjust paths if you extract elsewhere.
-- Installing straight from a GitHub URL with `::Templates/...` no longer works on recent `dotnet` releases; you need the extracted folder or a packed `.nupkg`.
-- To create your own `.nupkg`, pack locally then install:
-
-  ```powershell
-  dotnet pack Templates/Headsetsniper.Godot.FSharp.Templates -c Release
-  dotnet new install .nupkgs/Headsetsniper.Godot.FSharp.Templates.*.nupkg
-  ```
-
-- After installation, scaffold a project anywhere with:
-
-  ```powershell
-  dotnet new godot-fsharp -n MyGameFSharp
-  ```
-
-- Cleanup:
-
-  - Uninstall the template when you upgrade or no longer need it (use the same path or package passed to `dotnet new install`).
-
-    ```powershell
-    dotnet new uninstall .\godot-fsharp-shim-$($tag.TrimStart('v'))\Templates\Headsetsniper.Godot.FSharp.Templates
-    ```
-
-    ```bash
-    dotnet new uninstall ./godot-fsharp-shim-${tag#v}/Templates/Headsetsniper.Godot.FSharp.Templates
-    ```
-
-  - Remove the downloaded archive and extracted folder once the template is installed:
-
-    ```powershell
-    Remove-Item $zip; Remove-Item -Recurse -Force .\godot-fsharp-shim-$($tag.TrimStart('v'))
-    ```
-
-    ```bash
-    rm "godot-fsharp-shim-$tag.zip"; rm -rf "godot-fsharp-shim-${tag#v}"
-    ```
-
-- Optional switches:
-
-  - `--IncludeTests [true|false]` (short form `-I`) toggles the gdUnit4-ready F# test project and companion C# TestShims project (default `false`; supplying the flag without a value sets it to `true`).
-  - `--AnnotationsVersion <range>` (short form `-A`) pins the `Headsetsniper.Godot.FSharp.Annotations` package version (defaults to `0.*`).
-
-- Example with tests enabled and a specific annotations version:
-
-  ```powershell
-  dotnet new godot-fsharp -n MyGameFSharp --IncludeTests --AnnotationsVersion 0.10.0
-  ```
-
-- Update with `dotnet new update` or reinstall using a newer tag when we publish template changes.
 
 ## Features
 
@@ -524,6 +450,8 @@ Minimal `FsharpWithShim.TestShims.csproj` example:
 </Project>
 ```
 
+`$(ShimGenPackageVersion)` comes from the shared props emitted by the template. If you are wiring this up manually, replace it with a NuGet expression such as `0.10.*` or a pinned version like `0.10.2`.
+
 3. Build the C# project. The shared buildTransitive target invokes ShimGen in `Tests` mode and emits one shim per discovered suite: `SuiteName_TestsShim.cs`. No extra MSBuild targets or manual generator calls are required, and the generator automatically focuses on the first referenced `*.Tests` assembly unless you override `FSharpShimsTestAssemblyName`.
 4. Run `dotnet test` on the C# project; gdUnit4 discovers the shim classes (they have `[TestSuite]`). Each shim method obtains a `MethodInfo` on the F# implementation instance and invokes it (awaiting Tasks).
 
@@ -723,6 +651,8 @@ Planned work to reach comprehensive Godot capability support in F# via shims.
   - Cross-platform: validate generation on Windows/Linux/macOS.
 
 ## Local development
+
+Most users only need the NuGet packages (`Headsetsniper.Godot.FSharp.Annotations`, `Headsetsniper.Godot.FSharp.ShimGen`, and `Headsetsniper.Godot.FSharp.Templates`). The steps below are for contributors iterating on this repository or building custom packages locally.
 
 These steps help when you want to iterate on the packages locally before publishing.
 
