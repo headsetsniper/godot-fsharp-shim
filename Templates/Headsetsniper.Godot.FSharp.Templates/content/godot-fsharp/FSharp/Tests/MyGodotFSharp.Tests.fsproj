@@ -10,11 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Tests\GameLogicTests.fs" />
+    <Compile Include="Specs\GameLogicTests.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\MyGodotFSharp.fsproj" />
+    <ProjectReference Include="..\MyGodotFSharp.fsproj" />
   </ItemGroup>
 
   <ItemGroup>

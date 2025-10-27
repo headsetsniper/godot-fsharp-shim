@@ -20,10 +20,10 @@
     "preferNameDirectory": true,
     "primaryOutputs": [
         {
-            "path": "src/MyGodotFSharp.fsproj"
+            "path": "FSharp/MyGodotFSharp.fsproj"
         },
         {
-            "path": "tests/MyGodotFSharp.Tests.fsproj",
+            "path": "FSharp/Tests/MyGodotFSharp.Tests.fsproj",
             "condition": "IncludeTests"
         },
         {
@@ -56,7 +56,7 @@
                 {
                     "condition": "!IncludeTests",
                     "exclude": [
-                        "tests/**",
+                        "FSharp/Tests/**",
                         "TestShims/**"
                     ]
                 }
