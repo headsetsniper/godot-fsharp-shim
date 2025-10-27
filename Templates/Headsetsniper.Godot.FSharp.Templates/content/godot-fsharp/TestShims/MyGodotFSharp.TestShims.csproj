@@ -3,7 +3,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <EnableDefaultItems>false</EnableDefaultItems>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <RunSettingsFilePath>$(MSBuildThisFileDirectory)..\FSharp\Tests\.runsettings</RunSettingsFilePath>
+    <RunSettingsFilePath>$(MSBuildThisFileDirectory)..\Tests\.runsettings</RunSettingsFilePath>
     <VSTestTestAdapterPath>none</VSTestTestAdapterPath>
     <TestFramework>GdUnit4</TestFramework>
     <GdUnitKillStaleTestHosts>true</GdUnitKillStaleTestHosts>
@@ -13,7 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FSharp\Tests\MyGodotFSharp.Tests.fsproj" />
+    <ProjectReference Include="..\Tests\MyGodotFSharp.Tests.fsproj" />
   </ItemGroup>
 
   <ItemGroup>

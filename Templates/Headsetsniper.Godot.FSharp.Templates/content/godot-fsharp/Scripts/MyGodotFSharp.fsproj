@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Scripts\GameScript.fs" />
+    <Compile Include="GameScript.fs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MyGodotFSharp.fsproj" />
+    <ProjectReference Include="..\Scripts\MyGodotFSharp.fsproj" />
   </ItemGroup>
 
   <ItemGroup>

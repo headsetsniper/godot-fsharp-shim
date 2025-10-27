@@ -20,14 +20,14 @@
     "preferNameDirectory": true,
     "primaryOutputs": [
         {
-            "path": "FSharp/MyGodotFSharp.fsproj"
+            "path": "Scripts/FSharp.fsproj"
         },
         {
-            "path": "FSharp/Tests/MyGodotFSharp.Tests.fsproj",
+            "path": "Tests/FSharp.Tests.fsproj",
             "condition": "IncludeTests"
         },
         {
-            "path": "TestShims/MyGodotFSharp.TestShims.csproj",
+            "path": "TestShims/TestShims.csproj",
             "condition": "IncludeTests"
         }
     ],
