@@ -26,7 +26,7 @@ internal static class RoslynTestShimGenerator
                 .NormalizeWhitespace();
 
         var classDecl = SyntaxFactory.ClassDeclaration(ctx.ShimClassName)
-            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.PartialKeyword))
             .WithAttributeLists(SyntaxFactory.List(new[] { SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList(SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("TestSuite")))) }));
 
         classDecl = classDecl.WithBaseList(
