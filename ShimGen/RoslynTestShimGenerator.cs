@@ -18,7 +18,8 @@ internal static class RoslynTestShimGenerator
         {
             SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System")),
             SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System.Threading.Tasks")),
-            SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("GdUnit4"))
+            SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("GdUnit4")),
+            SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("Godot"))
         };
         var nsDecl = SyntaxFactory.NamespaceDeclaration(SyntaxFactory.IdentifierName("GeneratedTests"))
                 .WithNamespaceKeyword(SyntaxFactory.Token(default, SyntaxKind.NamespaceKeyword, "namespace", "namespace", default))
@@ -27,6 +28,12 @@ internal static class RoslynTestShimGenerator
         var classDecl = SyntaxFactory.ClassDeclaration(ctx.ShimClassName)
             .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
             .WithAttributeLists(SyntaxFactory.List(new[] { SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList(SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("TestSuite")))) }));
+
+        classDecl = classDecl.WithBaseList(
+            SyntaxFactory.BaseList(
+                SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(
+                    SyntaxFactory.SimpleBaseType(SyntaxFactory.IdentifierName("GodotObject"))
+                )));
 
         classDecl = classDecl.AddMembers(CreateImplField(ctx));
         if (ctx.Before is not null) classDecl = classDecl.AddMembers(CreateForwarder(ctx, ctx.Before, "BeforeTest"));

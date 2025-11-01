@@ -366,6 +366,10 @@ The example project is wired to run gdUnit4 tests directly via `dotnet test` usi
   - Include adapter sources:
     - `Compile Include="gdunit4_testadapter_v5\**\*.cs"`
     - `Compile Include="addons\gdUnit4\src\dotnet\**\*.cs" Visible="false" Condition="'$(GodotTargetPlatform)'!='windows-editor'"`
+  - Define the gdUnit4 .NET API constant outside Windows editor builds so the adapter exposes its bridge types:
+    - `<PropertyGroup Condition="'$(GodotTargetPlatform)'!='windows-editor'">`
+    - `  <DefineConstants>$(DefineConstants);GDUNIT4NET_API_V5</DefineConstants>`
+    - `</PropertyGroup>`
   - ShimGen targets handle generated files; no manual include/exclude for `Scripts/Generated` is needed.
   - Keep the gdUnit4 editor plugin enabled in `project.godot` to ensure discovery works the same locally and on CI.
 

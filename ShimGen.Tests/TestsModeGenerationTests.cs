@@ -73,7 +73,7 @@ public class TestsModeGenerationTests
         var shim = Directory.EnumerateFiles(_outDir, "*MathTests_TestsShim.cs", SearchOption.AllDirectories).FirstOrDefault();
         Assert.That(shim, Is.Not.Null, "Expected test shim not generated");
         var src = File.ReadAllText(shim!);
-        StringAssert.Contains("class MathTests_TestsShim", src);
+        StringAssert.Contains("class MathTests_TestsShim : GodotObject", src);
         StringAssert.Contains("[TestSuite]", src);
         StringAssert.Contains("public void Adds", src);
         StringAssert.Contains("public void Multiplies", src);
