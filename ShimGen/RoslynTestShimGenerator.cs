@@ -32,7 +32,7 @@ internal static class RoslynTestShimGenerator
         classDecl = classDecl.WithBaseList(
             SyntaxFactory.BaseList(
                 SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(
-                    SyntaxFactory.SimpleBaseType(SyntaxFactory.IdentifierName("GodotObject"))
+                    SyntaxFactory.SimpleBaseType(SyntaxFactory.IdentifierName("GdUnitTestSuite"))
                 )));
 
         classDecl = classDecl.AddMembers(CreateImplField(ctx));
