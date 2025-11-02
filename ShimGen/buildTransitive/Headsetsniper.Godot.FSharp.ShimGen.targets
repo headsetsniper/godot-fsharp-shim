@@ -11,6 +11,8 @@
     <FSharpShimsFallbackInclude Condition="'$(FSharpShimsFallbackInclude)'==''">true</FSharpShimsFallbackInclude>
     <!-- Optional regenerate control forwarded to the tool as SHIMGEN_REGENERATE_SCRIPTS -->
     <FSharpShimsRegenerate Condition="'$(FSharpShimsRegenerate)'==''"></FSharpShimsRegenerate>
+    <!-- Opt-in: prevent generator from modifying existing outputs (useful for experimentation) -->
+    <FSharpShimsSkipWrites Condition="'$(FSharpShimsSkipWrites)'==''">false</FSharpShimsSkipWrites>
     <!-- Opt-in: kill only testhost processes hosting THIS project before VSTest (Windows only). -->
     <!-- Back-compat: honor KillStaleTestHosts if provided by the project/CLI. -->
     <GdUnitKillStaleTestHosts Condition="'$(GdUnitKillStaleTestHosts)'==''">$(KillStaleTestHosts)</GdUnitKillStaleTestHosts>
@@ -112,6 +114,7 @@
     <PropertyGroup>
       <!-- Forward regenerate control to tool only when set -->
       <_ShimGenEnvVars Condition="'$(FSharpShimsRegenerate)'!=''">SHIMGEN_REGENERATE_SCRIPTS=$(FSharpShimsRegenerate)</_ShimGenEnvVars>
+      <_ShimGenEnvVars Condition="'$(FSharpShimsSkipWrites)'=='true' or '$(FSharpShimsSkipWrites)'=='True' or '$(FSharpShimsSkipWrites)'=='1'">SHIMGEN_SKIP_WRITES=1;$(_ShimGenEnvVars)</_ShimGenEnvVars>
       <_ShimGenEnvVars>SHIMGEN_MODE=$(FSharpShimsMode);$(_ShimGenEnvVars)</_ShimGenEnvVars>
     </PropertyGroup>
     <!-- In Tests mode, restrict to a specific test assembly name if provided -->

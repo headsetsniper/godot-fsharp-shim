@@ -15,7 +15,7 @@ internal static partial class Program
         int Written
     );
 
-    private static (GenerationPlan plan, HashSet<string> liveTypeFullNames) GenerateForTypes(IEnumerable<Type?> types, string outDir, string? fsDir, bool dryRun, bool regenAll, HashSet<string> regenSet)
+    private static (GenerationPlan plan, HashSet<string> liveTypeFullNames) GenerateForTypes(IEnumerable<Type?> types, string outDir, string? fsDir, bool dryRun, bool regenAll, HashSet<string> regenSet, bool skipWrites)
     {
         int scanned = 0, annotated = 0, written = 0;
         var plannedWrites = new List<string>();
@@ -23,6 +23,7 @@ internal static partial class Program
         var plannedDeletes = new List<string>();
         var plannedSkips = new List<string>();
         var seenTypeFullNames = new HashSet<string>(StringComparer.Ordinal);
+        var noTouch = dryRun || skipWrites;
 
         foreach (var type in types)
         {
@@ -41,7 +42,7 @@ internal static partial class Program
                 path = oldPath!;
 
             var wouldWrite = WouldWrite(path, code);
-            if (dryRun)
+            if (noTouch)
             {
                 if (wouldWrite) plannedWrites.Add(path); else plannedSkips.Add(path);
             }
@@ -59,7 +60,7 @@ internal static partial class Program
             }
 
             if (!string.IsNullOrEmpty(relForThis))
-                RemoveOtherGeneratedForSource(outDir, relForThis!, path, dryRun, plannedDeletes);
+                RemoveOtherGeneratedForSource(outDir, relForThis!, path, noTouch, plannedDeletes);
 
             if (!string.IsNullOrEmpty(oldPath) && !PathsEqual(oldPath!, path) && File.Exists(oldPath!))
             {
@@ -70,7 +71,7 @@ internal static partial class Program
                         if (!shouldRegen)
                         {
                             plannedMoves.Add((oldPath!, path));
-                            if (!dryRun) File.Delete(oldPath!);
+                            if (!dryRun && !skipWrites) File.Delete(oldPath!);
                         }
                     }
                 }
@@ -111,12 +112,19 @@ internal static partial class Program
         return (path, oldPath, relForThis);
     }
 
-    private static void PrintSummary(GenerationPlan plan, bool dryRun)
+    private static void PrintSummary(GenerationPlan plan, bool dryRun, bool skipWrites)
     {
         LogInfo($"[shimgen] Summary: Moves={plan.PlannedMoves.Count}, Deletes={plan.PlannedDeletes.Count}.");
         if (dryRun)
         {
             LogInfo($"[shimgen] Dry-run: Writes={plan.PlannedWrites.Count}, Skipped={plan.PlannedSkips.Count}.");
+            foreach (var m in plan.PlannedMoves) LogInfo($"[shimgen] plan MOVE {m.from} -> {m.to}");
+            foreach (var d in plan.PlannedDeletes) LogInfo($"[shimgen] plan DELETE {d}");
+            foreach (var w in plan.PlannedWrites) LogInfo($"[shimgen] plan WRITE {w}");
+        }
+        else if (skipWrites)
+        {
+            LogInfo($"[shimgen] Skip-writes: WouldWrite={plan.PlannedWrites.Count}, Skipped={plan.PlannedSkips.Count}.");
             foreach (var m in plan.PlannedMoves) LogInfo($"[shimgen] plan MOVE {m.from} -> {m.to}");
             foreach (var d in plan.PlannedDeletes) LogInfo($"[shimgen] plan DELETE {d}");
             foreach (var w in plan.PlannedWrites) LogInfo($"[shimgen] plan WRITE {w}");

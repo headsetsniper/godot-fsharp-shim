@@ -29,24 +29,25 @@ internal static partial class Program
             lc = PrepareLoadContext(asmPath);
             var asm = LoadAssembly(lc, asmPath);
             var mode = ParseMode(Environment.GetEnvironmentVariable("SHIMGEN_MODE"));
+            var skipWrites = ParseBooleanFlag(Environment.GetEnvironmentVariable("SHIMGEN_SKIP_WRITES"));
             try { Console.WriteLine($"[shimgen] mode={mode}"); } catch { }
-            LogInfo($"[shimgen] Mode={mode}");
+            LogInfo($"[shimgen] Mode={mode}; SkipWrites={skipWrites}");
             if (mode == GenerationMode.Tests)
             {
-                var (plan, liveTypes) = GenerateTestShims(asm, outDir, fsDir, dryRun);
+                var (plan, liveTypes) = GenerateTestShims(asm, outDir, fsDir, dryRun, skipWrites);
                 // Do NOT prune in Tests mode; test shim file names do not map 1:1 to F# source file layout
                 // and pruning logic based on source roots could erroneously delete freshly generated test shims.
-                PrintSummary(plan, dryRun);
+                PrintSummary(plan, dryRun, skipWrites);
                 return 0;
             }
             else
             {
                 var types = SafeGetTypes(asm);
                 var (regenAll, regenSet) = ParseRegenerateTargets(Environment.GetEnvironmentVariable("SHIMGEN_REGENERATE_SCRIPTS"));
-                var (plan, liveTypes) = GenerateForTypes(types, outDir, fsDir, dryRun, regenAll, regenSet);
+                var (plan, liveTypes) = GenerateForTypes(types, outDir, fsDir, dryRun, regenAll, regenSet, skipWrites);
                 if (!string.IsNullOrEmpty(fsDir))
-                    PruneOrphans(outDir, fsDir!, liveTypes, dryRun, plan.PlannedDeletes);
-                PrintSummary(plan, dryRun);
+                    PruneOrphans(outDir, fsDir!, liveTypes, dryRun || skipWrites, plan.PlannedDeletes);
+                PrintSummary(plan, dryRun, skipWrites);
                 return 0;
             }
         }

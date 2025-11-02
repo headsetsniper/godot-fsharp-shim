@@ -13,7 +13,7 @@ internal static partial class Program
     internal sealed record TestClassSpec(Type ImplType, string ClassName, TestMethodSpec? Before, TestMethodSpec? After, List<TestMethodSpec> Tests);
     internal sealed record TestMethodSpec(string Name, bool ReturnsTask);
 
-    private static (GenerationPlan plan, HashSet<string> liveTypeFullNames) GenerateTestShims(Assembly asm, string outDir, string? fsDir, bool dryRun)
+    private static (GenerationPlan plan, HashSet<string> liveTypeFullNames) GenerateTestShims(Assembly asm, string outDir, string? fsDir, bool dryRun, bool skipWrites)
     {
         var types = SafeGetTypes(asm);
         var specs = new List<TestClassSpec>();
@@ -49,6 +49,7 @@ internal static partial class Program
         var plannedDeletes = new List<string>();
         var plannedSkips = new List<string>();
         var seenTypeFullNames = new HashSet<string>(StringComparer.Ordinal);
+        var noTouch = dryRun || skipWrites;
 
         foreach (var spec in specs)
         {
@@ -56,7 +57,7 @@ internal static partial class Program
             var code = RoslynTestShimGenerator.Generate(spec, fsDir);
             var path = Path.Combine(outDir, spec.ClassName + ".cs");
             var wouldWrite = WouldWrite(path, code);
-            if (dryRun)
+            if (noTouch)
             {
                 if (wouldWrite) plannedWrites.Add(path); else plannedSkips.Add(path);
             }

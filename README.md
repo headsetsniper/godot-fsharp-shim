@@ -323,6 +323,8 @@ member val Icon : Texture2D = Unchecked.defaultof<_> with get, set
   - Forwarded to the generator as the `SHIMGEN_REGENERATE_SCRIPTS` environment variable when set. Examples:
     - `FSharpShimsRegenerate=all` (or `*`) — regenerate all shims in-place.
     - `FSharpShimsRegenerate=Tetris,TetrisBoard` — regenerate the listed scripts.
+- FSharpShimsSkipWrites (false by default)
+  - When `true`, forwards `SHIMGEN_SKIP_WRITES=1` so the generator reports planned writes but does not modify, move, or delete any generated files. Useful when diagnosing package interactions in other repositories.
 - FSharpShimsFallbackInclude (true by default)
   - Automatically includes `$(FSharpShimsOutDir)/**/*.cs` at compile time when the generator hasn’t added them (e.g., Godot/editor-driven builds). Inclusion is idempotent and avoids duplicate source warnings.
 
@@ -340,6 +342,7 @@ You can set regeneration either via MSBuild property or environment variable. Bo
   - `FSharpShimsRegenerate=Tetris,TetrisBoard` (comma/semicolon/whitespace separated), or use F# full names like `Game.TetrisImpl`.
 - Environment variable (equivalent):
   - `SHIMGEN_REGENERATE_SCRIPTS=all` or a comma-separated list.
+  - `SHIMGEN_SKIP_WRITES=1` combines with regeneration flags to preview changes without touching existing generated files.
 
 Notes:
 

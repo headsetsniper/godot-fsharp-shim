@@ -59,6 +59,16 @@ internal static partial class Program
         return GenerationMode.Scripts;
     }
 
+    private static bool ParseBooleanFlag(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        var v = value.Trim();
+        return v.Equals("1", StringComparison.OrdinalIgnoreCase) ||
+               v.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+               v.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
+               v.Equals("on", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static (bool all, HashSet<string> list) ParseRegenerateTargets(string? env)
     {
         var set = new HashSet<string>(StringComparer.Ordinal);
