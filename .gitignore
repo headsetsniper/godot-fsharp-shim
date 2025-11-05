@@ -68,3 +68,4 @@ paket-files/
 .env
 sandbox
 ExampleProject/Scripts/Tests/
+*.code-workspace
