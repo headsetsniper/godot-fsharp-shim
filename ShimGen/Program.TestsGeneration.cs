@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Reflection;
 using System.Text;
 
@@ -10,7 +11,7 @@ internal static partial class Program
     private static readonly string GdUnit4AfterTestAttr = "GdUnit4.AfterTestAttribute";
     private static readonly string GdUnit4TestCaseAttr = "GdUnit4.TestCaseAttribute";
 
-    internal sealed record TestClassSpec(Type ImplType, string ClassName, TestMethodSpec? Before, TestMethodSpec? After, List<TestMethodSpec> Tests);
+    internal sealed record TestClassSpec(Type ImplType, string ClassName, TestMethodSpec? Before, TestMethodSpec? After, List<TestMethodSpec> Tests, IReadOnlyList<CustomAttributeData> ClassAttributes);
     internal sealed record TestMethodSpec(string Name, bool ReturnsTask);
 
     private static (GenerationPlan plan, HashSet<string> liveTypeFullNames) GenerateTestShims(Assembly asm, string outDir, string? fsDir, bool dryRun, bool skipWrites)
@@ -149,7 +150,17 @@ internal static partial class Program
             }
         }
         if (tests.Count == 0) return null;
-        return new TestClassSpec(t, shimClass, before, after, tests);
+        IReadOnlyList<CustomAttributeData> attrs;
+        try
+        {
+            attrs = t.GetCustomAttributesData().ToArray();
+        }
+        catch
+        {
+            attrs = Array.Empty<CustomAttributeData>();
+        }
+
+        return new TestClassSpec(t, shimClass, before, after, tests, attrs);
     }
 
     private static bool ReturnsTask(MethodInfo m)

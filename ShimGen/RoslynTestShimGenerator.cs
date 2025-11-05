@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -8,11 +10,11 @@ namespace Headsetsniper.Godot.FSharp.ShimGen;
 
 internal static class RoslynTestShimGenerator
 {
-    private sealed record GenContext(Type ImplType, string ShimClassName, Program.TestMethodSpec? Before, Program.TestMethodSpec? After, System.Collections.Generic.List<Program.TestMethodSpec> Tests, string? FsSourceDir);
+    private sealed record GenContext(Type ImplType, string ShimClassName, Program.TestMethodSpec? Before, Program.TestMethodSpec? After, List<Program.TestMethodSpec> Tests, IReadOnlyList<CustomAttributeData> ClassAttributes, string? FsSourceDir);
 
     public static string Generate(Program.TestClassSpec spec, string? fsSourceDir)
     {
-        var ctx = new GenContext(spec.ImplType, spec.ClassName, spec.Before, spec.After, spec.Tests, fsSourceDir);
+        var ctx = new GenContext(spec.ImplType, spec.ClassName, spec.Before, spec.After, spec.Tests, spec.ClassAttributes, fsSourceDir);
         var header = BuildHeader(ctx);
         var usings = new[]
         {
@@ -27,13 +29,7 @@ internal static class RoslynTestShimGenerator
 
         var classDecl = SyntaxFactory.ClassDeclaration(ctx.ShimClassName)
             .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.PartialKeyword))
-            .WithAttributeLists(SyntaxFactory.List(new[] { SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList(SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("TestSuite")))) }));
-
-        classDecl = classDecl.WithBaseList(
-            SyntaxFactory.BaseList(
-                SyntaxFactory.SingletonSeparatedList<BaseTypeSyntax>(
-                    SyntaxFactory.SimpleBaseType(SyntaxFactory.IdentifierName("GdUnitTestSuite"))
-                )));
+            .WithAttributeLists(BuildClassAttributes(ctx));
 
         classDecl = classDecl.AddMembers(CreateImplField(ctx));
         if (ctx.Before is not null) classDecl = classDecl.AddMembers(CreateForwarder(ctx, ctx.Before, "BeforeTest"));
@@ -77,6 +73,195 @@ internal static class RoslynTestShimGenerator
             .WithInitializer(SyntaxFactory.EqualsValueClause(SyntaxFactory.ObjectCreationExpression(implTypeName).WithArgumentList(SyntaxFactory.ArgumentList())));
         return SyntaxFactory.FieldDeclaration(varDecl.WithVariables(SyntaxFactory.SingletonSeparatedList(varInit)))
             .AddModifiers(SyntaxFactory.Token(SyntaxKind.PrivateKeyword));
+    }
+
+    private static SyntaxList<AttributeListSyntax> BuildClassAttributes(GenContext ctx)
+    {
+        var attrs = new List<AttributeSyntax>();
+        var hasTestSuite = false;
+
+        foreach (var attr in ctx.ClassAttributes)
+        {
+            var ns = attr.AttributeType.Namespace ?? string.Empty;
+            if (!string.Equals(ns, "GdUnit4", StringComparison.Ordinal))
+                continue;
+
+            var attrName = attr.AttributeType.Name;
+            if (string.Equals(attrName, "TestSuiteAttribute", StringComparison.Ordinal))
+                hasTestSuite = true;
+
+            if (TryCreateAttributeSyntax(attr, out var attrSyntax))
+                attrs.Add(attrSyntax);
+        }
+
+        if (!hasTestSuite)
+            attrs.Insert(0, SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("TestSuite")));
+
+        if (attrs.Count == 0)
+            attrs.Add(SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("TestSuite")));
+
+        return SyntaxFactory.List(new[] { SyntaxFactory.AttributeList(SyntaxFactory.SeparatedList(attrs)) });
+    }
+
+    private static bool TryCreateAttributeSyntax(CustomAttributeData attr, out AttributeSyntax syntax)
+    {
+        var name = attr.AttributeType.Name;
+        if (name.EndsWith("Attribute", StringComparison.Ordinal))
+            name = name.Substring(0, name.Length - "Attribute".Length);
+
+        var ctorArgs = new List<AttributeArgumentSyntax>();
+        foreach (var arg in attr.ConstructorArguments)
+        {
+            if (!TryCreateAttributeArgument(arg, null, out var argSyntax))
+            {
+                syntax = null!;
+                return false;
+            }
+            ctorArgs.Add(argSyntax);
+        }
+
+        foreach (var named in attr.NamedArguments)
+        {
+            if (!TryCreateAttributeArgument(named.TypedValue, named.MemberName, out var argSyntax))
+            {
+                syntax = null!;
+                return false;
+            }
+            ctorArgs.Add(argSyntax);
+        }
+
+        syntax = SyntaxFactory.Attribute(SyntaxFactory.IdentifierName(name));
+        if (ctorArgs.Count > 0)
+            syntax = syntax.WithArgumentList(SyntaxFactory.AttributeArgumentList(SyntaxFactory.SeparatedList(ctorArgs)));
+
+        return true;
+    }
+
+    private static bool TryCreateAttributeArgument(CustomAttributeTypedArgument arg, string? memberName, out AttributeArgumentSyntax syntax)
+    {
+        if (!TryCreateAttributeValueExpression(arg, out var expr))
+        {
+            syntax = null!;
+            return false;
+        }
+
+        syntax = SyntaxFactory.AttributeArgument(expr);
+        if (!string.IsNullOrEmpty(memberName))
+            syntax = syntax.WithNameEquals(SyntaxFactory.NameEquals(SyntaxFactory.IdentifierName(memberName)));
+
+        return true;
+    }
+
+    private static bool TryCreateAttributeValueExpression(CustomAttributeTypedArgument arg, out ExpressionSyntax expr)
+    {
+        var value = arg.Value;
+        if (value is null)
+        {
+            expr = SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression);
+            return true;
+        }
+
+        var type = arg.ArgumentType;
+
+        if (type.IsEnum)
+        {
+            var enumName = Enum.GetName(type, value);
+            if (enumName is null)
+            {
+                expr = null!;
+                return false;
+            }
+
+            var typeExpr = SyntaxFactory.ParseTypeName(GetTypeDisplayName(type));
+            expr = SyntaxFactory.MemberAccessExpression(
+                SyntaxKind.SimpleMemberAccessExpression,
+                typeExpr,
+                SyntaxFactory.IdentifierName(enumName));
+            return true;
+        }
+
+        if (type == typeof(string))
+        {
+            expr = SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal((string)value));
+            return true;
+        }
+
+        if (type == typeof(bool))
+        {
+            expr = (bool)value
+                ? SyntaxFactory.LiteralExpression(SyntaxKind.TrueLiteralExpression)
+                : SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression);
+            return true;
+        }
+
+        if (type == typeof(Type) && value is Type typeValue)
+        {
+            expr = SyntaxFactory.TypeOfExpression(SyntaxFactory.ParseTypeName(GetTypeDisplayName(typeValue)));
+            return true;
+        }
+
+        if (type.IsArray && value is IList<CustomAttributeTypedArgument> list)
+        {
+            var elementType = type.GetElementType() ?? typeof(object);
+            var expressions = new List<ExpressionSyntax>();
+            foreach (var item in list)
+            {
+                if (!TryCreateAttributeValueExpression(item, out var itemExpr))
+                {
+                    expr = null!;
+                    return false;
+                }
+                expressions.Add(itemExpr);
+            }
+
+            var rank = SyntaxFactory.ArrayRankSpecifier(SyntaxFactory.SingletonSeparatedList<ExpressionSyntax>(SyntaxFactory.OmittedArraySizeExpression()));
+            var arrayType = SyntaxFactory.ArrayType(SyntaxFactory.ParseTypeName(GetTypeDisplayName(elementType)))
+                .WithRankSpecifiers(SyntaxFactory.SingletonList(rank));
+
+            expr = SyntaxFactory.ArrayCreationExpression(arrayType)
+                .WithInitializer(SyntaxFactory.InitializerExpression(SyntaxKind.ArrayInitializerExpression, SyntaxFactory.SeparatedList(expressions)));
+            return true;
+        }
+
+        switch (Type.GetTypeCode(type))
+        {
+            case TypeCode.SByte:
+                expr = SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((sbyte)value));
+                return true;
+            case TypeCode.Byte:
+                expr = SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((byte)value));
+                return true;
+            case TypeCode.Int16:
+                expr = SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((short)value));
+                return true;
+            case TypeCode.UInt16:
+                expr = SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((ushort)value));
+                return true;
+            case TypeCode.Int32:
+                expr = SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((int)value));
+                return true;
+            case TypeCode.UInt32:
+                expr = SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((uint)value));
+                return true;
+            case TypeCode.Int64:
+                expr = SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((long)value));
+                return true;
+            case TypeCode.UInt64:
+                expr = SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((ulong)value));
+                return true;
+            case TypeCode.Single:
+                expr = SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((float)value));
+                return true;
+            case TypeCode.Double:
+                expr = SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((double)value));
+                return true;
+            case TypeCode.Decimal:
+                expr = SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((decimal)value));
+                return true;
+        }
+
+        expr = null!;
+        return false;
     }
 
     private static MemberDeclarationSyntax CreateForwarder(GenContext ctx, Program.TestMethodSpec m, string attrName)

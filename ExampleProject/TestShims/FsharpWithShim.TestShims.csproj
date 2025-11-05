@@ -8,14 +8,21 @@
     <TestFramework>GdUnit4</TestFramework>
     <GdUnitKillStaleTestHosts>true</GdUnitKillStaleTestHosts>
     <NoWarn>$(NoWarn);0436</NoWarn>
-    <!-- Generate test shims into this project under Scripts/GeneratedTests -->
+    <!-- Generate test shims directly into the main ExampleProject so Godot can load them -->
     <FSharpShimsMode>Tests</FSharpShimsMode>
-    <FSharpShimsOutDir>$(MSBuildProjectDirectory)\Scripts\GeneratedTests</FSharpShimsOutDir>
+    <FSharpShimsOutDir>$(MSBuildProjectDirectory)\..\Scripts\Tests</FSharpShimsOutDir>
+    <FSharpShimsFallbackInclude>false</FSharpShimsFallbackInclude>
     <!-- Prefer local ShimGen targets during repo development -->
     <UseLocalShimGen Condition="Exists('..\..\ShimGen\buildTransitive\Headsetsniper.Godot.FSharp.ShimGen.targets')">true</UseLocalShimGen>
     <FSharpShimsVerbose>true</FSharpShimsVerbose>
     <FSharpShimsRegenerate>all</FSharpShimsRegenerate>
   </PropertyGroup>
+
+  <Target Name="ExcludeGeneratedTestsFromShimCompilation" AfterTargets="RunShimGen">
+    <ItemGroup>
+      <Compile Remove="$(FSharpShimsOutDir)\**\*.cs" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <!-- Reference the F# test assembly to scan for test suites -->

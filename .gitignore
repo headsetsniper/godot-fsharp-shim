@@ -67,3 +67,4 @@ paket-files/
 .nuget
 .env
 sandbox
+ExampleProject/Scripts/Tests/
