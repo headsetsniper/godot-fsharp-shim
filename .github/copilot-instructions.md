@@ -6,5 +6,5 @@
 - Never commit anything under `Scripts/Generated`; regenerate via the ShimGen targets when needed.
 - See the topic files under `.github/instructions/*.instructions.md` for area-specific guidance.
 - Assume the terminal is already positioned at the repository root—run commands directly without prepending extra `cd` segments unless you want it to be non-root.
-- Shell commands should always run with line numbering enabled(`grep, tail, sed, etc.`).
+- Powershell is the default shell; If the Powershell command gets to complex, switch to using C# in a small Tool Project. Commands should always run with line numbering enabled.
 - When debugging third-party behavior, search online docs or the package's GitHub source before disassembling.
