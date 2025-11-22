@@ -8,15 +8,17 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$testShimsProj = Join-Path $PSScriptRoot 'FsharpWithShim.TestShims.csproj'
-$projectDir = (Resolve-Path (Split-Path $PSScriptRoot)).ProviderPath
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$testShimsProj = Get-ChildItem -Path $PSScriptRoot -Filter '*.TestShims.csproj' -File | Select-Object -First 1
+if (-not $testShimsProj) {
+    throw "[shimgen][tests] Could not locate a '*.TestShims.csproj' under $PSScriptRoot."
+}
+$testShimsProj = $testShimsProj.FullName
+$testShimsAssemblyName = [System.IO.Path]::GetFileNameWithoutExtension($testShimsProj)
+$projectDir = (Resolve-Path $repoRoot).ProviderPath
 
 function Stop-StaleProcesses {
-    param(
-        [string[]]$Names
-    )
-
+    param([string[]]$Names)
     foreach ($name in $Names) {
         $processes = Get-Process -Name $name -ErrorAction SilentlyContinue
         foreach ($proc in $processes) {
@@ -27,7 +29,7 @@ function Stop-StaleProcesses {
                 continue
             }
 
-            $summary = "${($proc.ProcessName)} (Id=$($proc.Id))"
+            $summary = "$($proc.ProcessName) (Id=$($proc.Id))"
             try {
                 Write-Host "[shimgen][tests] Killing stale process $summary" -ForegroundColor DarkYellow
                 $proc.Kill()
@@ -41,10 +43,7 @@ function Stop-StaleProcesses {
 }
 
 function Get-LatestGdUnitReport {
-    param(
-        [string]$ReportsRoot
-    )
-
+    param([string]$ReportsRoot)
     if (-not (Test-Path $ReportsRoot)) { return $null }
 
     Get-ChildItem -Path $ReportsRoot -Filter 'results.xml' -Recurse -File |
@@ -99,8 +98,46 @@ function Write-GdUnitReportSummary {
     }
 }
 
+function Get-GodotBinFromRunSettings {
+    param([string[]]$RunSettingsPaths)
+
+    foreach ($path in $RunSettingsPaths) {
+        if (-not $path) { continue }
+        if (-not (Test-Path $path)) { continue }
+
+        try {
+            [xml]$doc = Get-Content -Path $path
+        }
+        catch {
+            Write-Warning "[shimgen][tests] Failed to parse runsettings '$path': $($_.Exception.Message)"
+            continue
+        }
+
+        $envNodes = $doc.SelectNodes('//EnvironmentVariables/*')
+        foreach ($envNode in @($envNodes)) {
+            if ($envNode -and $envNode.LocalName -eq 'GODOT_BIN') {
+                $value = $envNode.InnerText.Trim()
+                if ($value) {
+                    Write-Host "[shimgen][tests] Using GODOT_BIN from runsettings '$path'" -ForegroundColor DarkCyan
+                    return $value
+                }
+            }
+        }
+    }
+
+    return $null
+}
+
 if (-not $CleanupOnly) {
     if (-not $GodotBin) { $GodotBin = $env:GODOT_BIN }
+    if (-not $GodotBin) {
+        $runsettingsCandidates = @(
+            (Join-Path $PSScriptRoot '.runsettings'),
+            (Join-Path $repoRoot '.runsettings'),
+            (Join-Path $repoRoot 'Tests\.runsettings')
+        )
+        $GodotBin = Get-GodotBinFromRunSettings -RunSettingsPaths $runsettingsCandidates
+    }
     if (-not $GodotBin) {
         $defaultCandidate = Join-Path $repoRoot 'Godot' 'godot.exe'
         if (Test-Path $defaultCandidate) { $GodotBin = $defaultCandidate }
@@ -120,20 +157,17 @@ if ($CleanupOnly) {
     return
 }
 
-# Build to ensure F# tests + shims current
 if (-not $SkipBuild) {
     Write-Host "[shimgen][tests] Building TestShims project (configuration=$Configuration)" -ForegroundColor Cyan
     dotnet build $testShimsProj -c $Configuration | Write-Host
 }
 
-# Locate the compiled shim test assembly
 $binDir = Join-Path $PSScriptRoot ".godot/mono/temp/bin/$Configuration"
-$testAsm = Join-Path $binDir 'FsharpWithShim.TestShims.dll'
+$testAsm = Join-Path $binDir "$testShimsAssemblyName.dll"
 if (-not (Test-Path $testAsm)) {
     Write-Error "Compiled test assembly not found at $testAsm (build may have failed)."
 }
 
-# gdUnit4 CLI arguments; default to headless mode unless -ShowWindow is supplied
 $godotArgs = @()
 if (-not $ShowWindow) {
     $godotArgs += '--headless'
@@ -147,11 +181,6 @@ $godotArgs += '--'
 $godotArgs += '-s'
 $godotArgs += 'res://addons/gdUnit4/runners/GdUnit4.dll'
 $godotArgs += '-a'
-# Notes:
-#  - '-ShowWindow' runs Godot with the normal window for diagnosing test issues.
-#  - '--quit' ensures exit after tests complete.
-#  - '-a' : forwarded to gdUnit4 runner to execute all suites.
-#  - To restrict to specific suites, add: '-suites=SuiteName1,SuiteName2'
 
 Push-Location $projectDir
 try {
@@ -170,7 +199,6 @@ try {
     $pinfo.RedirectStandardError = $true
     $pinfo.UseShellExecute = $false
     $pinfo.Environment['GODOT_BIN'] = $GodotBin
-    # Provide a hint for suite filtering in future; can pass patterns as env
     if ($isVerbose) { $pinfo.Environment['GDUNIT_VERBOSE'] = '1' }
 
     $p = [System.Diagnostics.Process]::Start($pinfo)

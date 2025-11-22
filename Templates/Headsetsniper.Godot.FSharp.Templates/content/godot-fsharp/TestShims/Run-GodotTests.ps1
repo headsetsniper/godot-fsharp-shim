@@ -9,8 +9,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$testShimsProj = Join-Path $PSScriptRoot 'MyGodotFSharp.TestShims.csproj'
-$projectDir = (Resolve-Path $PSScriptRoot).ProviderPath
+$testShimsProj = Get-ChildItem -Path $PSScriptRoot -Filter '*.TestShims.csproj' -File | Select-Object -First 1
+if (-not $testShimsProj) {
+    throw "[shimgen][tests] Could not locate a '*.TestShims.csproj' under $PSScriptRoot."
+}
+$testShimsProj = $testShimsProj.FullName
+$testShimsAssemblyName = [System.IO.Path]::GetFileNameWithoutExtension($testShimsProj)
+$projectDir = (Resolve-Path $repoRoot).ProviderPath
 
 function Stop-StaleProcesses {
     param([string[]]$Names)
@@ -158,7 +163,7 @@ if (-not $SkipBuild) {
 }
 
 $binDir = Join-Path $PSScriptRoot ".godot/mono/temp/bin/$Configuration"
-$testAsm = Join-Path $binDir 'MyGodotFSharp.TestShims.dll'
+$testAsm = Join-Path $binDir "$testShimsAssemblyName.dll"
 if (-not (Test-Path $testAsm)) {
     Write-Error "Compiled test assembly not found at $testAsm (build may have failed)."
 }
