@@ -93,8 +93,46 @@ function Write-GdUnitReportSummary {
     }
 }
 
+function Get-GodotBinFromRunSettings {
+    param([string[]]$RunSettingsPaths)
+
+    foreach ($path in $RunSettingsPaths) {
+        if (-not $path) { continue }
+        if (-not (Test-Path $path)) { continue }
+
+        try {
+            [xml]$doc = Get-Content -Path $path
+        }
+        catch {
+            Write-Warning "[shimgen][tests] Failed to parse runsettings '$path': $($_.Exception.Message)"
+            continue
+        }
+
+        $envNodes = $doc.SelectNodes('//EnvironmentVariables/*')
+        foreach ($envNode in @($envNodes)) {
+            if ($envNode -and $envNode.LocalName -eq 'GODOT_BIN') {
+                $value = $envNode.InnerText.Trim()
+                if ($value) {
+                    Write-Host "[shimgen][tests] Using GODOT_BIN from runsettings '$path'" -ForegroundColor DarkCyan
+                    return $value
+                }
+            }
+        }
+    }
+
+    return $null
+}
+
 if (-not $CleanupOnly) {
     if (-not $GodotBin) { $GodotBin = $env:GODOT_BIN }
+    if (-not $GodotBin) {
+        $runsettingsCandidates = @(
+            (Join-Path $PSScriptRoot '.runsettings'),
+            (Join-Path $repoRoot '.runsettings'),
+            (Join-Path $repoRoot 'Tests\.runsettings')
+        )
+        $GodotBin = Get-GodotBinFromRunSettings -RunSettingsPaths $runsettingsCandidates
+    }
     if (-not $GodotBin) {
         $defaultCandidate = Join-Path $repoRoot 'Godot' 'godot.exe'
         if (Test-Path $defaultCandidate) { $GodotBin = $defaultCandidate }

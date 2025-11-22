@@ -46,6 +46,14 @@
             "defaultValue": "false",
             "description": "Include a GdUnit4-powered test project scaffold.",
             "displayName": "Include tests"
+        },
+        "GodotBinPath": {
+            "type": "parameter",
+            "datatype": "string",
+            "defaultValue": "SET_ME",
+            "replaces": "HEADSETSNIPER_GODOT_BIN",
+            "displayName": "Godot executable path",
+            "description": "Absolute path to the Godot Mono binary used by gdUnit4 runs."
         }
     },
     "sources": [
