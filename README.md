@@ -462,7 +462,7 @@ Minimal `FsharpWithShim.TestShims.csproj` example:
 3. Build the C# project. The shared buildTransitive target invokes ShimGen in `Tests` mode and emits one shim per discovered suite: `SuiteName_TestsShim.cs`. No extra MSBuild targets or manual generator calls are required, and the generator automatically focuses on the first referenced `*.Tests` assembly unless you override `FSharpShimsTestAssemblyName`.
 4. Run `dotnet test` on the C# project; gdUnit4 discovers the shim classes (they have `[TestSuite]`). Each shim method obtains a `MethodInfo` on the F# implementation instance and invokes it (awaiting Tasks).
 
-The targets also emit a ready-to-use `Run-GodotTests.ps1` script next to your test shim project (enabled by default). Override `FSharpShimsTestsScriptPath` to place it elsewhere, or disable generation via `FSharpShimsTestsScriptEnabled=false` if you prefer to supply your own runner.
+The targets also emit a ready-to-use `Run-GodotTests.ps1` script next to your test shim project (enabled by default). The helper wraps `dotnet test` with a TRX logger (the standard VSTest XML results format), prints a concise per-case summary, and still offers knobs such as `-SkipBuild` and `-CleanupOnly`. Override `FSharpShimsTestsScriptPath` to place it elsewhere, or disable generation via `FSharpShimsTestsScriptEnabled=false` if you prefer to supply your own runner.
 
 ### Discovery heuristics
 
@@ -522,50 +522,38 @@ Future optimization: skip regeneration when all existing shim files are newer th
 | Duplicate gdUnit4 warnings                                  | Including adapter sources twice                                         | Condition inclusion or disable addon sources in TestShims            |
 | Crash (AccessViolation) running TestShims via `dotnet test` | Godot engine not initialized; native ResourceLoader static ctor invoked | Use headless Godot runner script or run through Godot CLI            |
 
-### Headless Godot test runs
+dotnet test
 
-Engine-driven F# gdUnit4 tests (those that touch APIs requiring an initialized engine: `ResourceLoader`, scene loading, nodes) must execute under a Godot process. Running `dotnet test` directly on `FsharpWithShim.TestShims.csproj` loads the shim assembly in a plain test host and can crash with an access violation.
+### Test shim runner
 
-Use the helper script added in `ExampleProject/TestShims/Run-GodotTests.ps1` (the template emits the same script under `TestShims/Run-GodotTests.ps1`):
+Use the helper script added in `ExampleProject/TestShims/Run-GodotTests.ps1` (the template emits the same script under `TestShims/Run-GodotTests.ps1`) to drive `dotnet test` with rich summaries:
 
 ```powershell
 cd ExampleProject/TestShims
-./Run-GodotTests.ps1 -Configuration Debug -GodotBin "C:\Path\To\Godot.exe"
+./Run-GodotTests.ps1 -Configuration Debug
 ```
 
 Parameters:
 
 - `-Configuration` (default Debug)
-- `-GodotBin` path to Godot Mono executable (falls back to `$env:GODOT_BIN` or `Godot/godot.exe` under repo root)
-- `-SkipBuild` to reuse existing build
-- `-Quiet` suppresses detailed per-suite/test output (verbose is the default)
-- `-ShowWindow` runs tests with a window (default is headless with Dummy audio)
-- `-CleanupOnly` kills stale `godot`/`testhost`/`vstest` processes and exits (no build/run)
+- `-SkipBuild` to reuse an existing build
+- `-Quiet` to suppress the colored per-case summary
+- `-CleanupOnly` kills stale `godot`/`testhost`/`vstest` processes and exits without running tests
 
 What the script does:
 
-1. Builds the TestShims project (unless `-SkipBuild`).
-2. Locates `FsharpWithShim.TestShims.dll` under `.godot/mono/temp/bin/<Configuration>`.
-3. Launches Godot with the gdUnit4 runner (`res://addons/gdUnit4/runners/GdUnit4.dll -a`) in headless mode by default or windowed with `-ShowWindow`.
-4. Kills stale `godot`/`testhost`/`vstest` processes pre/post run, streams output, and summarizes the latest gdUnit4 XML report.
+1. Stops leftover `godot`/`testhost`/`vstest` processes for a clean slate.
+2. Ensures the TestShims project is built unless `-SkipBuild` is supplied.
+3. Invokes `dotnet test <TestShims.csproj>` with a TRX logger (VSTest XML results) that writes to `TestResults/Latest.trx`.
+4. Parses the TRX file and prints a colorized summary for each test case (status, duration, optional failure details).
 
-Planned: suite filtering via `SHIMGEN_TEST_SUITES` or a script parameter that maps to gdUnit4 `-suites=...` argument.
+If you need advanced `dotnet test` switches, fall back to invoking `dotnet test` directly—the generated project already references gdUnit4 and the shim assembly. The helper script simply streamlines the common case and improves readability of failures.
 
-Recommendation: reserve `dotnet test ShimGen.Tests` for generator tests; use the headless script (or direct Godot CLI) for gameplay tests.
-
-Windowed test runs (useful for diagnostics):
-
-```powershell
-cd ExampleProject/TestShims
-./Run-GodotTests.ps1 -GodotBin "C:\Path\To\Godot.exe" -ShowWindow
-```
-
-Cleanup only (then run your own dotnet test):
+Cleanup only (useful before other runners):
 
 ```powershell
 cd ExampleProject/TestShims
 ./Run-GodotTests.ps1 -CleanupOnly
-dotnet test
 ```
 
 ### Source control

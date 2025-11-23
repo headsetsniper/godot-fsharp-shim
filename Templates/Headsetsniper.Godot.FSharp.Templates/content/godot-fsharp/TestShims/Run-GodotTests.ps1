@@ -1,21 +1,17 @@
 param(
     [string]$Configuration = "Debug",
-    [string]$GodotBin,
     [switch]$SkipBuild,
     [switch]$Quiet,
-    [switch]$ShowWindow,
     [switch]$CleanupOnly
 )
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$testShimsProj = Get-ChildItem -Path $PSScriptRoot -Filter '*.TestShims.csproj' -File | Select-Object -First 1
-if (-not $testShimsProj) {
-    throw "[shimgen][tests] Could not locate a '*.TestShims.csproj' under $PSScriptRoot."
+Set-StrictMode -Version Latest
+
+$testProject = Join-Path $PSScriptRoot 'fsharp.TestShims.csproj'
+if (-not (Test-Path $testProject)) {
+    throw "[shimgen][tests] Expected test project at $testProject."
 }
-$testShimsProj = $testShimsProj.FullName
-$testShimsAssemblyName = [System.IO.Path]::GetFileNameWithoutExtension($testShimsProj)
-$projectDir = (Resolve-Path $repoRoot).ProviderPath
 
 function Stop-StaleProcesses {
     param([string[]]$Names)
@@ -42,189 +38,106 @@ function Stop-StaleProcesses {
     }
 }
 
-function Get-LatestGdUnitReport {
-    param([string]$ReportsRoot)
-    if (-not (Test-Path $ReportsRoot)) { return $null }
+function Write-TestSummary {
+    param([string]$TrxPath)
 
-    Get-ChildItem -Path $ReportsRoot -Filter 'results.xml' -Recurse -File |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
-}
-
-function Write-GdUnitReportSummary {
-    param(
-        [System.IO.FileInfo]$ReportFile,
-        [switch]$Verbose
-    )
-
-    if (-not $ReportFile) { return }
-
-    try {
-        [xml]$report = Get-Content -Path $ReportFile.FullName
-    }
-    catch {
-        Write-Warning "[shimgen][tests] Failed to read report $($ReportFile.FullName): $($_.Exception.Message)"
+    if (-not (Test-Path -LiteralPath $TrxPath)) {
+        Write-Warning "[shimgen][tests] Expected TRX results at $TrxPath but none found."
         return
     }
 
-    $root = $report.testsuites
-    if (-not $root) { return }
+    try {
+        [xml]$trx = Get-Content -LiteralPath $TrxPath
+    }
+    catch {
+        Write-Warning "[shimgen][tests] Failed to parse TRX results: $($_.Exception.Message)"
+        return
+    }
 
-    $total = [int]$root.tests
-    $failures = [int]$root.failures
-    $skipped = [int]$root.skipped
-    $time = [double]$root.time
-    $summaryColor = if ($failures -gt 0) { 'Red' } else { 'Green' }
+    $results = @($trx.TestRun.Results.UnitTestResult)
+    if ($results.Count -eq 0) {
+        Write-Host "[shimgen][tests] No test results found in TRX." -ForegroundColor Yellow
+        return
+    }
 
-    Write-Host ([string]::Format('[shimgen][tests] Report: {0}', $ReportFile.DirectoryName)) -ForegroundColor $summaryColor
-    Write-Host ([string]::Format('[shimgen][tests] Total={0} Failures={1} Skipped={2} Time={3}s', $total, $failures, $skipped, $time)) -ForegroundColor $summaryColor
+    Write-Host "[shimgen][tests] Test case results:" -ForegroundColor Cyan
+    foreach ($result in $results) {
+        $status = $result.outcome
+        $name = $result.testName
+        $duration = $result.duration
 
-    if (-not $Verbose) { return }
+        $color = 'Gray'
+        switch ($status.ToLowerInvariant()) {
+            'passed' { $color = 'Green' }
+            'failed' { $color = 'Red' }
+            'skipped' { $color = 'Yellow' }
+        }
 
-    foreach ($suite in @($root.testsuite)) {
-        if (-not $suite) { continue }
-        $suiteFailures = [int]$suite.failures + [int]$suite.errors
-        $suiteColor = if ($suiteFailures -gt 0) { 'Red' } else { 'Cyan' }
-        Write-Host ([string]::Format('  Suite {0}: Tests={1} Failures={2} Skipped={3} Time={4}s', $suite.name, $suite.tests, $suiteFailures, $suite.skipped, $suite.time)) -ForegroundColor $suiteColor
-        foreach ($case in @($suite.testcase)) {
-            if (-not $case) { continue }
-            if ($case.failure -or $case.error) {
-                Write-Warning ([string]::Format('    FAIL {0}', $case.name))
+        $durationText = if ($duration) { $duration } else { 'n/a' }
+        Write-Host ("  [{0}] {1} ({2})" -f $status.ToUpperInvariant(), $name, $durationText) -ForegroundColor $color
+
+        $outputNode = $null
+        if ($result.PSObject.Properties.Name -contains 'Output') {
+            $outputNode = $result.Output
+        }
+
+        $errorInfo = $null
+        if ($outputNode -and $outputNode.PSObject.Properties.Name -contains 'ErrorInfo') {
+            $errorInfo = $outputNode.ErrorInfo
+        }
+
+        if ($errorInfo) {
+            $message = $errorInfo.Message
+            if ($message) {
+                Write-Host ("      Message: {0}" -f ($message.Trim())) -ForegroundColor $color
             }
-            elseif ($Verbose) {
-                Write-Host ([string]::Format('    ok {0}', $case.name)) -ForegroundColor DarkGray
+
+            $stackTrace = $errorInfo.StackTrace
+            if ($stackTrace) {
+                Write-Host ("      StackTrace: {0}" -f ($stackTrace.Trim())) -ForegroundColor DarkGray
             }
         }
     }
 }
-
-function Get-GodotBinFromRunSettings {
-    param([string[]]$RunSettingsPaths)
-
-    foreach ($path in $RunSettingsPaths) {
-        if (-not $path) { continue }
-        if (-not (Test-Path $path)) { continue }
-
-        try {
-            [xml]$doc = Get-Content -Path $path
-        }
-        catch {
-            Write-Warning "[shimgen][tests] Failed to parse runsettings '$path': $($_.Exception.Message)"
-            continue
-        }
-
-        $envNodes = $doc.SelectNodes('//EnvironmentVariables/*')
-        foreach ($envNode in @($envNodes)) {
-            if ($envNode -and $envNode.LocalName -eq 'GODOT_BIN') {
-                $value = $envNode.InnerText.Trim()
-                if ($value) {
-                    Write-Host "[shimgen][tests] Using GODOT_BIN from runsettings '$path'" -ForegroundColor DarkCyan
-                    return $value
-                }
-            }
-        }
-    }
-
-    return $null
-}
-
-if (-not $CleanupOnly) {
-    if (-not $GodotBin) { $GodotBin = $env:GODOT_BIN }
-    if (-not $GodotBin) {
-        $runsettingsCandidates = @(
-            (Join-Path $PSScriptRoot '.runsettings'),
-            (Join-Path $repoRoot '.runsettings'),
-            (Join-Path $repoRoot 'Tests\.runsettings')
-        )
-        $GodotBin = Get-GodotBinFromRunSettings -RunSettingsPaths $runsettingsCandidates
-    }
-    if (-not $GodotBin) {
-        $defaultCandidate = Join-Path $repoRoot 'Godot' 'godot.exe'
-        if (Test-Path $defaultCandidate) { $GodotBin = $defaultCandidate }
-    }
-    if (-not $GodotBin -or -not (Test-Path $GodotBin)) {
-        Write-Error "Godot executable not found. Provide -GodotBin or set GODOT_BIN environment variable."
-    }
-}
-
-$isVerbose = -not $Quiet
 
 $processKillList = @('godot', 'godot*', 'testhost', 'testhost*', 'vstest*')
 Stop-StaleProcesses -Names $processKillList
 
 if ($CleanupOnly) {
-    Write-Host "[shimgen][tests] Cleanup-only: terminated stale processes, exiting without build/run." -ForegroundColor Cyan
+    Write-Host "[shimgen][tests] Cleanup-only: terminated stale processes, exiting without run." -ForegroundColor Cyan
     return
 }
 
-if (-not $SkipBuild) {
-    Write-Host "[shimgen][tests] Building TestShims project (configuration=$Configuration)" -ForegroundColor Cyan
-    dotnet build $testShimsProj -c $Configuration | Write-Host
-}
-
-$binDir = Join-Path $PSScriptRoot ".godot/mono/temp/bin/$Configuration"
-$testAsm = Join-Path $binDir "$testShimsAssemblyName.dll"
-if (-not (Test-Path $testAsm)) {
-    Write-Error "Compiled test assembly not found at $testAsm (build may have failed)."
-}
-
-$godotArgs = @()
-if (-not $ShowWindow) {
-    $godotArgs += '--headless'
-    $godotArgs += '--audio-driver'
-    $godotArgs += 'Dummy'
-}
-$godotArgs += '--quit'
-$godotArgs += '--rendering-driver'
-$godotArgs += 'opengl3'
-$godotArgs += '--'
-$godotArgs += '-s'
-$godotArgs += 'res://addons/gdUnit4/runners/GdUnit4.dll'
-$godotArgs += '-a'
-
-Push-Location $projectDir
+Push-Location $PSScriptRoot
 try {
-    $joinedArgs = [string]::Join(' ', $godotArgs)
-    $modeLabel = if ($ShowWindow) { 'windowed' } else { 'headless' }
-    Write-Host ([string]::Format('[shimgen][tests] Running Godot {0}: {1} {2}', $modeLabel, $GodotBin, $joinedArgs)) -ForegroundColor Yellow
-    $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-    $pinfo.FileName = $GodotBin
-    if ($pinfo.PSObject.Properties.Match('ArgumentList').Count -gt 0 -and $null -ne $pinfo.ArgumentList) {
-        $pinfo.ArgumentList.AddRange($godotArgs)
+    $resultsDir = Join-Path $PSScriptRoot 'TestResults'
+    if (-not (Test-Path -LiteralPath $resultsDir)) {
+        $null = New-Item -ItemType Directory -Path $resultsDir | Out-Null
     }
-    else {
-        $pinfo.Arguments = [string]::Join(' ', $godotArgs)
-    }
-    $pinfo.RedirectStandardOutput = $true
-    $pinfo.RedirectStandardError = $true
-    $pinfo.UseShellExecute = $false
-    $pinfo.Environment['GODOT_BIN'] = $GodotBin
-    if ($isVerbose) { $pinfo.Environment['GDUNIT_VERBOSE'] = '1' }
 
-    $p = [System.Diagnostics.Process]::Start($pinfo)
-    $stdOut = $p.StandardOutput.ReadToEnd()
-    $stdErr = $p.StandardError.ReadToEnd()
-    $p.WaitForExit()
-
-    Write-Host $stdOut
-    if ($stdErr) { Write-Warning $stdErr }
-
-    if ($p.ExitCode -ne 0) {
-        Write-Error "Godot test run failed (exit code $($p.ExitCode))"
+    $resultsPath = Join-Path $resultsDir 'Latest.trx'
+    if (Test-Path -LiteralPath $resultsPath) {
+        Remove-Item -LiteralPath $resultsPath -Force
     }
-    else {
-        Write-Host '[shimgen][tests] Godot test run succeeded' -ForegroundColor Green
-        $reportsRoot = Join-Path $projectDir 'reports'
-        $latestReport = Get-LatestGdUnitReport -ReportsRoot $reportsRoot
-        if ($latestReport) {
-            Write-GdUnitReportSummary -ReportFile $latestReport -Verbose:$isVerbose
-        }
-        else {
-            Write-Warning ([string]::Format('[shimgen][tests] No gdUnit4 report found under {0}', $reportsRoot))
-        }
+
+    $dotnetArgs = @('test', $testProject, '--configuration', $Configuration, '--logger', "trx;LogFileName=$resultsPath")
+    if ($SkipBuild) { $dotnetArgs += '--no-build' }
+    if ($Quiet) { $dotnetArgs += @('--verbosity', 'quiet') }
+
+    Write-Host "[shimgen][tests] Running dotnet $($dotnetArgs -join ' ')" -ForegroundColor Yellow
+    dotnet @dotnetArgs
+    $exitCode = $LASTEXITCODE
+
+    if (Test-Path -LiteralPath $resultsPath) {
+        Write-TestSummary -TrxPath $resultsPath
     }
+
+    if ($exitCode -ne 0) {
+        throw "[shimgen][tests] dotnet test failed (exit code $exitCode)."
+    }
+    Write-Host '[shimgen][tests] dotnet test succeeded' -ForegroundColor Green
 }
 finally {
-    Stop-StaleProcesses -Names $processKillList
     Pop-Location
+    Stop-StaleProcesses -Names $processKillList
 }
