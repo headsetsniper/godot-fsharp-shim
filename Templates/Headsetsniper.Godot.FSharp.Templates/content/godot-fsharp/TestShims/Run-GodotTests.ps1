@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$testProject = Join-Path $PSScriptRoot 'fsharp.TestShims.csproj'
+$testProject = Join-Path $PSScriptRoot 'MyGodotFSharp.TestShims.csproj'
 if (-not (Test-Path $testProject)) {
     throw "[shimgen][tests] Expected test project at $testProject."
 }
